@@ -116,7 +116,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 
 func runAPI(ctx context.Context, client *forgejo.Client, args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: fjgo api <list|call>")
+		return errors.New("usage: fjgo api <list|inspect|call>")
 	}
 	switch args[0] {
 	case "list":
