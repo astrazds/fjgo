@@ -57,7 +57,7 @@ func TestVersionFlagPrintsBinaryVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); got != "fjgo v0.8.0 none unknown\n" {
+	if got := stdout.String(); got != "fjgo v0.9.0 none unknown\n" {
 		t.Fatalf("stdout = %q", got)
 	}
 }
@@ -103,6 +103,26 @@ func TestAPICallMissingPathParamHintsInspect(t *testing.T) {
 	}
 	if got := err.Error(); !strings.Contains(got, "fjgo api inspect repoGet") {
 		t.Fatalf("error = %q", got)
+	}
+}
+
+func TestAPICallMissingBodyFailsBeforeRequest(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "api", "call", "createCurrentUserRepo"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if got := err.Error(); !strings.Contains(got, "requires -body CreateRepoOption") || !strings.Contains(got, "fjgo api inspect createCurrentUserRepo") {
+		t.Fatalf("error = %q", got)
+	}
+	if called {
+		t.Fatal("server was called")
 	}
 }
 
@@ -158,6 +178,17 @@ func TestRepoTopicsAliasCanSetAndRead(t *testing.T) {
 	}
 }
 
+func TestRepoTopicsRequiresRepo(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"repo", "topics"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if got := err.Error(); !strings.Contains(got, "usage: fjgo repo topics <owner/repo>") {
+		t.Fatalf("error = %q", got)
+	}
+}
+
 func TestRepoAvatarAlias(t *testing.T) {
 	dir := t.TempDir()
 	icon := dir + "/icon.png"
@@ -194,7 +225,7 @@ func TestReleaseListAlias(t *testing.T) {
 		if r.URL.Path != "/api/v1/repos/astra/fjgo/releases" {
 			t.Fatalf("path = %q", r.URL.Path)
 		}
-		_, _ = w.Write([]byte(`[{"tag_name":"v0.8.0"}]`))
+		_, _ = w.Write([]byte(`[{"tag_name":"v0.9.0"}]`))
 	}))
 	defer server.Close()
 
@@ -203,7 +234,7 @@ func TestReleaseListAlias(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); !strings.Contains(got, `"tag_name": "v0.8.0"`) {
+	if got := stdout.String(); !strings.Contains(got, `"tag_name": "v0.9.0"`) {
 		t.Fatalf("stdout = %q", got)
 	}
 }
@@ -247,12 +278,52 @@ func TestGeneratedAliasDispatchesBodyOperation(t *testing.T) {
 	defer server.Close()
 
 	var stdout, stderr bytes.Buffer
-	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "repo", "issues", "create", "astra/fjgo", "-body", `{"title":"bug"}`}, &stdout, &stderr)
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "repo", "issues", "create", "astra/fjgo", "--yes", "-body", `{"title":"bug"}`}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
 	if got := stdout.String(); got != `{"number":2}` {
 		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestGeneratedAliasRequiresYesForPost(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "repo", "issues", "create", "astra/fjgo", "-body", `{"title":"bug"}`}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "requires --yes") {
+		t.Fatalf("error = %q", err)
+	}
+	if called {
+		t.Fatal("server was called")
+	}
+}
+
+func TestGeneratedAliasMissingBodyFailsBeforeRequest(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "repo", "issues", "create", "astra/fjgo", "--yes"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if got := err.Error(); !strings.Contains(got, "requires -body CreateIssueOption") || !strings.Contains(got, "fjgo api inspect issueCreateIssue") {
+		t.Fatalf("error = %q", got)
+	}
+	if called {
+		t.Fatal("server was called")
 	}
 }
 

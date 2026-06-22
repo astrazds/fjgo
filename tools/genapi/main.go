@@ -325,7 +325,7 @@ func aliasesFromEndpoints(endpoints []endpoint) []alias {
 			continue
 		}
 		seen[key] = true
-		aliases = append(aliases, alias{Command: command, Args: args, Operation: operationID(e), Unsafe: e.Method == "DELETE"})
+		aliases = append(aliases, alias{Command: command, Args: args, Operation: operationID(e), Unsafe: e.Method != "GET"})
 	}
 	sort.Slice(aliases, func(i, j int) bool {
 		return strings.Join(aliases[i].Command, " ") < strings.Join(aliases[j].Command, " ")

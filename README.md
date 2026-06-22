@@ -7,7 +7,7 @@ The API root defaults to `https://repos.astrazds.net/api/v1`; override it with
 
 ## Status
 
-Current app version: `v0.8.0`.
+Current app version: `v0.9.0`.
 
 `fjgo` covers the full live Forgejo Swagger surface:
 
@@ -40,9 +40,9 @@ go install repos.astrazds.net/astrazds/fjgo/cmd/fjgo@latest
 From a release archive:
 
 ```sh
-curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.8.0/fjgo_v0.8.0_linux_amd64.tar.gz
-tar -xzf fjgo_v0.8.0_linux_amd64.tar.gz
-install -Dm755 fjgo_v0.8.0_linux_amd64/fjgo ~/.local/bin/fjgo
+curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.9.0/fjgo_v0.9.0_linux_amd64.tar.gz
+tar -xzf fjgo_v0.9.0_linux_amd64.tar.gz
+install -Dm755 fjgo_v0.9.0_linux_amd64/fjgo ~/.local/bin/fjgo
 ```
 
 ## Quick Start
@@ -104,13 +104,14 @@ fjgo api call createCurrentUserRepo -body '{"name":"demo","private":true}'
 
 For `api call`, `name=value` arguments matching path parameters fill the path;
 the rest become query parameters. JSON bodies can be inline, `@file`, or `-`
-for stdin.
+for stdin. Operations with a documented body schema fail locally when `-body`
+is omitted.
 
 `fjgo alias list` shows generated convenience commands for clear Swagger path
 shapes. `fjgo alias inspect <command...>` shows the mapped operation, required
 positional args, method, path, body type, and whether `--yes` is required.
 Aliases use positional path args plus `name=value` query args, with `-body`
-matching `api call`.
+matching `api call`. Generated aliases for mutating operations require `--yes`.
 
 Common aliases:
 
@@ -180,7 +181,7 @@ Forgejo Actions runs the same verifier on pushes and pull requests via
 Build release archives into `dist/`:
 
 ```sh
-VERSION=v0.8.0 ./scripts/release.sh
+VERSION=v0.9.0 ./scripts/release.sh
 ```
 
 Override targets when testing locally:
@@ -198,7 +199,7 @@ uploads them to a Forgejo release using the Actions token.
 Smoke check a published release archive:
 
 ```sh
-VERSION=v0.8.0 ./scripts/smoke-release.sh
+VERSION=v0.9.0 ./scripts/smoke-release.sh
 ```
 
 ## License

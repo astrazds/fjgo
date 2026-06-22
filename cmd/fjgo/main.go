@@ -21,7 +21,7 @@ import (
 const defaultBaseURL = "https://repos.astrazds.net/api/v1"
 
 var (
-	version = "v0.8.0"
+	version = "v0.9.0"
 	commit  = "none"
 	date    = "unknown"
 )
@@ -195,6 +195,8 @@ func callOperation(ctx context.Context, client *forgejo.Client, args []string, s
 		if err != nil {
 			return err
 		}
+	} else if op.BodyType != "" {
+		return missingBodyError(op)
 	}
 	out, err := client.DoOperationRaw(ctx, op, pathValues, forgejo.RequestOptions{
 		Query: query,
@@ -229,6 +231,9 @@ func runRepo(ctx context.Context, client *forgejo.Client, args []string, stdout 
 		}
 		return writeJSON(stdout, out)
 	case "topics":
+		if len(args) < 2 {
+			return errors.New("usage: fjgo repo topics <owner/repo> [--set comma,separated,topics]")
+		}
 		owner, repo, err := splitRepo(args[1])
 		if err != nil {
 			return err
@@ -352,6 +357,8 @@ func runAlias(ctx context.Context, client *forgejo.Client, args []string, stdout
 		if err != nil {
 			return err
 		}
+	} else if op.BodyType != "" {
+		return missingBodyError(op)
 	}
 	out, err := client.DoOperationRaw(ctx, op, pathValues, forgejo.RequestOptions{
 		Query: query,
@@ -524,6 +531,10 @@ func readJSONBody(value string) (any, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+func missingBodyError(op forgejo.Operation) error {
+	return fmt.Errorf("%s requires -body %s; run `fjgo api inspect %s`", op.ID, op.BodyType, op.ID)
 }
 
 func writeJSON(w io.Writer, v any) error {
