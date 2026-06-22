@@ -34,6 +34,13 @@ type Operation struct {
 	PathParams []string
 }
 
+type Alias struct {
+	Command   []string
+	Args      []string
+	Operation string
+	Unsafe    bool
+}
+
 type HTTPError struct {
 	StatusCode int
 	Body       string

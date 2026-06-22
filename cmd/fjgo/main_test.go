@@ -208,6 +208,113 @@ func TestReleaseListAlias(t *testing.T) {
 	}
 }
 
+func TestGeneratedAliasDispatchesGETOperation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.String(); got != "/api/v1/repos/astra/fjgo/issues?state=open" {
+			t.Fatalf("url = %q", got)
+		}
+		_, _ = w.Write([]byte(`[{"number":1}]`))
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "repo", "issues", "list", "astra/fjgo", "state=open"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if got := stdout.String(); got != `[{"number":1}]` {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestGeneratedAliasDispatchesBodyOperation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/repos/astra/fjgo/issues" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s", r.Method)
+		}
+		var body map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body["title"] != "bug" {
+			t.Fatalf("body = %#v", body)
+		}
+		_, _ = w.Write([]byte(`{"number":2}`))
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "repo", "issues", "create", "astra/fjgo", "-body", `{"title":"bug"}`}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if got := stdout.String(); got != `{"number":2}` {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestGeneratedAliasRequiresYesForDelete(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "repo", "delete", "astra/fjgo"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "requires --yes") {
+		t.Fatalf("error = %q", err)
+	}
+	if called {
+		t.Fatal("server was called")
+	}
+}
+
+func TestGeneratedAliasAllowsDeleteWithYes(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/repos/astra/fjgo" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		if r.Method != http.MethodDelete {
+			t.Fatalf("method = %s", r.Method)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "repo", "delete", "astra/fjgo", "--yes"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+}
+
+func TestAliasInspectShowsMapping(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"alias", "inspect", "repo", "issues", "get"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	got := stdout.String()
+	for _, want := range []string{
+		"command: repo issues get",
+		"operation: issueGetIssue",
+		"method: GET",
+		"path: /repos/{owner}/{repo}/issues/{index}",
+		"args: owner/repo, index",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("inspect output missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestErrorMessageFormatsAPIErrorJSON(t *testing.T) {
 	err := errorMessage(forgejo.HTTPError{StatusCode: 401, Body: `{"message":"token is required","url":"https://example.invalid"}`})
 	if err != "forgejo api: status 401: token is required (https://example.invalid)" {

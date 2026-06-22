@@ -26,6 +26,7 @@ type spec struct {
 type operation struct {
 	OperationID string              `json:"operationId"`
 	Summary     string              `json:"summary"`
+	Consumes    []string            `json:"consumes"`
 	Parameters  []parameter         `json:"parameters"`
 	Responses   map[string]response `json:"responses"`
 }
@@ -33,6 +34,7 @@ type operation struct {
 type parameter struct {
 	Name   string `json:"name"`
 	In     string `json:"in"`
+	Type   string `json:"type"`
 	Schema schema `json:"schema"`
 }
 
@@ -60,7 +62,15 @@ type endpoint struct {
 	Summary    string
 	ReturnType string
 	BodyType   string
+	Upload     bool
 	PathParams []pathParam
+}
+
+type alias struct {
+	Command   []string
+	Args      []string
+	Operation string
+	Unsafe    bool
 }
 
 type pathParam struct {
@@ -129,6 +139,7 @@ func endpointsFromSpec(s spec) []endpoint {
 				Summary:    strings.TrimSpace(op.Summary),
 				ReturnType: successType(op, s.Responses),
 				BodyType:   bodyType(op.Parameters),
+				Upload:     hasUpload(op),
 				PathParams: pathParams(op.Parameters),
 			})
 		}
@@ -147,6 +158,20 @@ func bodyType(params []parameter) string {
 		}
 	}
 	return ""
+}
+
+func hasUpload(op operation) bool {
+	for _, consume := range op.Consumes {
+		if strings.Contains(strings.ToLower(consume), "multipart/") {
+			return true
+		}
+	}
+	for _, p := range op.Parameters {
+		if p.In == "formData" || p.Type == "file" {
+			return true
+		}
+	}
+	return false
 }
 
 func successType(op operation, responses map[string]response) string {
@@ -246,6 +271,8 @@ func writeEndpointsFile(w io.Writer, endpoints []endpoint) {
 	fmt.Fprintln(w, "\treturn Operation{}, false")
 	fmt.Fprintln(w, "}")
 	fmt.Fprintln(w)
+	writeAliases(w, aliasesFromEndpoints(endpoints))
+	fmt.Fprintln(w)
 	for _, e := range endpoints {
 		if e.Summary != "" {
 			fmt.Fprintf(w, "// %s %s.\n", e.FuncName, sanitizeComment(e.Summary))
@@ -280,6 +307,203 @@ func writeEndpointsFile(w io.Writer, endpoints []endpoint) {
 		fmt.Fprintln(w, "}")
 		fmt.Fprintln(w)
 	}
+}
+
+func aliasesFromEndpoints(endpoints []endpoint) []alias {
+	var aliases []alias
+	seen := map[string]bool{}
+	for _, e := range endpoints {
+		if e.Upload || strings.Contains(strings.ToLower(e.Operation), "deprecated") || strings.HasPrefix(strings.ToLower(e.Operation), "activitypub") {
+			continue
+		}
+		command, args, ok := aliasCommand(e)
+		if !ok {
+			continue
+		}
+		key := strings.Join(command, "\x00")
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		aliases = append(aliases, alias{Command: command, Args: args, Operation: operationID(e), Unsafe: e.Method == "DELETE"})
+	}
+	sort.Slice(aliases, func(i, j int) bool {
+		return strings.Join(aliases[i].Command, " ") < strings.Join(aliases[j].Command, " ")
+	})
+	return aliases
+}
+
+func aliasCommand(e endpoint) ([]string, []string, bool) {
+	parts := strings.Split(strings.Trim(e.Path, "/"), "/")
+	if len(parts) == 0 {
+		return nil, nil, false
+	}
+	switch parts[0] {
+	case "repos":
+		if len(parts) < 3 || parts[1] != "{owner}" || parts[2] != "{repo}" {
+			return nil, nil, false
+		}
+		cmd := append([]string{"repo"}, aliasTail(e, parts[3:])...)
+		return cmd, aliasArgs(e, "owner/repo", e.PathParams[2:]), true
+	case "orgs":
+		if len(parts) > 1 && parts[1] == "{org}" {
+			cmd := append([]string{"org"}, aliasTail(e, parts[2:])...)
+			return cmd, aliasArgs(e, "org", e.PathParams[1:]), true
+		}
+		cmd := append([]string{"org"}, aliasTail(e, parts[1:])...)
+		return cmd, aliasArgs(e, "", e.PathParams), true
+	case "user":
+		cmd := append([]string{"user"}, aliasTail(e, parts[1:])...)
+		return cmd, aliasArgs(e, "", e.PathParams), true
+	case "users":
+		if len(parts) > 1 && parts[1] == "{username}" {
+			cmd := append([]string{"user"}, aliasTail(e, parts[2:])...)
+			return cmd, aliasArgs(e, "username", e.PathParams[1:]), true
+		}
+		cmd := append([]string{"user"}, aliasTail(e, parts[1:])...)
+		return cmd, aliasArgs(e, "", e.PathParams), true
+	case "admin":
+		cmd := append([]string{"admin"}, aliasTail(e, parts[1:])...)
+		return cmd, aliasArgs(e, "", e.PathParams), true
+	case "packages":
+		cmd := append([]string{"package"}, aliasTail(e, parts[1:])...)
+		return cmd, aliasArgs(e, "", e.PathParams), true
+	case "notifications":
+		cmd := append([]string{"notification"}, aliasTail(e, parts[1:])...)
+		return cmd, aliasArgs(e, "", e.PathParams), true
+	case "licenses", "gitignore", "label":
+		cmd := append([]string{parts[0]}, aliasTail(e, parts[1:])...)
+		return cmd, aliasArgs(e, "", e.PathParams), true
+	default:
+		return nil, nil, false
+	}
+}
+
+func aliasTail(e endpoint, parts []string) []string {
+	var out []string
+	for _, part := range parts {
+		if strings.HasPrefix(part, "{") || part == "-" {
+			continue
+		}
+		out = append(out, aliasWord(part))
+	}
+	verb := aliasVerb(e.Method, e.Operation)
+	if len(out) == 0 || out[len(out)-1] != verb {
+		out = append(out, verb)
+	}
+	return out
+}
+
+func aliasVerb(method, operation string) string {
+	op := strings.ToLower(operation)
+	switch method {
+	case "GET":
+		switch {
+		case strings.Contains(op, "search"):
+			return "search"
+		case strings.Contains(op, "list") || strings.Contains(op, "all"):
+			return "list"
+		default:
+			return "get"
+		}
+	case "POST":
+		switch {
+		case strings.Contains(op, "create"):
+			return "create"
+		case strings.Contains(op, "add"):
+			return "add"
+		case strings.Contains(op, "run"):
+			return "run"
+		case strings.Contains(op, "accept"):
+			return "accept"
+		case strings.Contains(op, "reject"):
+			return "reject"
+		case strings.Contains(op, "rename"):
+			return "rename"
+		case strings.Contains(op, "update"):
+			return "update"
+		case strings.Contains(op, "link"):
+			return "link"
+		case strings.Contains(op, "unlink"):
+			return "unlink"
+		default:
+			return "post"
+		}
+	case "PUT":
+		switch {
+		case strings.Contains(op, "add"):
+			return "add"
+		case strings.Contains(op, "set"):
+			return "set"
+		case strings.Contains(op, "update"):
+			return "update"
+		default:
+			return "put"
+		}
+	case "PATCH":
+		return "edit"
+	case "DELETE":
+		switch {
+		case strings.Contains(op, "remove"):
+			return "remove"
+		default:
+			return "delete"
+		}
+	default:
+		return strings.ToLower(method)
+	}
+}
+
+func aliasArgs(e endpoint, first string, rest []pathParam) []string {
+	var args []string
+	if first != "" {
+		args = append(args, first)
+	}
+	for _, p := range rest {
+		args = append(args, p.Name)
+	}
+	return args
+}
+
+func aliasWord(s string) string {
+	s = strings.Trim(s, "{}")
+	s = strings.ReplaceAll(s, "_", "-")
+	return strings.ToLower(s)
+}
+
+func operationID(e endpoint) string {
+	if e.Operation != "" {
+		return e.Operation
+	}
+	return e.FuncName
+}
+
+func writeAliases(w io.Writer, aliases []alias) {
+	fmt.Fprintln(w, "var aliases = []Alias{")
+	for _, a := range aliases {
+		fmt.Fprint(w, "\t{Command: []string{")
+		for i, part := range a.Command {
+			if i > 0 {
+				fmt.Fprint(w, ", ")
+			}
+			fmt.Fprintf(w, "%q", part)
+		}
+		fmt.Fprint(w, "}, Args: []string{")
+		for i, arg := range a.Args {
+			if i > 0 {
+				fmt.Fprint(w, ", ")
+			}
+			fmt.Fprintf(w, "%q", arg)
+		}
+		fmt.Fprintf(w, "}, Operation: %q, Unsafe: %t},\n", a.Operation, a.Unsafe)
+	}
+	fmt.Fprintln(w, "}")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "func Aliases() []Alias {")
+	fmt.Fprintln(w, "\tout := make([]Alias, len(aliases))")
+	fmt.Fprintln(w, "\tcopy(out, aliases)")
+	fmt.Fprintln(w, "\treturn out")
+	fmt.Fprintln(w, "}")
 }
 
 func writeModelsFile(w io.Writer, definitions map[string]schema) {

@@ -41,7 +41,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	timeout := fs.Duration("timeout", 15*time.Second, "HTTP timeout")
 	showVersion := fs.Bool("version", false, "print fjgo version")
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "usage: fjgo [flags] <version|me|get|api|repo|release>")
+		fmt.Fprintln(stderr, "usage: fjgo [flags] <version|me|get|api|alias|repo|release>")
 		fmt.Fprintln(stderr, "\ncommands:")
 		fmt.Fprintln(stderr, "  version     print the Forgejo server version")
 		fmt.Fprintln(stderr, "  me          print the authenticated user")
@@ -49,6 +49,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		fmt.Fprintln(stderr, "  api list [filter]")
 		fmt.Fprintln(stderr, "  api inspect <operationId>")
 		fmt.Fprintln(stderr, "  api call <operationId> [name=value ...] [-body JSON|@file|-]")
+		fmt.Fprintln(stderr, "  alias list")
+		fmt.Fprintln(stderr, "  alias inspect <command...>")
 		fmt.Fprintln(stderr, "  repo get <owner/repo>")
 		fmt.Fprintln(stderr, "  repo topics <owner/repo> [--set comma,separated,topics]")
 		fmt.Fprintln(stderr, "  repo avatar <owner/repo> <png>")
@@ -105,12 +107,14 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return err
 	case "api":
 		return runAPI(ctx, client, fs.Args()[1:], stdout, stderr)
+	case "alias":
+		return runAliasInfo(fs.Args()[1:], stdout)
 	case "repo":
 		return runRepo(ctx, client, fs.Args()[1:], stdout)
 	case "release":
 		return runRelease(ctx, client, fs.Args()[1:], stdout)
 	default:
-		return fmt.Errorf("unknown command %q", fs.Arg(0))
+		return runAlias(ctx, client, fs.Args(), stdout)
 	}
 }
 
@@ -207,17 +211,17 @@ func callOperation(ctx context.Context, client *forgejo.Client, args []string, s
 }
 
 func runRepo(ctx context.Context, client *forgejo.Client, args []string, stdout io.Writer) error {
-	if len(args) < 2 {
+	if len(args) == 0 {
 		return errors.New("usage: fjgo repo <get|topics> <owner/repo>; fjgo repo avatar <owner/repo> <png>")
-	}
-	owner, repo, err := splitRepo(args[1])
-	if err != nil {
-		return err
 	}
 	switch args[0] {
 	case "get":
 		if len(args) != 2 {
 			return errors.New("usage: fjgo repo get <owner/repo>")
+		}
+		owner, repo, err := splitRepo(args[1])
+		if err != nil {
+			return err
 		}
 		out, err := client.RepoGet(ctx, owner, repo, forgejo.RequestOptions{})
 		if err != nil {
@@ -225,6 +229,10 @@ func runRepo(ctx context.Context, client *forgejo.Client, args []string, stdout 
 		}
 		return writeJSON(stdout, out)
 	case "topics":
+		owner, repo, err := splitRepo(args[1])
+		if err != nil {
+			return err
+		}
 		args, topics, err := takeSetFlag(args[2:])
 		if err != nil {
 			return err
@@ -246,13 +254,17 @@ func runRepo(ctx context.Context, client *forgejo.Client, args []string, stdout 
 		if len(args) != 3 {
 			return errors.New("usage: fjgo repo avatar <owner/repo> <png>")
 		}
+		owner, repo, err := splitRepo(args[1])
+		if err != nil {
+			return err
+		}
 		b, err := os.ReadFile(args[2])
 		if err != nil {
 			return err
 		}
 		return client.RepoUpdateAvatar(ctx, owner, repo, &forgejo.UpdateRepoAvatarOption{Image: base64.StdEncoding.EncodeToString(b)}, forgejo.RequestOptions{})
 	default:
-		return fmt.Errorf("unknown repo command %q", args[0])
+		return runAlias(ctx, client, append([]string{"repo"}, args...), stdout)
 	}
 }
 
@@ -269,6 +281,110 @@ func runRelease(ctx context.Context, client *forgejo.Client, args []string, stdo
 		return err
 	}
 	return writeJSON(stdout, out)
+}
+
+func runAliasInfo(args []string, stdout io.Writer) error {
+	if len(args) == 0 {
+		return errors.New("usage: fjgo alias <list|inspect>")
+	}
+	switch args[0] {
+	case "list":
+		for _, alias := range forgejo.Aliases() {
+			op, _ := forgejo.OperationByID(alias.Operation)
+			fmt.Fprintf(stdout, "%-45s %-30s %s %s\n", strings.Join(alias.Command, " "), alias.Operation, op.Method, op.Path)
+		}
+		return nil
+	case "inspect":
+		if len(args) < 2 {
+			return errors.New("usage: fjgo alias inspect <command...>")
+		}
+		alias, ok := aliasByCommand(args[1:])
+		if !ok {
+			return fmt.Errorf("unknown alias %q", strings.Join(args[1:], " "))
+		}
+		writeAlias(stdout, alias)
+		return nil
+	default:
+		return fmt.Errorf("unknown alias command %q", args[0])
+	}
+}
+
+func runAlias(ctx context.Context, client *forgejo.Client, args []string, stdout io.Writer) error {
+	alias, rest, ok := matchAlias(args)
+	if !ok {
+		return fmt.Errorf("unknown command %q", args[0])
+	}
+	rest, body, err := takeBodyFlag(rest)
+	if err != nil {
+		return err
+	}
+	rest, yes := takeYesFlag(rest)
+	if alias.Unsafe && !yes {
+		return fmt.Errorf("%s requires --yes", strings.Join(alias.Command, " "))
+	}
+	if len(rest) < len(alias.Args) {
+		return fmt.Errorf("usage: fjgo %s %s", strings.Join(alias.Command, " "), strings.Join(alias.Args, " "))
+	}
+	pathValues := map[string]string{}
+	for i, name := range alias.Args {
+		if name == "owner/repo" {
+			owner, repo, err := splitRepo(rest[i])
+			if err != nil {
+				return err
+			}
+			pathValues["owner"] = owner
+			pathValues["repo"] = repo
+			continue
+		}
+		pathValues[name] = rest[i]
+	}
+	op, ok := forgejo.OperationByID(alias.Operation)
+	if !ok {
+		return fmt.Errorf("unknown operation %q", alias.Operation)
+	}
+	_, query, err := splitArgs(op, rest[len(alias.Args):])
+	if err != nil {
+		return err
+	}
+	var bodyValue any
+	if body != "" {
+		bodyValue, err = readJSONBody(body)
+		if err != nil {
+			return err
+		}
+	}
+	out, err := client.DoOperationRaw(ctx, op, pathValues, forgejo.RequestOptions{
+		Query: query,
+		Body:  bodyValue,
+	})
+	if err != nil {
+		return err
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	_, err = stdout.Write(out)
+	return err
+}
+
+func writeAlias(w io.Writer, alias forgejo.Alias) {
+	op, _ := forgejo.OperationByID(alias.Operation)
+	fmt.Fprintf(w, "command: %s\n", strings.Join(alias.Command, " "))
+	fmt.Fprintf(w, "operation: %s\n", alias.Operation)
+	fmt.Fprintf(w, "method: %s\n", op.Method)
+	fmt.Fprintf(w, "path: %s\n", op.Path)
+	if len(alias.Args) != 0 {
+		fmt.Fprintf(w, "args: %s\n", strings.Join(alias.Args, ", "))
+	}
+	if op.BodyType != "" {
+		fmt.Fprintf(w, "body: %s\n", op.BodyType)
+	}
+	if op.ReturnType != "" {
+		fmt.Fprintf(w, "returns: %s\n", op.ReturnType)
+	}
+	if alias.Unsafe {
+		fmt.Fprintln(w, "requires: --yes")
+	}
 }
 
 func splitRepo(full string) (string, string, error) {
@@ -336,6 +452,40 @@ func takeBodyFlag(args []string) ([]string, string, error) {
 		return append(out, args[i+2:]...), args[i+1], nil
 	}
 	return out, "", nil
+}
+
+func takeYesFlag(args []string) ([]string, bool) {
+	out := make([]string, 0, len(args))
+	yes := false
+	for _, arg := range args {
+		if arg == "--yes" {
+			yes = true
+			continue
+		}
+		out = append(out, arg)
+	}
+	return out, yes
+}
+
+func matchAlias(args []string) (forgejo.Alias, []string, bool) {
+	for _, alias := range forgejo.Aliases() {
+		if len(args) < len(alias.Command) {
+			continue
+		}
+		if slices.Equal(args[:len(alias.Command)], alias.Command) {
+			return alias, args[len(alias.Command):], true
+		}
+	}
+	return forgejo.Alias{}, nil, false
+}
+
+func aliasByCommand(command []string) (forgejo.Alias, bool) {
+	for _, alias := range forgejo.Aliases() {
+		if slices.Equal(alias.Command, command) {
+			return alias, true
+		}
+	}
+	return forgejo.Alias{}, false
 }
 
 func splitArgs(op forgejo.Operation, args []string) (map[string]string, url.Values, error) {

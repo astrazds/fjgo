@@ -14,6 +14,7 @@ Current app version: `v0.8.0`.
 - `491` generated endpoint methods
 - `244` generated model types
 - `491` CLI operations via `api list`, `api inspect`, and `api call`
+- `417` generated convenience aliases via `alias list` and `alias inspect`
 - typed body parameters for operations with Swagger body schemas
 - typed return values for operations with documented success response schemas
 - Forgejo Actions verification and tag-release workflows
@@ -56,6 +57,8 @@ FJGO_TOKEN=... ./fjgo me
 ./fjgo api list repo
 ./fjgo api inspect createCurrentUserRepo
 ./fjgo api call repoGet owner=astrazds repo=fjgo
+./fjgo alias list
+./fjgo alias inspect repo issues get
 ./fjgo repo get astrazds/fjgo
 ./fjgo repo topics astrazds/fjgo
 ./fjgo repo avatar astrazds/fjgo assets/icon.png
@@ -102,6 +105,12 @@ fjgo api call createCurrentUserRepo -body '{"name":"demo","private":true}'
 For `api call`, `name=value` arguments matching path parameters fill the path;
 the rest become query parameters. JSON bodies can be inline, `@file`, or `-`
 for stdin.
+
+`fjgo alias list` shows generated convenience commands for clear Swagger path
+shapes. `fjgo alias inspect <command...>` shows the mapped operation, required
+positional args, method, path, body type, and whether `--yes` is required.
+Aliases use positional path args plus `name=value` query args, with `-body`
+matching `api call`.
 
 Common aliases:
 
