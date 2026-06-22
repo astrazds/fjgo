@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -56,8 +57,21 @@ func TestVersionFlagPrintsBinaryVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); got != "fjgo dev none unknown\n" {
+	if got := stdout.String(); got != "fjgo v0.8.0 none unknown\n" {
 		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestHelpDoesNotPrintTokenFromEnvironment(t *testing.T) {
+	t.Setenv("FJGO_TOKEN", "secret-token")
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"--help"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected help error")
+	}
+	if strings.Contains(stderr.String(), "secret-token") {
+		t.Fatalf("help leaked token:\n%s", stderr.String())
 	}
 }
 
@@ -144,12 +158,43 @@ func TestRepoTopicsAliasCanSetAndRead(t *testing.T) {
 	}
 }
 
+func TestRepoAvatarAlias(t *testing.T) {
+	dir := t.TempDir()
+	icon := dir + "/icon.png"
+	if err := os.WriteFile(icon, []byte("png"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/repos/astra/fjgo/avatar" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s", r.Method)
+		}
+		var body map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body["image"] != "cG5n" {
+			t.Fatalf("image = %q", body["image"])
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "repo", "avatar", "astra/fjgo", icon}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+}
+
 func TestReleaseListAlias(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v1/repos/astra/fjgo/releases" {
 			t.Fatalf("path = %q", r.URL.Path)
 		}
-		_, _ = w.Write([]byte(`[{"tag_name":"v0.1.0"}]`))
+		_, _ = w.Write([]byte(`[{"tag_name":"v0.8.0"}]`))
 	}))
 	defer server.Close()
 
@@ -158,7 +203,7 @@ func TestReleaseListAlias(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); !strings.Contains(got, `"tag_name": "v0.1.0"`) {
+	if got := stdout.String(); !strings.Contains(got, `"tag_name": "v0.8.0"`) {
 		t.Fatalf("stdout = %q", got)
 	}
 }

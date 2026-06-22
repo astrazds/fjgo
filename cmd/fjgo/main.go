@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -20,7 +21,7 @@ import (
 const defaultBaseURL = "https://repos.astrazds.net/api/v1"
 
 var (
-	version = "dev"
+	version = "v0.8.0"
 	commit  = "none"
 	date    = "unknown"
 )
@@ -36,7 +37,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	fs := flag.NewFlagSet("fjgo", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	baseURL := fs.String("base-url", getenv("FJGO_BASE_URL", defaultBaseURL), "Forgejo API base URL")
-	token := fs.String("token", os.Getenv("FJGO_TOKEN"), "Forgejo access token")
+	token := fs.String("token", "", "Forgejo access token (or FJGO_TOKEN)")
 	timeout := fs.Duration("timeout", 15*time.Second, "HTTP timeout")
 	showVersion := fs.Bool("version", false, "print fjgo version")
 	fs.Usage = func() {
@@ -50,6 +51,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		fmt.Fprintln(stderr, "  api call <operationId> [name=value ...] [-body JSON|@file|-]")
 		fmt.Fprintln(stderr, "  repo get <owner/repo>")
 		fmt.Fprintln(stderr, "  repo topics <owner/repo> [--set comma,separated,topics]")
+		fmt.Fprintln(stderr, "  repo avatar <owner/repo> <png>")
 		fmt.Fprintln(stderr, "  release list <owner/repo>")
 		fmt.Fprintln(stderr, "\nflags:")
 		fs.PrintDefaults()
@@ -64,6 +66,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	if fs.NArg() == 0 {
 		fs.Usage()
 		return errors.New("missing command")
+	}
+	if *token == "" {
+		*token = os.Getenv("FJGO_TOKEN")
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, *timeout)
@@ -203,7 +208,7 @@ func callOperation(ctx context.Context, client *forgejo.Client, args []string, s
 
 func runRepo(ctx context.Context, client *forgejo.Client, args []string, stdout io.Writer) error {
 	if len(args) < 2 {
-		return errors.New("usage: fjgo repo <get|topics> <owner/repo>")
+		return errors.New("usage: fjgo repo <get|topics> <owner/repo>; fjgo repo avatar <owner/repo> <png>")
 	}
 	owner, repo, err := splitRepo(args[1])
 	if err != nil {
@@ -237,6 +242,15 @@ func runRepo(ctx context.Context, client *forgejo.Client, args []string, stdout 
 			return err
 		}
 		return writeJSON(stdout, out)
+	case "avatar":
+		if len(args) != 3 {
+			return errors.New("usage: fjgo repo avatar <owner/repo> <png>")
+		}
+		b, err := os.ReadFile(args[2])
+		if err != nil {
+			return err
+		}
+		return client.RepoUpdateAvatar(ctx, owner, repo, &forgejo.UpdateRepoAvatarOption{Image: base64.StdEncoding.EncodeToString(b)}, forgejo.RequestOptions{})
 	default:
 		return fmt.Errorf("unknown repo command %q", args[0])
 	}

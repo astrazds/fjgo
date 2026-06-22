@@ -7,6 +7,8 @@ The API root defaults to `https://repos.astrazds.net/api/v1`; override it with
 
 ## Status
 
+Current app version: `v0.8.0`.
+
 `fjgo` covers the full live Forgejo Swagger surface:
 
 - `491` generated endpoint methods
@@ -37,9 +39,9 @@ go install repos.astrazds.net/astrazds/fjgo/cmd/fjgo@latest
 From a release archive:
 
 ```sh
-curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.1.0/fjgo_v0.1.0_linux_amd64.tar.gz
-tar -xzf fjgo_v0.1.0_linux_amd64.tar.gz
-install -Dm755 fjgo_v0.1.0_linux_amd64/fjgo ~/.local/bin/fjgo
+curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.8.0/fjgo_v0.8.0_linux_amd64.tar.gz
+tar -xzf fjgo_v0.8.0_linux_amd64.tar.gz
+install -Dm755 fjgo_v0.8.0_linux_amd64/fjgo ~/.local/bin/fjgo
 ```
 
 ## Quick Start
@@ -56,6 +58,7 @@ FJGO_TOKEN=... ./fjgo me
 ./fjgo api call repoGet owner=astrazds repo=fjgo
 ./fjgo repo get astrazds/fjgo
 ./fjgo repo topics astrazds/fjgo
+./fjgo repo avatar astrazds/fjgo assets/icon.png
 ./fjgo release list astrazds/fjgo
 ```
 
@@ -106,6 +109,7 @@ Common aliases:
 fjgo repo get astrazds/fjgo
 fjgo repo topics astrazds/fjgo
 fjgo repo topics astrazds/fjgo --set forgejo,go,cli
+fjgo repo avatar astrazds/fjgo assets/icon.png
 fjgo release list astrazds/fjgo
 ```
 
@@ -167,7 +171,7 @@ Forgejo Actions runs the same verifier on pushes and pull requests via
 Build release archives into `dist/`:
 
 ```sh
-VERSION=v0.1.0 ./scripts/release.sh
+VERSION=v0.8.0 ./scripts/release.sh
 ```
 
 Override targets when testing locally:
@@ -181,3 +185,13 @@ and writes `dist/checksums.txt`.
 
 Pushing a `v*` tag runs `.forgejo/workflows/release.yml`, builds archives, and
 uploads them to a Forgejo release using the Actions token.
+
+Smoke check a published release archive:
+
+```sh
+VERSION=v0.8.0 ./scripts/smoke-release.sh
+```
+
+## License
+
+MIT
