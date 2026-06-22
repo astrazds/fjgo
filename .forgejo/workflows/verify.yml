@@ -3,11 +3,11 @@ name: verify
 on:
   workflow_dispatch:
   push:
-    branches: [main]
   pull_request:
 
 jobs:
   verify:
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: docker-node-runner
     steps:
       - uses: actions/checkout@v5
@@ -15,3 +15,37 @@ jobs:
         with:
           go-version: "1.26.x"
       - run: ./scripts/verify.sh
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: verify
+    runs-on: docker-node-runner
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+      - name: Build archives
+        run: VERSION="${GITHUB_REF_NAME}" ./scripts/release.sh
+      - name: Create release and upload assets
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          API: ${{ github.server_url }}/api/v1
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -eu
+          body='{"tag_name":"'"$TAG"'","name":"'"$TAG"'","body":"Automated fjgo release '"$TAG"'."}'
+          curl -fsS -X POST \
+            -H "Authorization: token $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$body" \
+            "$API/repos/$REPO/releases" >/tmp/release.json
+          id="$(sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p' /tmp/release.json | head -n1)"
+          test -n "$id"
+          for asset in dist/*; do
+            curl -fsS -X POST \
+              -H "Authorization: token $TOKEN" \
+              -F "attachment=@$asset" \
+              "$API/repos/$REPO/releases/$id/assets?name=$(basename "$asset")" >/dev/null
+          done

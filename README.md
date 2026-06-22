@@ -193,8 +193,8 @@ VERSION=0.0.0-test TARGETS=linux/amd64 ./scripts/release.sh
 The script embeds `version`, `commit`, and UTC build date into `fjgo --version`
 and writes `dist/checksums.txt`.
 
-Pushing a `v*` tag runs `.forgejo/workflows/release.yml`, builds archives, and
-uploads them to a Forgejo release using the Actions token.
+Pushing a `v*` tag runs the verify workflow, then the release job builds
+archives and uploads them to a Forgejo release using the Actions token.
 
 Smoke check a published release archive:
 
