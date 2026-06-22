@@ -1,3 +1,3 @@
 package forgejo
 
-//go:generate go run ../../tools/genapi
+//go:generate ../../scripts/generate.sh

@@ -45,8 +45,12 @@ The API base defaults to `https://repos.astrazds.net/api/v1`; override with
 - `internal/forgejo`: HTTP client, generated API methods, generated models
 - `tools/genapi`: stdlib Swagger generator for `endpoints_gen.go` and
   `models_gen.go`
+- `scripts/generate.sh`: pinned/configurable Swagger generation wrapper
 - `scripts/release.sh`: cross-platform archive builder
 - `scripts/verify.sh`: full local verification gate
+- `.forgejo/workflows/verify.yml`: push/PR verification
+- `.forgejo/workflows/release.yml`: tag release archive upload
+- `swagger.v1.json`: pinned Swagger input for reproducible generation
 
 Keep command-specific parsing in `cmd/fjgo`. Keep HTTP details and JSON types in
 `internal/forgejo`. The generic `fjgo api list/inspect/call` commands are the
@@ -66,6 +70,8 @@ repetition.
 - Prefer a raw escape hatch like `get` over prematurely wrapping the whole API.
 - Regenerate API methods with `go generate ./internal/forgejo`; do not edit
   `endpoints_gen.go` or `models_gen.go` by hand.
+- Use `SPEC=/path/to/swagger.v1.json go generate ./internal/forgejo` when
+  intentionally generating from a non-pinned spec.
 - Keep `scripts/verify.sh` aligned with the live Swagger counts when the
   upstream API changes.
 
@@ -74,6 +80,7 @@ repetition.
 The v1 surface is:
 
 - `version`, `me`, and raw `get`
+- useful aliases: `repo get`, `repo topics`, `release list`
 - generic `api list/inspect/call` coverage for every Swagger operation
 - generated typed client methods and model types for the full Swagger surface
 - release archives via `scripts/release.sh`
