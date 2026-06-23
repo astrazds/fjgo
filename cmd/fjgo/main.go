@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"slices"
 	"strings"
 	"time"
@@ -21,10 +22,21 @@ import (
 const defaultBaseURL = "https://repos.astrazds.net/api/v1"
 
 var (
-	version = "v0.9.0"
+	version = "v0.10.0"
 	commit  = "none"
 	date    = "unknown"
 )
+
+type repoRef struct {
+	Owner string `json:"owner"`
+	Repo  string `json:"repo"`
+}
+
+type runConfig struct {
+	BaseURL    string
+	Token      string
+	RemoteRepo *repoRef
+}
 
 func main() {
 	if err := run(context.Background(), os.Args[1:], os.Stdout, os.Stderr); err != nil {
@@ -40,25 +52,34 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	token := fs.String("token", "", "Forgejo access token (or FJGO_TOKEN)")
 	timeout := fs.Duration("timeout", 15*time.Second, "HTTP timeout")
 	showVersion := fs.Bool("version", false, "print fjgo version")
+	remote := fs.String("R", "", "resolve owner/repo from git remote")
+	remoteLong := fs.String("repo-from-remote", "", "resolve owner/repo from git remote")
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "usage: fjgo [flags] <version|me|get|api|alias|repo|release>")
+		fmt.Fprintln(stderr, "usage: fjgo [flags] <version|me|auth|get|api|alias|model|repo|release>")
 		fmt.Fprintln(stderr, "\ncommands:")
 		fmt.Fprintln(stderr, "  version     print the Forgejo server version")
 		fmt.Fprintln(stderr, "  me          print the authenticated user")
+		fmt.Fprintln(stderr, "  auth status print base-url/token diagnostics")
 		fmt.Fprintln(stderr, "  get <path>  GET an API path, for example /version")
 		fmt.Fprintln(stderr, "  api list [filter]")
 		fmt.Fprintln(stderr, "  api inspect <operationId>")
-		fmt.Fprintln(stderr, "  api call <operationId> [name=value ...] [-body JSON|@file|-]")
+		fmt.Fprintln(stderr, "  api call <operationId> [name=value ...] [-body JSON|@file|-] [--yes]")
+		fmt.Fprintln(stderr, "  api upload <operationId> [name=value ...] attachment=@file [--yes]")
 		fmt.Fprintln(stderr, "  alias list")
 		fmt.Fprintln(stderr, "  alias inspect <command...>")
+		fmt.Fprintln(stderr, "  alias collisions")
+		fmt.Fprintln(stderr, "  model inspect <Model>")
 		fmt.Fprintln(stderr, "  repo get <owner/repo>")
-		fmt.Fprintln(stderr, "  repo topics <owner/repo> [--set comma,separated,topics]")
-		fmt.Fprintln(stderr, "  repo avatar <owner/repo> <png>")
-		fmt.Fprintln(stderr, "  release list <owner/repo>")
+		fmt.Fprintln(stderr, "  repo topics <owner/repo> [--set comma,separated,topics] [--yes]")
+		fmt.Fprintln(stderr, "  repo avatar <owner/repo> <png> --yes")
+		fmt.Fprintln(stderr, "  release list [owner/repo]")
+		fmt.Fprintln(stderr, "  release upload [owner/repo] <release-id> <file> [name=value ...] --yes")
 		fmt.Fprintln(stderr, "\nflags:")
 		fs.PrintDefaults()
 	}
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(args); errors.Is(err, flag.ErrHelp) {
+		return nil
+	} else if err != nil {
 		return err
 	}
 	if *showVersion {
@@ -72,6 +93,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	if *token == "" {
 		*token = os.Getenv("FJGO_TOKEN")
 	}
+	if *remoteLong != "" {
+		*remote = *remoteLong
+	}
 
 	ctx, cancel := context.WithTimeout(ctx, *timeout)
 	defer cancel()
@@ -79,6 +103,14 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	client, err := forgejo.NewClient(*baseURL, *token, http.DefaultClient)
 	if err != nil {
 		return err
+	}
+	cfg := runConfig{BaseURL: *baseURL, Token: *token}
+	if *remote != "" {
+		ref, err := resolveRemoteRepo(*remote, *baseURL)
+		if err != nil {
+			return err
+		}
+		cfg.RemoteRepo = ref
 	}
 
 	switch fs.Arg(0) {
@@ -95,6 +127,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 			return err
 		}
 		return writeJSON(stdout, user)
+	case "auth", "whoami":
+		return runAuth(ctx, client, cfg, fs.Args()[1:], stdout)
 	case "get":
 		if fs.NArg() != 2 {
 			return errors.New("usage: fjgo get <path>")
@@ -109,30 +143,41 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return runAPI(ctx, client, fs.Args()[1:], stdout, stderr)
 	case "alias":
 		return runAliasInfo(fs.Args()[1:], stdout)
+	case "model":
+		return runModel(fs.Args()[1:], stdout)
 	case "repo":
-		return runRepo(ctx, client, fs.Args()[1:], stdout)
+		return runRepo(ctx, client, cfg, fs.Args()[1:], stdout)
 	case "release":
-		return runRelease(ctx, client, fs.Args()[1:], stdout)
+		return runRelease(ctx, client, cfg, fs.Args()[1:], stdout)
 	default:
-		return runAlias(ctx, client, fs.Args(), stdout)
+		return runAlias(ctx, client, cfg, fs.Args(), stdout)
 	}
 }
 
 func runAPI(ctx context.Context, client *forgejo.Client, args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: fjgo api <list|inspect|call>")
+		return errors.New("usage: fjgo api <list|inspect|call|upload>")
 	}
+	args, jsonOut := takeJSONFlag(args)
 	switch args[0] {
 	case "list":
 		filter := ""
 		if len(args) > 1 {
 			filter = strings.ToLower(args[1])
 		}
+		var out []forgejo.Operation
 		for _, op := range forgejo.Operations() {
 			line := fmt.Sprintf("%-45s %-6s %s", op.ID, op.Method, op.Path)
 			if filter == "" || strings.Contains(strings.ToLower(line+" "+op.Summary), filter) {
+				if jsonOut {
+					out = append(out, op)
+					continue
+				}
 				fmt.Fprintln(stdout, line)
 			}
+		}
+		if jsonOut {
+			return writeJSON(stdout, out)
 		}
 		return nil
 	case "inspect":
@@ -143,10 +188,15 @@ func runAPI(ctx context.Context, client *forgejo.Client, args []string, stdout, 
 		if !ok {
 			return fmt.Errorf("unknown operation %q", args[1])
 		}
+		if jsonOut {
+			return writeJSON(stdout, operationView(op))
+		}
 		writeOperation(stdout, op)
 		return nil
 	case "call":
 		return callOperation(ctx, client, args[1:], stdout, stderr)
+	case "upload":
+		return uploadOperation(ctx, client, args[1:], stdout)
 	default:
 		return fmt.Errorf("unknown api command %q", args[0])
 	}
@@ -162,11 +212,72 @@ func writeOperation(w io.Writer, op forgejo.Operation) {
 	if len(op.PathParams) != 0 {
 		fmt.Fprintf(w, "path_params: %s\n", strings.Join(op.PathParams, ", "))
 	}
+	writeOperationParams(w, "query_params", op.QueryParams)
 	if op.BodyType != "" {
 		fmt.Fprintf(w, "body: %s\n", op.BodyType)
+		writeModelFields(w, "body_fields", op.BodyType)
 	}
+	writeOperationParams(w, "form_params", op.FormParams)
 	if op.ReturnType != "" {
 		fmt.Fprintf(w, "returns: %s\n", op.ReturnType)
+	}
+	if op.Upload {
+		fmt.Fprintln(w, "upload: multipart/form-data")
+	}
+}
+
+type operationInspect struct {
+	forgejo.Operation
+	BodyFields []forgejo.ModelField `json:"body_fields,omitempty"`
+}
+
+type aliasInspect struct {
+	Command       []string         `json:"command"`
+	Operation     string           `json:"operation"`
+	Args          []string         `json:"args,omitempty"`
+	Requires      []string         `json:"requires,omitempty"`
+	OperationInfo operationInspect `json:"operation_info"`
+}
+
+type requestPreview struct {
+	Operation   string               `json:"operation,omitempty"`
+	Method      string               `json:"method"`
+	Path        string               `json:"path"`
+	Query       url.Values           `json:"query,omitempty"`
+	Body        any                  `json:"body,omitempty"`
+	Form        map[string]string    `json:"form,omitempty"`
+	Files       []forgejo.UploadPart `json:"files,omitempty"`
+	Upload      bool                 `json:"upload,omitempty"`
+	AuthPresent bool                 `json:"auth_present"`
+	RequiresYes bool                 `json:"requires_yes"`
+	YesProvided bool                 `json:"yes_provided"`
+}
+
+func operationView(op forgejo.Operation) operationInspect {
+	view := operationInspect{Operation: op}
+	if op.BodyType != "" {
+		if model, ok := forgejo.ModelByName(strings.TrimPrefix(op.BodyType, "*")); ok {
+			view.BodyFields = model.Fields
+		}
+	}
+	return view
+}
+
+func writeOperationParams(w io.Writer, label string, params []forgejo.OperationParam) {
+	if len(params) == 0 {
+		return
+	}
+	fmt.Fprintf(w, "%s:\n", label)
+	for _, p := range params {
+		required := ""
+		if p.Required {
+			required = " required"
+		}
+		desc := ""
+		if p.Description != "" {
+			desc = " - " + p.Description
+		}
+		fmt.Fprintf(w, "  %s: %s%s%s\n", p.Name, p.Type, required, desc)
 	}
 }
 
@@ -175,12 +286,20 @@ func callOperation(ctx context.Context, client *forgejo.Client, args []string, s
 	if err != nil {
 		return err
 	}
+	args, yes := takeYesFlag(args)
+	args, dryRun := takeDryRunFlag(args)
 	if len(args) == 0 {
 		return errors.New("usage: fjgo api call <operationId> [name=value ...]")
 	}
 	op, ok := forgejo.OperationByID(args[0])
 	if !ok {
 		return fmt.Errorf("unknown operation %q", args[0])
+	}
+	if op.Upload {
+		return fmt.Errorf("%s uses multipart/form-data upload; use `fjgo api upload %s ... attachment=@file --yes`", op.ID, op.ID)
+	}
+	if op.Method != http.MethodGet && !yes {
+		return fmt.Errorf("%s requires --yes", op.ID)
 	}
 	pathValues, query, err := splitArgs(op, args[1:])
 	if err != nil {
@@ -198,6 +317,18 @@ func callOperation(ctx context.Context, client *forgejo.Client, args []string, s
 	} else if op.BodyType != "" {
 		return missingBodyError(op)
 	}
+	if dryRun {
+		return writeRequestPreview(stdout, requestPreview{
+			Operation:   op.ID,
+			Method:      op.Method,
+			Path:        previewPath(op, pathValues),
+			Query:       query,
+			Body:        bodyValue,
+			AuthPresent: clientHasAuth(client),
+			RequiresYes: op.Method != http.MethodGet,
+			YesProvided: yes,
+		})
+	}
 	out, err := client.DoOperationRaw(ctx, op, pathValues, forgejo.RequestOptions{
 		Query: query,
 		Body:  bodyValue,
@@ -212,33 +343,79 @@ func callOperation(ctx context.Context, client *forgejo.Client, args []string, s
 	return err
 }
 
-func runRepo(ctx context.Context, client *forgejo.Client, args []string, stdout io.Writer) error {
+func uploadOperation(ctx context.Context, client *forgejo.Client, args []string, stdout io.Writer) error {
+	args, yes := takeYesFlag(args)
+	args, dryRun := takeDryRunFlag(args)
+	if len(args) == 0 {
+		return errors.New("usage: fjgo api upload <operationId> [name=value ...] attachment=@file --yes")
+	}
+	op, ok := forgejo.OperationByID(args[0])
+	if !ok {
+		return fmt.Errorf("unknown operation %q", args[0])
+	}
+	if !op.Upload {
+		return fmt.Errorf("%s is not a multipart upload operation", op.ID)
+	}
+	if !yes {
+		return fmt.Errorf("%s requires --yes", op.ID)
+	}
+	pathValues, query, fields, files, err := splitUploadArgs(op, args[1:])
+	if err != nil {
+		return err
+	}
+	if missing := missingPathParams(op, pathValues); len(missing) != 0 {
+		return fmt.Errorf("missing path parameter %q for %s; run `fjgo api inspect %s`", missing[0], op.ID, op.ID)
+	}
+	if len(files) == 0 && fields["external_url"] == "" {
+		return fmt.Errorf("%s requires attachment=@file or external_url=value", op.ID)
+	}
+	if dryRun {
+		return writeRequestPreview(stdout, requestPreview{
+			Operation:   op.ID,
+			Method:      op.Method,
+			Path:        previewPath(op, pathValues),
+			Query:       query,
+			Form:        fields,
+			Files:       files,
+			Upload:      true,
+			AuthPresent: clientHasAuth(client),
+			RequiresYes: true,
+			YesProvided: yes,
+		})
+	}
+	out, err := client.DoOperationMultipart(ctx, op, pathValues, query, fields, files, nil)
+	if err != nil {
+		return err
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	_, err = stdout.Write(out)
+	return err
+}
+
+func runRepo(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
 	if len(args) == 0 {
 		return errors.New("usage: fjgo repo <get|topics> <owner/repo>; fjgo repo avatar <owner/repo> <png>")
 	}
 	switch args[0] {
 	case "get":
-		if len(args) != 2 {
+		ref, rest, err := repoFromArgs(cfg, args[1:])
+		if err != nil || len(rest) != 0 {
 			return errors.New("usage: fjgo repo get <owner/repo>")
 		}
-		owner, repo, err := splitRepo(args[1])
-		if err != nil {
-			return err
-		}
-		out, err := client.RepoGet(ctx, owner, repo, forgejo.RequestOptions{})
+		out, err := client.RepoGet(ctx, ref.Owner, ref.Repo, forgejo.RequestOptions{})
 		if err != nil {
 			return err
 		}
 		return writeJSON(stdout, out)
 	case "topics":
-		if len(args) < 2 {
+		ref, rest, err := repoFromArgs(cfg, args[1:])
+		if err != nil {
 			return errors.New("usage: fjgo repo topics <owner/repo> [--set comma,separated,topics]")
 		}
-		owner, repo, err := splitRepo(args[1])
-		if err != nil {
-			return err
-		}
-		args, topics, err := takeSetFlag(args[2:])
+		args, yes := takeYesFlag(rest)
+		args, topics, err := takeSetFlag(args)
 		if err != nil {
 			return err
 		}
@@ -246,57 +423,212 @@ func runRepo(ctx context.Context, client *forgejo.Client, args []string, stdout 
 			return errors.New("usage: fjgo repo topics <owner/repo> [--set comma,separated,topics]")
 		}
 		if topics != "" {
-			if err := client.RepoUpdateTopics(ctx, owner, repo, &forgejo.RepoTopicOptions{Topics: splitCSV(topics)}, forgejo.RequestOptions{}); err != nil {
+			if !yes {
+				return errors.New("repo topics --set requires --yes")
+			}
+			if err := client.RepoUpdateTopics(ctx, ref.Owner, ref.Repo, &forgejo.RepoTopicOptions{Topics: splitCSV(topics)}, forgejo.RequestOptions{}); err != nil {
 				return err
 			}
 		}
-		out, err := client.RepoListTopics(ctx, owner, repo, forgejo.RequestOptions{})
+		out, err := client.RepoListTopics(ctx, ref.Owner, ref.Repo, forgejo.RequestOptions{})
 		if err != nil {
 			return err
 		}
 		return writeJSON(stdout, out)
 	case "avatar":
-		if len(args) != 3 {
-			return errors.New("usage: fjgo repo avatar <owner/repo> <png>")
+		ref, rest, err := repoFromArgs(cfg, args[1:])
+		if err != nil {
+			return errors.New("usage: fjgo repo avatar <owner/repo> <png> --yes")
 		}
-		owner, repo, err := splitRepo(args[1])
+		rest, yes := takeYesFlag(rest)
+		if len(rest) != 1 {
+			return errors.New("usage: fjgo repo avatar <owner/repo> <png> --yes")
+		}
+		if !yes {
+			return errors.New("repo avatar requires --yes")
+		}
+		b, err := os.ReadFile(rest[0])
 		if err != nil {
 			return err
 		}
-		b, err := os.ReadFile(args[2])
-		if err != nil {
-			return err
-		}
-		return client.RepoUpdateAvatar(ctx, owner, repo, &forgejo.UpdateRepoAvatarOption{Image: base64.StdEncoding.EncodeToString(b)}, forgejo.RequestOptions{})
+		return client.RepoUpdateAvatar(ctx, ref.Owner, ref.Repo, &forgejo.UpdateRepoAvatarOption{Image: base64.StdEncoding.EncodeToString(b)}, forgejo.RequestOptions{})
+	case "issue":
+		return runRepoIssue(ctx, client, cfg, args[1:], stdout)
 	default:
-		return runAlias(ctx, client, append([]string{"repo"}, args...), stdout)
+		return runAlias(ctx, client, cfg, append([]string{"repo"}, args...), stdout)
 	}
 }
 
-func runRelease(ctx context.Context, client *forgejo.Client, args []string, stdout io.Writer) error {
-	if len(args) != 2 || args[0] != "list" {
-		return errors.New("usage: fjgo release list <owner/repo>")
+func runRelease(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
+	if len(args) == 0 {
+		return errors.New("usage: fjgo release <list|upload>")
 	}
-	owner, repo, err := splitRepo(args[1])
+	switch args[0] {
+	case "list":
+		ref, rest, err := repoFromArgs(cfg, args[1:])
+		if err != nil || len(rest) != 0 {
+			return errors.New("usage: fjgo release list [owner/repo]")
+		}
+		out, err := client.RepoListReleases(ctx, ref.Owner, ref.Repo, forgejo.RequestOptions{})
+		if err != nil {
+			return err
+		}
+		return writeJSON(stdout, out)
+	case "upload":
+		return runReleaseUpload(ctx, client, cfg, args[1:], stdout)
+	default:
+		return runAlias(ctx, client, cfg, append([]string{"repo", "releases"}, args...), stdout)
+	}
+}
+
+func runReleaseUpload(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
+	args, yes := takeYesFlag(args)
+	args, dryRun := takeDryRunFlag(args)
+	ref, rest, err := repoFromArgs(cfg, args)
+	if err != nil || len(rest) < 2 {
+		return errors.New("usage: fjgo release upload [owner/repo] <release-id> <file> [name=value ...] --yes")
+	}
+	if !yes {
+		return errors.New("release upload requires --yes")
+	}
+	op, ok := forgejo.OperationByID("repoCreateReleaseAttachment")
+	if !ok {
+		return errors.New("missing repoCreateReleaseAttachment operation")
+	}
+	pathValues := map[string]string{"owner": ref.Owner, "repo": ref.Repo, "id": rest[0]}
+	filePath := rest[1]
+	fields := map[string]string{}
+	query := url.Values{}
+	for _, arg := range rest[2:] {
+		name, value, ok := strings.Cut(arg, "=")
+		if !ok || name == "" {
+			return fmt.Errorf("expected name=value, got %q", arg)
+		}
+		if isFormParam(op, name) && name != "attachment" {
+			fields[name] = value
+			continue
+		}
+		query.Add(name, value)
+	}
+	files := []forgejo.UploadPart{{FieldName: "attachment", FilePath: filePath}}
+	if dryRun {
+		return writeRequestPreview(stdout, requestPreview{
+			Operation:   op.ID,
+			Method:      op.Method,
+			Path:        previewPath(op, pathValues),
+			Query:       query,
+			Form:        fields,
+			Files:       files,
+			Upload:      true,
+			AuthPresent: clientHasAuth(client),
+			RequiresYes: true,
+			YesProvided: yes,
+		})
+	}
+	out, err := client.DoOperationMultipart(ctx, op, pathValues, query, fields, files, nil)
 	if err != nil {
 		return err
 	}
-	out, err := client.RepoListReleases(ctx, owner, repo, forgejo.RequestOptions{})
-	if err != nil {
-		return err
+	if len(out) == 0 {
+		return nil
 	}
-	return writeJSON(stdout, out)
+	_, err = stdout.Write(out)
+	return err
+}
+
+func runRepoIssue(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
+	if len(args) == 0 {
+		return errors.New("usage: fjgo repo issue <close|comment>")
+	}
+	switch args[0] {
+	case "close":
+		args, yes := takeYesFlag(args[1:])
+		args, dryRun := takeDryRunFlag(args)
+		ref, rest, err := repoFromArgs(cfg, args)
+		if err != nil || len(rest) != 1 {
+			return errors.New("usage: fjgo repo issue close [owner/repo] <index> --yes")
+		}
+		if !yes {
+			return errors.New("repo issue close requires --yes")
+		}
+		op, _ := forgejo.OperationByID("issueEditIssue")
+		pathValues := map[string]string{"owner": ref.Owner, "repo": ref.Repo, "index": rest[0]}
+		body := map[string]string{"state": "closed"}
+		if dryRun {
+			return writeRequestPreview(stdout, requestPreview{Operation: op.ID, Method: op.Method, Path: previewPath(op, pathValues), Body: body, AuthPresent: clientHasAuth(client), RequiresYes: true, YesProvided: yes})
+		}
+		out, err := client.DoOperationRaw(ctx, op, pathValues, forgejo.RequestOptions{Body: body})
+		if err != nil {
+			return err
+		}
+		_, err = stdout.Write(out)
+		return err
+	case "comment":
+		args, body, err := takeBodyFlag(args[1:])
+		if err != nil {
+			return err
+		}
+		args, yes := takeYesFlag(args)
+		args, dryRun := takeDryRunFlag(args)
+		ref, rest, err := repoFromArgs(cfg, args)
+		if err != nil || len(rest) != 1 || body == "" {
+			return errors.New("usage: fjgo repo issue comment [owner/repo] <index> -body '{\"body\":\"...\"}' --yes")
+		}
+		if !yes {
+			return errors.New("repo issue comment requires --yes")
+		}
+		bodyValue, err := readJSONBody(body)
+		if err != nil {
+			return err
+		}
+		op, _ := forgejo.OperationByID("issueCreateComment")
+		pathValues := map[string]string{"owner": ref.Owner, "repo": ref.Repo, "index": rest[0]}
+		if dryRun {
+			return writeRequestPreview(stdout, requestPreview{Operation: op.ID, Method: op.Method, Path: previewPath(op, pathValues), Body: bodyValue, AuthPresent: clientHasAuth(client), RequiresYes: true, YesProvided: yes})
+		}
+		out, err := client.DoOperationRaw(ctx, op, pathValues, forgejo.RequestOptions{Body: bodyValue})
+		if err != nil {
+			return err
+		}
+		_, err = stdout.Write(out)
+		return err
+	default:
+		return fmt.Errorf("unknown repo issue command %q", args[0])
+	}
+}
+
+func repoFromArgs(cfg runConfig, args []string) (repoRef, []string, error) {
+	if len(args) > 0 && strings.Contains(args[0], "/") {
+		owner, repo, err := splitRepo(args[0])
+		return repoRef{Owner: owner, Repo: repo}, args[1:], err
+	}
+	if cfg.RemoteRepo != nil {
+		return *cfg.RemoteRepo, args, nil
+	}
+	return repoRef{}, args, errors.New("missing owner/repo")
 }
 
 func runAliasInfo(args []string, stdout io.Writer) error {
 	if len(args) == 0 {
 		return errors.New("usage: fjgo alias <list|inspect>")
 	}
+	args, jsonOut := takeJSONFlag(args)
 	switch args[0] {
 	case "list":
+		if jsonOut {
+			return writeJSON(stdout, forgejo.Aliases())
+		}
 		for _, alias := range forgejo.Aliases() {
 			op, _ := forgejo.OperationByID(alias.Operation)
 			fmt.Fprintf(stdout, "%-45s %-30s %s %s\n", strings.Join(alias.Command, " "), alias.Operation, op.Method, op.Path)
+		}
+		return nil
+	case "collisions":
+		if jsonOut {
+			return writeJSON(stdout, forgejo.AliasCollisions())
+		}
+		for _, collision := range forgejo.AliasCollisions() {
+			fmt.Fprintf(stdout, "%-45s kept=%s skipped=%s reason=%s\n", strings.Join(collision.Command, " "), collision.Kept, collision.Skipped, collision.Reason)
 		}
 		return nil
 	case "inspect":
@@ -307,6 +639,9 @@ func runAliasInfo(args []string, stdout io.Writer) error {
 		if !ok {
 			return fmt.Errorf("unknown alias %q", strings.Join(args[1:], " "))
 		}
+		if jsonOut {
+			return writeJSON(stdout, aliasView(alias))
+		}
 		writeAlias(stdout, alias)
 		return nil
 	default:
@@ -314,7 +649,26 @@ func runAliasInfo(args []string, stdout io.Writer) error {
 	}
 }
 
-func runAlias(ctx context.Context, client *forgejo.Client, args []string, stdout io.Writer) error {
+func runModel(args []string, stdout io.Writer) error {
+	args, jsonOut := takeJSONFlag(args)
+	if len(args) != 2 || args[0] != "inspect" {
+		return errors.New("usage: fjgo model inspect <Model>")
+	}
+	model, ok := forgejo.ModelByName(strings.TrimPrefix(args[1], "*"))
+	if !ok {
+		return fmt.Errorf("unknown model %q", args[1])
+	}
+	if jsonOut {
+		return writeJSON(stdout, model)
+	}
+	fmt.Fprintf(stdout, "model: %s\n", model.Name)
+	for _, field := range model.Fields {
+		writeModelField(stdout, field, "")
+	}
+	return nil
+}
+
+func runAlias(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
 	alias, rest, ok := matchAlias(args)
 	if !ok {
 		return fmt.Errorf("unknown command %q", args[0])
@@ -324,16 +678,25 @@ func runAlias(ctx context.Context, client *forgejo.Client, args []string, stdout
 		return err
 	}
 	rest, yes := takeYesFlag(rest)
+	rest, dryRun := takeDryRunFlag(rest)
 	if alias.Unsafe && !yes {
 		return fmt.Errorf("%s requires --yes", strings.Join(alias.Command, " "))
 	}
-	if len(rest) < len(alias.Args) {
+	pathValues := map[string]string{}
+	argOffset := 0
+	if len(alias.Args) > 0 && alias.Args[0] == "owner/repo" && cfg.RemoteRepo != nil && (len(rest) < len(alias.Args) || !strings.Contains(rest[0], "/")) {
+		pathValues["owner"] = cfg.RemoteRepo.Owner
+		pathValues["repo"] = cfg.RemoteRepo.Repo
+		argOffset = 1
+	}
+	if len(rest)+argOffset < len(alias.Args) {
 		return fmt.Errorf("usage: fjgo %s %s", strings.Join(alias.Command, " "), strings.Join(alias.Args, " "))
 	}
-	pathValues := map[string]string{}
-	for i, name := range alias.Args {
+	for i := argOffset; i < len(alias.Args); i++ {
+		name := alias.Args[i]
+		value := rest[i-argOffset]
 		if name == "owner/repo" {
-			owner, repo, err := splitRepo(rest[i])
+			owner, repo, err := splitRepo(value)
 			if err != nil {
 				return err
 			}
@@ -341,13 +704,13 @@ func runAlias(ctx context.Context, client *forgejo.Client, args []string, stdout
 			pathValues["repo"] = repo
 			continue
 		}
-		pathValues[name] = rest[i]
+		pathValues[name] = value
 	}
 	op, ok := forgejo.OperationByID(alias.Operation)
 	if !ok {
 		return fmt.Errorf("unknown operation %q", alias.Operation)
 	}
-	_, query, err := splitArgs(op, rest[len(alias.Args):])
+	_, query, err := splitArgs(op, rest[len(alias.Args)-argOffset:])
 	if err != nil {
 		return err
 	}
@@ -359,6 +722,18 @@ func runAlias(ctx context.Context, client *forgejo.Client, args []string, stdout
 		}
 	} else if op.BodyType != "" {
 		return missingBodyError(op)
+	}
+	if dryRun {
+		return writeRequestPreview(stdout, requestPreview{
+			Operation:   op.ID,
+			Method:      op.Method,
+			Path:        previewPath(op, pathValues),
+			Query:       query,
+			Body:        bodyValue,
+			AuthPresent: clientHasAuth(client),
+			RequiresYes: alias.Unsafe,
+			YesProvided: yes,
+		})
 	}
 	out, err := client.DoOperationRaw(ctx, op, pathValues, forgejo.RequestOptions{
 		Query: query,
@@ -383,15 +758,35 @@ func writeAlias(w io.Writer, alias forgejo.Alias) {
 	if len(alias.Args) != 0 {
 		fmt.Fprintf(w, "args: %s\n", strings.Join(alias.Args, ", "))
 	}
+	writeOperationParams(w, "query_params", op.QueryParams)
 	if op.BodyType != "" {
 		fmt.Fprintf(w, "body: %s\n", op.BodyType)
+		writeModelFields(w, "body_fields", op.BodyType)
 	}
+	writeOperationParams(w, "form_params", op.FormParams)
 	if op.ReturnType != "" {
 		fmt.Fprintf(w, "returns: %s\n", op.ReturnType)
+	}
+	if op.Upload {
+		fmt.Fprintln(w, "upload: multipart/form-data")
 	}
 	if alias.Unsafe {
 		fmt.Fprintln(w, "requires: --yes")
 	}
+}
+
+func aliasView(alias forgejo.Alias) aliasInspect {
+	op, _ := forgejo.OperationByID(alias.Operation)
+	view := aliasInspect{
+		Command:       alias.Command,
+		Operation:     alias.Operation,
+		Args:          alias.Args,
+		OperationInfo: operationView(op),
+	}
+	if alias.Unsafe {
+		view.Requires = []string{"--yes"}
+	}
+	return view
 }
 
 func splitRepo(full string) (string, string, error) {
@@ -400,6 +795,77 @@ func splitRepo(full string) (string, string, error) {
 		return "", "", fmt.Errorf("expected owner/repo, got %q", full)
 	}
 	return owner, repo, nil
+}
+
+func resolveRemoteRepo(remote, baseURL string) (*repoRef, error) {
+	out, err := exec.Command("git", "remote", "get-url", remote).Output()
+	if err != nil {
+		return nil, fmt.Errorf("resolve git remote %q: %w", remote, err)
+	}
+	ref, err := parseRemoteRepo(strings.TrimSpace(string(out)), baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse git remote %q: %w", remote, err)
+	}
+	return ref, nil
+}
+
+func parseRemoteRepo(remoteURL, baseURL string) (*repoRef, error) {
+	base, _ := url.Parse(baseURL)
+	host := ""
+	if base != nil {
+		host = base.Host
+	}
+	var pathPart string
+	if u, err := url.Parse(remoteURL); err == nil && u.Scheme != "" {
+		if host != "" && u.Host != host {
+			return nil, fmt.Errorf("remote host %q does not match base host %q", u.Host, host)
+		}
+		pathPart = strings.TrimPrefix(u.Path, "/")
+	} else if before, after, ok := strings.Cut(remoteURL, ":"); ok && strings.Contains(before, "@") {
+		remoteHost := strings.TrimPrefix(before[strings.LastIndex(before, "@")+1:], "[")
+		remoteHost = strings.TrimSuffix(remoteHost, "]")
+		if host != "" && remoteHost != host {
+			return nil, fmt.Errorf("remote host %q does not match base host %q", remoteHost, host)
+		}
+		pathPart = after
+	} else {
+		return nil, fmt.Errorf("unsupported remote URL %q", remoteURL)
+	}
+	pathPart = strings.TrimSuffix(pathPart, ".git")
+	parts := strings.Split(pathPart, "/")
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("remote URL does not contain owner/repo")
+	}
+	owner := parts[len(parts)-2]
+	repo := parts[len(parts)-1]
+	if owner == "" || repo == "" {
+		return nil, fmt.Errorf("remote URL does not contain owner/repo")
+	}
+	return &repoRef{Owner: owner, Repo: repo}, nil
+}
+
+func runAuth(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
+	if len(args) > 1 || (len(args) == 1 && args[0] != "status") {
+		return errors.New("usage: fjgo auth status")
+	}
+	status := map[string]any{
+		"base_url":      cfg.BaseURL,
+		"token_present": cfg.Token != "",
+	}
+	if cfg.RemoteRepo != nil {
+		status["repo"] = cfg.RemoteRepo
+	}
+	if cfg.Token != "" {
+		user, err := client.Me(ctx)
+		if err != nil {
+			status["authenticated"] = false
+			status["error"] = errorMessage(err)
+			return writeJSON(stdout, status)
+		}
+		status["authenticated"] = true
+		status["user"] = user
+	}
+	return writeJSON(stdout, status)
 }
 
 func takeSetFlag(args []string) ([]string, string, error) {
@@ -474,6 +940,32 @@ func takeYesFlag(args []string) ([]string, bool) {
 	return out, yes
 }
 
+func takeJSONFlag(args []string) ([]string, bool) {
+	out := make([]string, 0, len(args))
+	jsonOut := false
+	for _, arg := range args {
+		if arg == "--json" {
+			jsonOut = true
+			continue
+		}
+		out = append(out, arg)
+	}
+	return out, jsonOut
+}
+
+func takeDryRunFlag(args []string) ([]string, bool) {
+	out := make([]string, 0, len(args))
+	dryRun := false
+	for _, arg := range args {
+		if arg == "--dry-run" || arg == "--print-request" {
+			dryRun = true
+			continue
+		}
+		out = append(out, arg)
+	}
+	return out, dryRun
+}
+
 func matchAlias(args []string) (forgejo.Alias, []string, bool) {
 	for _, alias := range forgejo.Aliases() {
 		if len(args) < len(alias.Command) {
@@ -512,6 +1004,59 @@ func splitArgs(op forgejo.Operation, args []string) (map[string]string, url.Valu
 	return pathValues, query, nil
 }
 
+func splitUploadArgs(op forgejo.Operation, args []string) (map[string]string, url.Values, map[string]string, []forgejo.UploadPart, error) {
+	pathValues := map[string]string{}
+	query := url.Values{}
+	fields := map[string]string{}
+	var files []forgejo.UploadPart
+	for _, arg := range args {
+		name, value, ok := strings.Cut(arg, "=")
+		if !ok || name == "" {
+			return nil, nil, nil, nil, fmt.Errorf("expected name=value, got %q", arg)
+		}
+		switch {
+		case slices.Contains(op.PathParams, name):
+			pathValues[name] = value
+		case isFormParam(op, name):
+			if strings.HasPrefix(value, "@") {
+				files = append(files, forgejo.UploadPart{FieldName: name, FilePath: strings.TrimPrefix(value, "@")})
+			} else {
+				fields[name] = value
+			}
+		default:
+			query.Add(name, value)
+		}
+	}
+	return pathValues, query, fields, files, nil
+}
+
+func isFormParam(op forgejo.Operation, name string) bool {
+	for _, p := range op.FormParams {
+		if p.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func previewPath(op forgejo.Operation, pathValues map[string]string) string {
+	apiPath := op.Path
+	for _, name := range op.PathParams {
+		if value, ok := pathValues[name]; ok {
+			apiPath = strings.ReplaceAll(apiPath, "{"+name+"}", url.PathEscape(value))
+		}
+	}
+	return apiPath
+}
+
+func writeRequestPreview(w io.Writer, preview requestPreview) error {
+	return writeJSON(w, preview)
+}
+
+func clientHasAuth(client *forgejo.Client) bool {
+	return client.HasToken()
+}
+
 func readJSONBody(value string) (any, error) {
 	var b []byte
 	var err error
@@ -535,6 +1080,25 @@ func readJSONBody(value string) (any, error) {
 
 func missingBodyError(op forgejo.Operation) error {
 	return fmt.Errorf("%s requires -body %s; run `fjgo api inspect %s`", op.ID, op.BodyType, op.ID)
+}
+
+func writeModelFields(w io.Writer, label, name string) {
+	model, ok := forgejo.ModelByName(strings.TrimPrefix(name, "*"))
+	if !ok || len(model.Fields) == 0 {
+		return
+	}
+	fmt.Fprintf(w, "%s:\n", label)
+	for _, field := range model.Fields {
+		writeModelField(w, field, "  ")
+	}
+}
+
+func writeModelField(w io.Writer, field forgejo.ModelField, prefix string) {
+	required := ""
+	if field.Required {
+		required = " required"
+	}
+	fmt.Fprintf(w, "%s%s: %s%s\n", prefix, field.Name, field.Type, required)
 }
 
 func writeJSON(w io.Writer, v any) error {

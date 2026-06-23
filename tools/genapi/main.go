@@ -32,10 +32,14 @@ type operation struct {
 }
 
 type parameter struct {
-	Name   string `json:"name"`
-	In     string `json:"in"`
-	Type   string `json:"type"`
-	Schema schema `json:"schema"`
+	Name        string  `json:"name"`
+	In          string  `json:"in"`
+	Type        string  `json:"type"`
+	Format      string  `json:"format"`
+	Required    bool    `json:"required"`
+	Description string  `json:"description"`
+	Items       *schema `json:"items"`
+	Schema      schema  `json:"schema"`
 }
 
 type schema struct {
@@ -43,6 +47,7 @@ type schema struct {
 	Type                 string            `json:"type"`
 	Format               string            `json:"format"`
 	Description          string            `json:"description"`
+	Required             []string          `json:"required"`
 	Properties           map[string]schema `json:"properties"`
 	Items                *schema           `json:"items"`
 	AdditionalProperties *schema           `json:"additionalProperties"`
@@ -55,15 +60,24 @@ type response struct {
 }
 
 type endpoint struct {
-	Method     string
-	Path       string
-	Operation  string
-	FuncName   string
-	Summary    string
-	ReturnType string
-	BodyType   string
-	Upload     bool
-	PathParams []pathParam
+	Method      string
+	Path        string
+	Operation   string
+	FuncName    string
+	Summary     string
+	ReturnType  string
+	BodyType    string
+	Upload      bool
+	PathParams  []pathParam
+	QueryParams []operationParam
+	FormParams  []operationParam
+}
+
+type operationParam struct {
+	Name        string
+	Type        string
+	Required    bool
+	Description string
 }
 
 type alias struct {
@@ -71,6 +85,13 @@ type alias struct {
 	Args      []string
 	Operation string
 	Unsafe    bool
+}
+
+type aliasCollision struct {
+	Command []string
+	Kept    string
+	Skipped string
+	Reason  string
 }
 
 type pathParam struct {
@@ -132,15 +153,17 @@ func endpointsFromSpec(s spec) []endpoint {
 				name = exportedName(method + " " + p)
 			}
 			endpoints = append(endpoints, endpoint{
-				Method:     strings.ToUpper(method),
-				Path:       p,
-				Operation:  op.OperationID,
-				FuncName:   name,
-				Summary:    strings.TrimSpace(op.Summary),
-				ReturnType: successType(op, s.Responses),
-				BodyType:   bodyType(op.Parameters),
-				Upload:     hasUpload(op),
-				PathParams: pathParams(op.Parameters),
+				Method:      strings.ToUpper(method),
+				Path:        p,
+				Operation:   op.OperationID,
+				FuncName:    name,
+				Summary:     strings.TrimSpace(op.Summary),
+				ReturnType:  successType(op, s.Responses),
+				BodyType:    bodyType(op.Parameters),
+				Upload:      hasUpload(op),
+				PathParams:  pathParams(op.Parameters),
+				QueryParams: operationParams(op.Parameters, "query"),
+				FormParams:  operationParams(op.Parameters, "formData"),
 			})
 		}
 	}
@@ -214,6 +237,41 @@ func pathParams(params []parameter) []pathParam {
 	return names
 }
 
+func operationParams(params []parameter, in string) []operationParam {
+	var out []operationParam
+	for _, p := range params {
+		if p.In != in {
+			continue
+		}
+		out = append(out, operationParam{
+			Name:        p.Name,
+			Type:        paramType(p),
+			Required:    p.Required,
+			Description: strings.TrimSpace(p.Description),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Name < out[j].Name
+	})
+	return out
+}
+
+func paramType(p parameter) string {
+	if p.Schema.Ref != "" || p.Schema.Type != "" || len(p.Schema.Properties) != 0 {
+		return cleanType(goType(p.Schema))
+	}
+	if p.Type == "array" && p.Items != nil {
+		return cleanType(goType(schema{Type: "array", Items: p.Items}))
+	}
+	if p.Type != "" {
+		if p.Format != "" {
+			return p.Type + ":" + p.Format
+		}
+		return p.Type
+	}
+	return "any"
+}
+
 func dedupeNames(endpoints []endpoint) {
 	seen := map[string]int{}
 	for i := range endpoints {
@@ -245,14 +303,17 @@ func writeEndpointsFile(w io.Writer, endpoints []endpoint) {
 		if operationID == "" {
 			operationID = e.FuncName
 		}
-		fmt.Fprintf(w, "\t{ID: %q, Method: http.Method%s, Path: %q, Summary: %q, BodyType: %q, ReturnType: %q, PathParams: []string{", operationID, methodConstSuffix(e.Method), e.Path, sanitizeComment(e.Summary), cleanType(e.BodyType), cleanType(e.ReturnType))
+		fmt.Fprintf(w, "\t{ID: %q, Method: http.Method%s, Path: %q, Summary: %q, BodyType: %q, ReturnType: %q, Upload: %t, PathParams: []string{", operationID, methodConstSuffix(e.Method), e.Path, sanitizeComment(e.Summary), cleanType(e.BodyType), cleanType(e.ReturnType), e.Upload)
 		for i, p := range e.PathParams {
 			if i > 0 {
 				fmt.Fprint(w, ", ")
 			}
 			fmt.Fprintf(w, "%q", p.Name)
 		}
-		fmt.Fprintln(w, "}},")
+		fmt.Fprint(w, "}")
+		writeOperationParamLiteral(w, "QueryParams", e.QueryParams)
+		writeOperationParamLiteral(w, "FormParams", e.FormParams)
+		fmt.Fprintln(w, "},")
 	}
 	fmt.Fprintln(w, "}")
 	fmt.Fprintln(w)
@@ -271,7 +332,8 @@ func writeEndpointsFile(w io.Writer, endpoints []endpoint) {
 	fmt.Fprintln(w, "\treturn Operation{}, false")
 	fmt.Fprintln(w, "}")
 	fmt.Fprintln(w)
-	writeAliases(w, aliasesFromEndpoints(endpoints))
+	aliases, collisions := aliasesFromEndpoints(endpoints)
+	writeAliases(w, aliases, collisions)
 	fmt.Fprintln(w)
 	for _, e := range endpoints {
 		if e.Summary != "" {
@@ -309,9 +371,21 @@ func writeEndpointsFile(w io.Writer, endpoints []endpoint) {
 	}
 }
 
-func aliasesFromEndpoints(endpoints []endpoint) []alias {
+func writeOperationParamLiteral(w io.Writer, field string, params []operationParam) {
+	if len(params) == 0 {
+		return
+	}
+	fmt.Fprintf(w, ", %s: []OperationParam{", field)
+	for _, p := range params {
+		fmt.Fprintf(w, "{Name: %q, Type: %q, Required: %t, Description: %q}, ", p.Name, p.Type, p.Required, sanitizeComment(p.Description))
+	}
+	fmt.Fprint(w, "}")
+}
+
+func aliasesFromEndpoints(endpoints []endpoint) ([]alias, []aliasCollision) {
 	var aliases []alias
-	seen := map[string]bool{}
+	var collisions []aliasCollision
+	seen := map[string]int{}
 	for _, e := range endpoints {
 		if e.Upload || strings.Contains(strings.ToLower(e.Operation), "deprecated") || strings.HasPrefix(strings.ToLower(e.Operation), "activitypub") {
 			continue
@@ -321,16 +395,65 @@ func aliasesFromEndpoints(endpoints []endpoint) []alias {
 			continue
 		}
 		key := strings.Join(command, "\x00")
-		if seen[key] {
+		next := alias{Command: command, Args: args, Operation: operationID(e), Unsafe: e.Method != "GET"}
+		if keptIndex, ok := seen[key]; ok {
+			kept := aliases[keptIndex]
+			if aliasPriority(e) > aliasPriority(endpointByOperation(endpoints, kept.Operation)) {
+				collisions = append(collisions, aliasCollision{
+					Command: command,
+					Kept:    next.Operation,
+					Skipped: kept.Operation,
+					Reason:  "duplicate generated command; higher priority operation kept",
+				})
+				aliases[keptIndex] = next
+				continue
+			}
+			collisions = append(collisions, aliasCollision{
+				Command: command,
+				Kept:    kept.Operation,
+				Skipped: next.Operation,
+				Reason:  "duplicate generated command",
+			})
 			continue
 		}
-		seen[key] = true
-		aliases = append(aliases, alias{Command: command, Args: args, Operation: operationID(e), Unsafe: e.Method != "GET"})
+		seen[key] = len(aliases)
+		aliases = append(aliases, next)
 	}
 	sort.Slice(aliases, func(i, j int) bool {
 		return strings.Join(aliases[i].Command, " ") < strings.Join(aliases[j].Command, " ")
 	})
-	return aliases
+	sort.Slice(collisions, func(i, j int) bool {
+		return strings.Join(collisions[i].Command, " ") < strings.Join(collisions[j].Command, " ")
+	})
+	return aliases, collisions
+}
+
+func endpointByOperation(endpoints []endpoint, operation string) endpoint {
+	for _, e := range endpoints {
+		if operationID(e) == operation {
+			return e
+		}
+	}
+	return endpoint{Operation: operation}
+}
+
+func aliasPriority(e endpoint) int {
+	score := 100
+	op := strings.ToLower(e.Operation)
+	path := strings.ToLower(e.Path)
+	if strings.Contains(op, "download") || strings.Contains(path, ".{") {
+		score -= 50
+	}
+	if strings.Contains(op, "all") {
+		score -= 10
+	}
+	if strings.Contains(op, "list") || strings.Contains(op, "search") {
+		score += 5
+	}
+	if strings.Contains(op, "get") {
+		score += 3
+	}
+	return score
 }
 
 func aliasCommand(e endpoint) ([]string, []string, bool) {
@@ -382,12 +505,19 @@ func aliasCommand(e endpoint) ([]string, []string, bool) {
 func aliasTail(e endpoint, parts []string) []string {
 	var out []string
 	for _, part := range parts {
+		if strings.Contains(part, ".{") {
+			out = append(out, "download")
+			continue
+		}
 		if strings.HasPrefix(part, "{") || part == "-" {
 			continue
 		}
 		out = append(out, aliasWord(part))
 	}
 	verb := aliasVerb(e.Method, e.Operation)
+	if len(out) == 0 && strings.Contains(strings.ToLower(e.Operation), "all") {
+		out = append(out, "all")
+	}
 	if len(out) == 0 || out[len(out)-1] != verb {
 		out = append(out, verb)
 	}
@@ -478,7 +608,7 @@ func operationID(e endpoint) string {
 	return e.FuncName
 }
 
-func writeAliases(w io.Writer, aliases []alias) {
+func writeAliases(w io.Writer, aliases []alias, collisions []aliasCollision) {
 	fmt.Fprintln(w, "var aliases = []Alias{")
 	for _, a := range aliases {
 		fmt.Fprint(w, "\t{Command: []string{")
@@ -502,6 +632,25 @@ func writeAliases(w io.Writer, aliases []alias) {
 	fmt.Fprintln(w, "func Aliases() []Alias {")
 	fmt.Fprintln(w, "\tout := make([]Alias, len(aliases))")
 	fmt.Fprintln(w, "\tcopy(out, aliases)")
+	fmt.Fprintln(w, "\treturn out")
+	fmt.Fprintln(w, "}")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "var aliasCollisions = []AliasCollision{")
+	for _, c := range collisions {
+		fmt.Fprint(w, "\t{Command: []string{")
+		for i, part := range c.Command {
+			if i > 0 {
+				fmt.Fprint(w, ", ")
+			}
+			fmt.Fprintf(w, "%q", part)
+		}
+		fmt.Fprintf(w, "}, Kept: %q, Skipped: %q, Reason: %q},\n", c.Kept, c.Skipped, c.Reason)
+	}
+	fmt.Fprintln(w, "}")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "func AliasCollisions() []AliasCollision {")
+	fmt.Fprintln(w, "\tout := make([]AliasCollision, len(aliasCollisions))")
+	fmt.Fprintln(w, "\tcopy(out, aliasCollisions)")
 	fmt.Fprintln(w, "\treturn out")
 	fmt.Fprintln(w, "}")
 }
@@ -528,6 +677,49 @@ func writeModelsFile(w io.Writer, definitions map[string]schema) {
 			fmt.Fprintf(w, "type %s %s\n\n", typeName, goType(def))
 		}
 	}
+	writeModelIndex(w, definitions, names)
+}
+
+func writeModelIndex(w io.Writer, definitions map[string]schema, names []string) {
+	fmt.Fprintln(w, "var models = []Model{")
+	for _, name := range names {
+		def := definitions[name]
+		typeName := exportedName(name)
+		fmt.Fprintf(w, "\t{Name: %q, Fields: []ModelField{", typeName)
+		if len(def.Properties) != 0 {
+			required := map[string]bool{}
+			for _, name := range def.Required {
+				required[name] = true
+			}
+			propNames := make([]string, 0, len(def.Properties))
+			for name := range def.Properties {
+				propNames = append(propNames, name)
+			}
+			sort.Strings(propNames)
+			for _, propName := range propNames {
+				prop := def.Properties[propName]
+				fmt.Fprintf(w, "{Name: %q, Type: %q, Required: %t}, ", propName, cleanType(goType(prop)), required[propName])
+			}
+		}
+		fmt.Fprintln(w, "}},")
+	}
+	fmt.Fprintln(w, "}")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "func Models() []Model {")
+	fmt.Fprintln(w, "\tout := make([]Model, len(models))")
+	fmt.Fprintln(w, "\tcopy(out, models)")
+	fmt.Fprintln(w, "\treturn out")
+	fmt.Fprintln(w, "}")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "func ModelByName(name string) (Model, bool) {")
+	fmt.Fprintln(w, "\tfor _, model := range models {")
+	fmt.Fprintln(w, "\t\tif model.Name == name {")
+	fmt.Fprintln(w, "\t\t\treturn model, true")
+	fmt.Fprintln(w, "\t\t}")
+	fmt.Fprintln(w, "\t}")
+	fmt.Fprintln(w, "\treturn Model{}, false")
+	fmt.Fprintln(w, "}")
+	fmt.Fprintln(w)
 }
 
 func writeStruct(w io.Writer, typeName string, def schema) {

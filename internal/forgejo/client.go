@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -24,21 +27,55 @@ type RequestOptions struct {
 	Out   any
 }
 
+type OperationParam struct {
+	Name        string `json:"name"`
+	Type        string `json:"type,omitempty"`
+	Required    bool   `json:"required,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
 type Operation struct {
-	ID         string
-	Method     string
-	Path       string
-	Summary    string
-	BodyType   string
-	ReturnType string
-	PathParams []string
+	ID          string           `json:"id"`
+	Method      string           `json:"method"`
+	Path        string           `json:"path"`
+	Summary     string           `json:"summary,omitempty"`
+	BodyType    string           `json:"body,omitempty"`
+	ReturnType  string           `json:"returns,omitempty"`
+	Upload      bool             `json:"upload,omitempty"`
+	PathParams  []string         `json:"path_params,omitempty"`
+	QueryParams []OperationParam `json:"query_params,omitempty"`
+	FormParams  []OperationParam `json:"form_params,omitempty"`
 }
 
 type Alias struct {
-	Command   []string
-	Args      []string
-	Operation string
-	Unsafe    bool
+	Command   []string `json:"command"`
+	Args      []string `json:"args,omitempty"`
+	Operation string   `json:"operation"`
+	Unsafe    bool     `json:"unsafe,omitempty"`
+}
+
+type AliasCollision struct {
+	Command []string `json:"command"`
+	Kept    string   `json:"kept"`
+	Skipped string   `json:"skipped"`
+	Reason  string   `json:"reason"`
+}
+
+type Model struct {
+	Name   string       `json:"name"`
+	Fields []ModelField `json:"fields,omitempty"`
+}
+
+type ModelField struct {
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Required bool   `json:"required,omitempty"`
+}
+
+type UploadPart struct {
+	FieldName string `json:"field_name"`
+	FilePath  string `json:"file_path"`
+	FileName  string `json:"file_name,omitempty"`
 }
 
 type HTTPError struct {
@@ -62,6 +99,10 @@ func NewClient(baseURL, token string, httpClient *http.Client) (*Client, error) 
 		httpClient = http.DefaultClient
 	}
 	return &Client{baseURL: u, token: token, http: httpClient}, nil
+}
+
+func (c *Client) HasToken() bool {
+	return c.token != ""
 }
 
 func (c *Client) Me(ctx context.Context) (User, error) {
@@ -99,6 +140,72 @@ func (c *Client) DoRaw(ctx context.Context, method, apiPath string, opts Request
 		req.Header.Set("Content-Type", "application/json")
 	}
 	return c.do(req)
+}
+
+func (c *Client) DoMultipart(ctx context.Context, method, apiPath string, query url.Values, fields map[string]string, files []UploadPart, out any) ([]byte, error) {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	for name, value := range fields {
+		if err := writer.WriteField(name, value); err != nil {
+			return nil, err
+		}
+	}
+	for _, part := range files {
+		fieldName := part.FieldName
+		if fieldName == "" {
+			fieldName = "attachment"
+		}
+		fileName := part.FileName
+		if fileName == "" {
+			fileName = filepath.Base(part.FilePath)
+		}
+		f, err := os.Open(part.FilePath)
+		if err != nil {
+			return nil, err
+		}
+		w, err := writer.CreateFormFile(fieldName, fileName)
+		if err != nil {
+			f.Close()
+			return nil, err
+		}
+		if _, err := io.Copy(w, f); err != nil {
+			f.Close()
+			return nil, err
+		}
+		if err := f.Close(); err != nil {
+			return nil, err
+		}
+	}
+	if err := writer.Close(); err != nil {
+		return nil, err
+	}
+	req, err := c.newRequest(ctx, method, withQuery(apiPath, query), &body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	b, err := c.do(req)
+	if err != nil {
+		return nil, err
+	}
+	if out != nil && len(b) != 0 {
+		if err := json.Unmarshal(b, out); err != nil {
+			return nil, err
+		}
+	}
+	return b, nil
+}
+
+func (c *Client) DoOperationMultipart(ctx context.Context, op Operation, pathValues map[string]string, query url.Values, fields map[string]string, files []UploadPart, out any) ([]byte, error) {
+	apiPath := op.Path
+	for _, name := range op.PathParams {
+		value, ok := pathValues[name]
+		if !ok {
+			return nil, fmt.Errorf("missing path parameter %q", name)
+		}
+		apiPath = strings.ReplaceAll(apiPath, "{"+name+"}", url.PathEscape(value))
+	}
+	return c.DoMultipart(ctx, op.Method, apiPath, query, fields, files, out)
 }
 
 func (c *Client) DoOperation(ctx context.Context, op Operation, pathValues map[string]string, opts RequestOptions) error {

@@ -28,6 +28,11 @@ Useful smoke check:
 ./fjgo --version
 ./fjgo version
 ./fjgo api inspect createCurrentUserRepo
+./fjgo api inspect repoSearch
+./fjgo alias inspect repo pulls get
+./fjgo api --json inspect repoSearch
+./fjgo release upload astrazds/fjgo 1 ./go.mod --yes --dry-run
+./fjgo auth status
 ```
 
 Authenticated commands use:
@@ -52,10 +57,10 @@ The API base defaults to `https://repos.astrazds.net/api/v1`; override with
 - `.forgejo/workflows/release.yml`: tag release archive upload
 - `swagger.v1.json`: pinned Swagger input for reproducible generation
 
-Keep command-specific parsing in `cmd/fjgo`. Keep HTTP details and JSON types in
-`internal/forgejo`. The generic `fjgo api list/inspect/call` commands are the
-full-coverage CLI surface; add nicer aliases only when they remove real
-repetition.
+Keep command-specific parsing in `cmd/fjgo`. Keep HTTP details, multipart
+upload helpers, and JSON types in `internal/forgejo`. The generic
+`fjgo api list/inspect/call/upload` commands are the full-coverage CLI surface;
+add nicer aliases only when they remove real repetition.
 
 ## Implementation Rules
 
@@ -67,6 +72,13 @@ repetition.
 - Keep generated methods typed: path parameters as strings, body schemas as
   generated model parameters, query data through `RequestOptions`, documented
   success responses as return values.
+- Keep generated `Operation` metadata useful for agents: path params, query
+  params, form params, upload status, body type, return type, and summaries.
+- Keep `--yes` on mutating commands, and keep `--dry-run` / `--print-request`
+  token-safe.
+- Keep JSON output for inspect/list surfaces deterministic and parseable.
+- Keep `-R` / `--repo-from-remote` scoped to parsing Forgejo git remotes; do not
+  guess repo context from unrelated files.
 - Prefer a raw escape hatch like `get` over prematurely wrapping the whole API.
 - Regenerate API methods with `go generate ./internal/forgejo`; do not edit
   `endpoints_gen.go` or `models_gen.go` by hand.
@@ -80,8 +92,15 @@ repetition.
 The v1 surface is:
 
 - `version`, `me`, and raw `get`
-- useful aliases: `repo get`, `repo topics`, `release list`
-- generic `api list/inspect/call` coverage for every Swagger operation
+- `auth status` / `whoami` token-safe diagnostics
+- useful aliases: `repo get`, `repo topics`, `repo avatar`, `repo issue close`,
+  `repo issue comment`, `release list`, `release upload`
+- generic `api list/inspect/call/upload` coverage for the Swagger operation
+  surface, including multipart release/issue/comment attachment uploads
+- generated `alias list/inspect/collisions` and `model inspect`
+- `--json` for agent-parseable inspect/list surfaces
+- `--dry-run` / `--print-request` for token-safe request previews
+- `-R` / `--repo-from-remote` for owner/repo resolution from git remotes
 - generated typed client methods and model types for the full Swagger surface
 - release archives via `scripts/release.sh`
 - repeatable verification via `scripts/verify.sh`

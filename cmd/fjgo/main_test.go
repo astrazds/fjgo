@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -57,7 +59,7 @@ func TestVersionFlagPrintsBinaryVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); got != "fjgo v0.9.0 none unknown\n" {
+	if got := stdout.String(); got != "fjgo v0.10.0 none unknown\n" {
 		t.Fatalf("stdout = %q", got)
 	}
 }
@@ -67,11 +69,14 @@ func TestHelpDoesNotPrintTokenFromEnvironment(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	err := run(t.Context(), []string{"--help"}, &stdout, &stderr)
-	if err == nil {
-		t.Fatal("expected help error")
+	if err != nil {
+		t.Fatalf("run error = %v", err)
 	}
 	if strings.Contains(stderr.String(), "secret-token") {
 		t.Fatalf("help leaked token:\n%s", stderr.String())
+	}
+	if strings.Contains(stderr.String(), "fjgo:") || strings.Contains(stderr.String(), "flag: help requested") {
+		t.Fatalf("help printed error text:\n%s", stderr.String())
 	}
 }
 
@@ -87,11 +92,83 @@ func TestAPIInspectShowsOperationMetadata(t *testing.T) {
 		"method: POST",
 		"path: /user/repos",
 		"body: CreateRepoOption",
+		"body_fields:",
+		"name: string required",
 		"returns: Repository",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("inspect output missing %q:\n%s", want, got)
 		}
+	}
+}
+
+func TestAPIInspectShowsUnsupportedUpload(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"api", "inspect", "repoCreateReleaseAttachment"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	got := stdout.String()
+	for _, want := range []string{
+		"query_params:",
+		"name: string",
+		"form_params:",
+		"attachment: file",
+		"upload: multipart/form-data",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("inspect output missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestAPIInspectShowsQueryParams(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"api", "inspect", "repoSearch"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	got := stdout.String()
+	for _, want := range []string{
+		"query_params:",
+		"q: string - keyword",
+		"limit: integer",
+		"private: boolean",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("inspect output missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestAPIInspectJSON(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"api", "--json", "inspect", "createCurrentUserRepo"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	var got struct {
+		ID         string `json:"id"`
+		Body       string `json:"body"`
+		BodyFields []struct {
+			Name     string `json:"name"`
+			Required bool   `json:"required"`
+		} `json:"body_fields"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.ID != "createCurrentUserRepo" || got.Body != "CreateRepoOption" {
+		t.Fatalf("inspect json = %#v", got)
+	}
+	foundRequiredName := false
+	for _, field := range got.BodyFields {
+		if field.Name == "name" && field.Required {
+			foundRequiredName = true
+		}
+	}
+	if !foundRequiredName {
+		t.Fatalf("body_fields = %#v", got.BodyFields)
 	}
 }
 
@@ -106,6 +183,83 @@ func TestAPICallMissingPathParamHintsInspect(t *testing.T) {
 	}
 }
 
+func TestAPICallRejectsUploadOperation(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"api", "call", "repoCreateReleaseAttachment", "owner=astra", "repo=fjgo", "id=1", "--yes"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if got := err.Error(); !strings.Contains(got, "multipart/form-data upload") || !strings.Contains(got, "api upload repoCreateReleaseAttachment") {
+		t.Fatalf("error = %q", got)
+	}
+}
+
+func TestAPIUploadReleaseAttachment(t *testing.T) {
+	dir := t.TempDir()
+	asset := dir + "/asset.txt"
+	if err := os.WriteFile(asset, []byte("asset bytes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/repos/astra/fjgo/releases/42/assets" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		if r.URL.Query().Get("name") != "asset.txt" {
+			t.Fatalf("query = %q", r.URL.RawQuery)
+		}
+		if got := r.Header.Get("Authorization"); got != "token secret" {
+			t.Fatalf("Authorization = %q", got)
+		}
+		file, header, err := r.FormFile("attachment")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer file.Close()
+		if header.Filename != "asset.txt" {
+			t.Fatalf("filename = %q", header.Filename)
+		}
+		b, err := io.ReadAll(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(b) != "asset bytes" {
+			t.Fatalf("file = %q", b)
+		}
+		_, _ = w.Write([]byte(`{"name":"asset.txt"}`))
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "-token", "secret", "api", "upload", "repoCreateReleaseAttachment", "owner=astra", "repo=fjgo", "id=42", "name=asset.txt", "attachment=@" + asset, "--yes"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if got := stdout.String(); got != `{"name":"asset.txt"}` {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestAPIDryRunDoesNotCallServer(t *testing.T) {
+	t.Setenv("FJGO_TOKEN", "")
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "api", "call", "createCurrentUserRepo", "--yes", "--dry-run", "-body", `{"name":"demo"}`}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if called {
+		t.Fatal("server was called")
+	}
+	if got := stdout.String(); !strings.Contains(got, `"method": "POST"`) || !strings.Contains(got, `"auth_present": false`) {
+		t.Fatalf("preview = %s", got)
+	}
+}
+
 func TestAPICallMissingBodyFailsBeforeRequest(t *testing.T) {
 	called := false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -114,7 +268,7 @@ func TestAPICallMissingBodyFailsBeforeRequest(t *testing.T) {
 	defer server.Close()
 
 	var stdout, stderr bytes.Buffer
-	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "api", "call", "createCurrentUserRepo"}, &stdout, &stderr)
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "api", "call", "createCurrentUserRepo", "--yes"}, &stdout, &stderr)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -123,6 +277,66 @@ func TestAPICallMissingBodyFailsBeforeRequest(t *testing.T) {
 	}
 	if called {
 		t.Fatal("server was called")
+	}
+}
+
+func TestAPICallRequiresYesForMutation(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "api", "call", "createCurrentUserRepo", "-body", `{"name":"demo"}`}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if got := err.Error(); !strings.Contains(got, "createCurrentUserRepo requires --yes") {
+		t.Fatalf("error = %q", got)
+	}
+	if called {
+		t.Fatal("server was called")
+	}
+}
+
+func TestAPICallAllowsMutationWithYes(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/user/repos" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s", r.Method)
+		}
+		_, _ = w.Write([]byte(`{"full_name":"astra/demo"}`))
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "api", "call", "createCurrentUserRepo", "--yes", "-body", `{"name":"demo"}`}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if got := stdout.String(); got != `{"full_name":"astra/demo"}` {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestModelInspectShowsFields(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"model", "inspect", "CreateRepoOption"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	got := stdout.String()
+	for _, want := range []string{
+		"model: CreateRepoOption",
+		"name: string required",
+		"private: bool",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("model output missing %q:\n%s", want, got)
+		}
 	}
 }
 
@@ -169,12 +383,32 @@ func TestRepoTopicsAliasCanSetAndRead(t *testing.T) {
 	defer server.Close()
 
 	var stdout, stderr bytes.Buffer
-	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "repo", "topics", "astra/fjgo", "--set", "go,cli"}, &stdout, &stderr)
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "repo", "topics", "astra/fjgo", "--set", "go,cli", "--yes"}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
 	if got := stdout.String(); !strings.Contains(got, `"topics":`) {
 		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestRepoTopicsSetRequiresYes(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "repo", "topics", "astra/fjgo", "--set", "go,cli"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if got := err.Error(); !strings.Contains(got, "repo topics --set requires --yes") {
+		t.Fatalf("error = %q", got)
+	}
+	if called {
+		t.Fatal("server was called")
 	}
 }
 
@@ -214,9 +448,34 @@ func TestRepoAvatarAlias(t *testing.T) {
 	defer server.Close()
 
 	var stdout, stderr bytes.Buffer
-	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "repo", "avatar", "astra/fjgo", icon}, &stdout, &stderr)
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "repo", "avatar", "astra/fjgo", icon, "--yes"}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+}
+
+func TestRepoAvatarRequiresYes(t *testing.T) {
+	dir := t.TempDir()
+	icon := dir + "/icon.png"
+	if err := os.WriteFile(icon, []byte("png"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "repo", "avatar", "astra/fjgo", icon}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if got := err.Error(); !strings.Contains(got, "repo avatar requires --yes") {
+		t.Fatalf("error = %q", got)
+	}
+	if called {
+		t.Fatal("server was called")
 	}
 }
 
@@ -225,7 +484,7 @@ func TestReleaseListAlias(t *testing.T) {
 		if r.URL.Path != "/api/v1/repos/astra/fjgo/releases" {
 			t.Fatalf("path = %q", r.URL.Path)
 		}
-		_, _ = w.Write([]byte(`[{"tag_name":"v0.9.0"}]`))
+		_, _ = w.Write([]byte(`[{"tag_name":"v0.10.0"}]`))
 	}))
 	defer server.Close()
 
@@ -234,7 +493,7 @@ func TestReleaseListAlias(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); !strings.Contains(got, `"tag_name": "v0.9.0"`) {
+	if got := stdout.String(); !strings.Contains(got, `"tag_name": "v0.10.0"`) {
 		t.Fatalf("stdout = %q", got)
 	}
 }
@@ -383,6 +642,159 @@ func TestAliasInspectShowsMapping(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("inspect output missing %q:\n%s", want, got)
 		}
+	}
+}
+
+func TestAliasCollisionsCommandRuns(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"alias", "collisions"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+}
+
+func TestAliasInspectShowsBodyFieldsAndQueryParams(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"alias", "inspect", "repo", "issues", "create"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	got := stdout.String()
+	for _, want := range []string{
+		"body_fields:",
+		"title: string required",
+		"returns: Issue",
+		"requires: --yes",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("alias inspect missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestAliasCollisionPolicyKeepsNaturalGets(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"alias", "inspect", "repo", "pulls", "get"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if got := stdout.String(); !strings.Contains(got, "operation: repoGetPullRequest") {
+		t.Fatalf("pull alias inspect = %s", got)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	err = run(t.Context(), []string{"alias", "inspect", "repo", "git", "commits", "get"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if got := stdout.String(); !strings.Contains(got, "operation: repoGetSingleCommit") {
+		t.Fatalf("commit alias inspect = %s", got)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	err = run(t.Context(), []string{"alias", "inspect", "repo", "pulls", "download", "get"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if got := stdout.String(); !strings.Contains(got, "operation: repoDownloadPullDiffOrPatch") {
+		t.Fatalf("pull download alias inspect = %s", got)
+	}
+}
+
+func TestReleaseUploadAlias(t *testing.T) {
+	dir := t.TempDir()
+	asset := dir + "/asset.txt"
+	if err := os.WriteFile(asset, []byte("asset bytes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/repos/astra/fjgo/releases/42/assets" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		if _, _, err := r.FormFile("attachment"); err != nil {
+			t.Fatal(err)
+		}
+		_, _ = w.Write([]byte(`{"name":"asset.txt"}`))
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "release", "upload", "astra/fjgo", "42", asset, "name=asset.txt", "--yes"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if got := stdout.String(); got != `{"name":"asset.txt"}` {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestRemoteRepoParsing(t *testing.T) {
+	for _, remote := range []string{
+		"https://repos.astrazds.net/astrazds/fjgo.git",
+		"ssh://git@repos.astrazds.net/astrazds/fjgo.git",
+		"git@repos.astrazds.net:astrazds/fjgo.git",
+	} {
+		ref, err := parseRemoteRepo(remote, defaultBaseURL)
+		if err != nil {
+			t.Fatalf("%s: %v", remote, err)
+		}
+		if ref.Owner != "astrazds" || ref.Repo != "fjgo" {
+			t.Fatalf("%s => %#v", remote, ref)
+		}
+	}
+}
+
+func TestRepoGetUsesRemoteRepoWhenOmitted(t *testing.T) {
+	dir := t.TempDir()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/repos/astra/fjgo" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{"full_name": "astra/fjgo"})
+	}))
+	defer server.Close()
+
+	cmd := exec.Command("git", "init")
+	cmd.Dir = dir
+	if err := cmd.Run(); err != nil {
+		t.Skipf("git init unavailable: %v", err)
+	}
+	cmd = exec.Command("git", "remote", "add", "origin", server.URL+"/astra/fjgo.git")
+	cmd.Dir = dir
+	if err := cmd.Run(); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "-R", "origin", "repo", "get"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if got := stdout.String(); !strings.Contains(got, `"full_name": "astra/fjgo"`) {
+		t.Fatalf("stdout = %s", got)
+	}
+}
+
+func TestAuthStatusDoesNotLeakToken(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/user" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{"login": "astra"})
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "-token", "secret", "auth", "status"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if strings.Contains(stdout.String(), "secret") {
+		t.Fatalf("auth status leaked token: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), `"token_present": true`) || !strings.Contains(stdout.String(), `"authenticated": true`) {
+		t.Fatalf("auth status = %s", stdout.String())
 	}
 }
 

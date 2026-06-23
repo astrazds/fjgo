@@ -7,15 +7,20 @@ The API root defaults to `https://repos.astrazds.net/api/v1`; override it with
 
 ## Status
 
-Current app version: `v0.9.0`.
+Current app version: `v0.10.0`.
 
 `fjgo` covers the full live Forgejo Swagger surface:
 
 - `491` generated endpoint methods
 - `244` generated model types
 - `491` CLI operations via `api list`, `api inspect`, and `api call`
-- `417` generated convenience aliases via `alias list` and `alias inspect`
+- `419` generated convenience aliases via `alias list` and `alias inspect`
+- visible generated alias collisions via `alias collisions`
+- generated query/form parameter inspection for operations
 - typed body parameters for operations with Swagger body schemas
+- generated model field inspection via `model inspect`
+- JSON output for inspect/list surfaces used by other agents
+- multipart release/issue/comment attachment upload support through `api upload`
 - typed return values for operations with documented success response schemas
 - Forgejo Actions verification and tag-release workflows
 
@@ -40,9 +45,9 @@ go install repos.astrazds.net/astrazds/fjgo/cmd/fjgo@latest
 From a release archive:
 
 ```sh
-curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.9.0/fjgo_v0.9.0_linux_amd64.tar.gz
-tar -xzf fjgo_v0.9.0_linux_amd64.tar.gz
-install -Dm755 fjgo_v0.9.0_linux_amd64/fjgo ~/.local/bin/fjgo
+curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.10.0/fjgo_v0.10.0_linux_amd64.tar.gz
+tar -xzf fjgo_v0.10.0_linux_amd64.tar.gz
+install -Dm755 fjgo_v0.10.0_linux_amd64/fjgo ~/.local/bin/fjgo
 ```
 
 ## Quick Start
@@ -56,13 +61,20 @@ FJGO_TOKEN=... ./fjgo me
 ./fjgo get /version
 ./fjgo api list repo
 ./fjgo api inspect createCurrentUserRepo
+./fjgo api inspect repoSearch
 ./fjgo api call repoGet owner=astrazds repo=fjgo
+./fjgo api --json inspect repoSearch
 ./fjgo alias list
 ./fjgo alias inspect repo issues get
+./fjgo alias collisions
+./fjgo model inspect CreateRepoOption
 ./fjgo repo get astrazds/fjgo
+./fjgo -R origin repo get
 ./fjgo repo topics astrazds/fjgo
-./fjgo repo avatar astrazds/fjgo assets/icon.png
+./fjgo repo avatar astrazds/fjgo assets/icon.png --yes
 ./fjgo release list astrazds/fjgo
+./fjgo release upload astrazds/fjgo 123 dist/fjgo.tar.gz name=fjgo.tar.gz --yes
+./fjgo auth status
 ```
 
 Authentication uses Forgejo's token auth header:
@@ -87,10 +99,13 @@ fjgo api list release
 ```
 
 `fjgo api inspect <operationId>` shows method, path, summary, path parameters,
-typed body model, and typed return model:
+query parameters, typed body model and fields, multipart form parameters, and
+typed return model:
 
 ```sh
 fjgo api inspect createCurrentUserRepo
+fjgo api inspect repoSearch
+fjgo api --json inspect repoSearch
 ```
 
 `fjgo api call <operationId>` executes any operation by Swagger `operationId`:
@@ -99,29 +114,71 @@ fjgo api inspect createCurrentUserRepo
 fjgo api call getVersion
 fjgo api call repoSearch q=fjgo limit=10
 fjgo api call repoGet owner=astrazds repo=fjgo
-fjgo api call createCurrentUserRepo -body '{"name":"demo","private":true}'
+fjgo api call createCurrentUserRepo --yes -body '{"name":"demo","private":true}'
+fjgo api call createCurrentUserRepo --yes --dry-run -body '{"name":"demo","private":true}'
 ```
 
 For `api call`, `name=value` arguments matching path parameters fill the path;
 the rest become query parameters. JSON bodies can be inline, `@file`, or `-`
 for stdin. Operations with a documented body schema fail locally when `-body`
-is omitted.
+is omitted. Mutating operations require `--yes`. Use `--dry-run` or
+`--print-request` to print the request without performing network I/O.
+
+Multipart/form-data operations use `api upload`:
+
+```sh
+fjgo api upload repoCreateReleaseAttachment owner=astrazds repo=fjgo id=123 name=fjgo.tar.gz attachment=@dist/fjgo.tar.gz --yes
+fjgo api upload issueCreateIssueAttachment owner=astrazds repo=fjgo index=7 attachment=@screenshot.png --yes
+```
 
 `fjgo alias list` shows generated convenience commands for clear Swagger path
 shapes. `fjgo alias inspect <command...>` shows the mapped operation, required
-positional args, method, path, body type, and whether `--yes` is required.
-Aliases use positional path args plus `name=value` query args, with `-body`
-matching `api call`. Generated aliases for mutating operations require `--yes`.
+positional args, method, path, query params, body fields, form fields, return
+type, upload status, and whether `--yes` is required. Aliases use positional
+path args plus `name=value` query args, with `-body` matching `api call`.
+Generated aliases for mutating operations require `--yes`.
+`fjgo alias collisions` lists generated aliases that were skipped because
+another operation already claimed the same command.
+
+Inspect/list commands support `--json` for agent parsing:
+
+```sh
+fjgo api --json list repo
+fjgo alias --json inspect repo issues create
+fjgo alias --json collisions
+fjgo model --json inspect CreateIssueOption
+```
+
+`fjgo model inspect <Model>` prints generated JSON fields and Go types for a
+Swagger model:
+
+```sh
+fjgo model inspect CreateRepoOption
+```
 
 Common aliases:
 
 ```sh
 fjgo repo get astrazds/fjgo
 fjgo repo topics astrazds/fjgo
-fjgo repo topics astrazds/fjgo --set forgejo,go,cli
-fjgo repo avatar astrazds/fjgo assets/icon.png
+fjgo repo topics astrazds/fjgo --set forgejo,go,cli --yes
+fjgo repo avatar astrazds/fjgo assets/icon.png --yes
 fjgo release list astrazds/fjgo
+fjgo release upload astrazds/fjgo 123 dist/fjgo.tar.gz name=fjgo.tar.gz --yes
 ```
+
+When running inside a checkout, `-R <remote>` or `--repo-from-remote <remote>`
+resolves `owner/repo` from common Forgejo HTTPS and SSH git remote forms:
+
+```sh
+fjgo -R origin repo get
+fjgo -R origin repo issues list state=open
+fjgo -R origin release list
+fjgo -R origin release upload 123 dist/fjgo.tar.gz --yes
+```
+
+`fjgo auth status` prints the active base URL, whether a token is present, and
+the authenticated user when the token works. It never prints the token value.
 
 ## Go Client
 
@@ -162,7 +219,9 @@ created, err := client.CreateCurrentUserRepo(ctx, &forgejo.CreateRepoOption{
 }, forgejo.RequestOptions{})
 ```
 
-Use `forgejo.RequestOptions.Query` for query parameters.
+Use `forgejo.RequestOptions.Query` for query parameters. Multipart operations
+can be executed with `DoOperationMultipart`; the CLI uses that path for release,
+issue, and comment attachment uploads.
 
 ## Development
 
@@ -181,7 +240,7 @@ Forgejo Actions runs the same verifier on pushes and pull requests via
 Build release archives into `dist/`:
 
 ```sh
-VERSION=v0.9.0 ./scripts/release.sh
+VERSION=v0.10.0 ./scripts/release.sh
 ```
 
 Override targets when testing locally:
@@ -199,7 +258,7 @@ archives and uploads them to a Forgejo release using the Actions token.
 Smoke check a published release archive:
 
 ```sh
-VERSION=v0.9.0 ./scripts/smoke-release.sh
+VERSION=v0.10.0 ./scripts/smoke-release.sh
 ```
 
 ## License
