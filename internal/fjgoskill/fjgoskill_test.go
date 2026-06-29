@@ -21,7 +21,18 @@ func TestInstallWritesEmbeddedSkill(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "references", "workflows.md")); err != nil {
 		t.Fatal(err)
 	}
+	status := Check(dir)
+	if !status.Installed || len(status.Missing) != 0 {
+		t.Fatalf("status = %#v", status)
+	}
 	if _, err := Install(dir, false); err == nil {
 		t.Fatal("expected existing install to require --force")
+	}
+}
+
+func TestCheckReportsMissingSkill(t *testing.T) {
+	status := Check(filepath.Join(t.TempDir(), "missing"))
+	if status.Installed || len(status.Missing) == 0 {
+		t.Fatalf("status = %#v", status)
 	}
 }

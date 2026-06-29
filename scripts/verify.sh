@@ -9,6 +9,7 @@ go build ./cmd/fjgo
 smoke_repo="${FJGO_SMOKE_REPO:-kavemand/.forgejo}"
 
 test -f .forgejo/workflows/verify.yml
+test -f docs/alpha.md
 test -x scripts/smoke-auth.sh
 sh -n scripts/smoke-auth.sh
 ! grep -R '\.forgejo/workflows/release\.yml' README.md AGENTS.md
@@ -28,13 +29,22 @@ grep -q '\.forgejo/workflows/verify\.yml' AGENTS.md
 ./fjgo alias inspect repo pulls get | grep -q 'repoGetPullRequest'
 ./fjgo alias inspect repo pulls download get | grep -q 'repoDownloadPullDiffOrPatch'
 ./fjgo alias --json inspect repo issues create >/dev/null
+json_err="$(mktemp)"
+if ./fjgo --json api call repoGet owner=missing 2>"$json_err"; then
+	exit 1
+fi
+grep -q '"kind": "cli"' "$json_err"
+grep -q '"error":' "$json_err"
+rm -f "$json_err"
 ./fjgo repo get "$smoke_repo" >/dev/null
 ./fjgo repo topics "$smoke_repo" >/dev/null
 ./fjgo repo topics "$smoke_repo" --set forgejo,go,cli --yes --dry-run >/dev/null
 ./fjgo repo avatar "$smoke_repo" assets/icon.png --yes --dry-run >/dev/null
 ./fjgo release list "$smoke_repo" >/dev/null
+./fjgo release create "$smoke_repo" v0.0.0-test --yes --dry-run >/dev/null
 ./fjgo release upload "$smoke_repo" 1 ./go.mod --yes --dry-run >/dev/null
 ./fjgo auth status >/dev/null
+./fjgo skill status >/dev/null
 skill_tmp="$(mktemp -d)"
 ./fjgo skill install --dir "$skill_tmp/fjgo" >/dev/null
 test -f "$skill_tmp/fjgo/SKILL.md"

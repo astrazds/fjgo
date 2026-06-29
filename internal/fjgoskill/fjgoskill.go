@@ -17,8 +17,28 @@ type InstallResult struct {
 	Files []string `json:"files"`
 }
 
+type Status struct {
+	Path      string   `json:"path"`
+	Installed bool     `json:"installed"`
+	Missing   []string `json:"missing,omitempty"`
+}
+
 func DefaultInstallDir() string {
 	return filepath.Join(".agents", "skills", "fjgo")
+}
+
+func Check(dir string) Status {
+	if dir == "" {
+		dir = DefaultInstallDir()
+	}
+	status := Status{Path: dir, Installed: true}
+	for _, rel := range []string{"SKILL.md", "references/workflows.md", "agents/openai.yaml"} {
+		if _, err := os.Stat(filepath.Join(dir, rel)); err != nil {
+			status.Installed = false
+			status.Missing = append(status.Missing, filepath.ToSlash(rel))
+		}
+	}
+	return status
 }
 
 func Install(dir string, force bool) (InstallResult, error) {

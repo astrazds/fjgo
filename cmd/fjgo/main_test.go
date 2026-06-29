@@ -540,6 +540,47 @@ func TestReleaseListAlias(t *testing.T) {
 	}
 }
 
+func TestReleaseCreateAlias(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/repos/astra/fjgo/releases" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s", r.Method)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body["tag_name"] != "v1.2.3" || body["name"] != "Release" || body["prerelease"] != true {
+			t.Fatalf("body = %#v", body)
+		}
+		_, _ = w.Write([]byte(`{"tag_name":"v1.2.3"}`))
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "release", "create", "astra/fjgo", "v1.2.3", "name=Release", "prerelease=true", "--yes"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if got := stdout.String(); got != `{"tag_name":"v1.2.3"}` {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestReleaseCreateDryRunUsesRemoteRepo(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", "https://v15.next.forgejo.org/api/v1", "release", "create", "kavemand/.forgejo", "v1.2.3", "--yes", "--dry-run"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	got := stdout.String()
+	if !strings.Contains(got, `"operation": "repoCreateRelease"`) || !strings.Contains(got, `"tag_name": "v1.2.3"`) {
+		t.Fatalf("preview = %s", got)
+	}
+}
+
 func TestGeneratedAliasDispatchesGETOperation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.URL.String(); got != "/api/v1/repos/astra/fjgo/issues?state=open" {
@@ -911,7 +952,7 @@ func TestDoctorRedactsTokenAndSummarizesRepo(t *testing.T) {
 	if strings.Contains(got, "secret") || strings.Contains(got, "private@example.invalid") {
 		t.Fatalf("doctor leaked sensitive data: %s", got)
 	}
-	for _, want := range []string{`"token_present": true`, `"full_name": "astra/fjgo"`, `"open_pr_count": 1`, `"tag_name": "v0.11.0"`, `"install_command": "fjgo skill install"`} {
+	for _, want := range []string{`"token_present": true`, `"full_name": "astra/fjgo"`, `"open_pr_count": 1`, `"tag_name": "v0.11.0"`, `"latest_release"`, `"goos"`, `"goarch"`, `"go_version"`, `"executable"`, `"install_command": "fjgo skill install"`, `"status"`} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("doctor missing %q:\n%s", want, got)
 		}
@@ -942,6 +983,57 @@ func TestInstallSkillsCommand(t *testing.T) {
 	}
 	if _, err := os.Stat(dir + "/references/workflows.md"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSkillStatusCommand(t *testing.T) {
+	dir := t.TempDir() + "/fjgo"
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"skill", "status", "--dir", dir}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), `"installed": false`) || !strings.Contains(stdout.String(), `"SKILL.md"`) {
+		t.Fatalf("stdout = %s", stdout.String())
+	}
+}
+
+func TestInstallSkillsCheckCommand(t *testing.T) {
+	dir := t.TempDir() + "/fjgo"
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"install", "--skills", "--check", "--dir", dir}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), `"installed": false`) {
+		t.Fatalf("stdout = %s", stdout.String())
+	}
+}
+
+func TestRunCLIJSONError(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := runCLI(t.Context(), []string{"--json", "api", "call", "repoGet", "owner=astra"}, &stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("code = %d", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %s", stdout.String())
+	}
+	got := stderr.String()
+	if !strings.Contains(got, `"kind": "cli"`) || !strings.Contains(got, `"error"`) || !strings.Contains(got, "repoGet") {
+		t.Fatalf("stderr = %s", got)
+	}
+}
+
+func TestRunCLIJSONErrorRedactsTokenAfterRootFlags(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := runCLI(t.Context(), []string{"-base-url", "https://example.invalid/api/v1", "-token", "secret-token", "--json", "api", "call", "repoGet", "owner=astra"}, &stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("code = %d", code)
+	}
+	got := stderr.String()
+	if !strings.Contains(got, `"kind": "cli"`) || strings.Contains(got, "secret-token") || !strings.Contains(got, "redacted") {
+		t.Fatalf("stderr = %s", got)
 	}
 }
 

@@ -5,6 +5,7 @@
 ```sh
 fjgo -R origin doctor --json
 fjgo auth status
+fjgo skill status
 fjgo -R origin repo get
 fjgo alias inspect repo issues list
 fjgo api inspect issueCreateIssue
@@ -14,59 +15,51 @@ fjgo model inspect CreateIssueOption
 Use `doctor --json` output as the field-feedback artifact when a workflow fails.
 It is redacted: token value is never printed.
 
-## Issues
+## Triage Issue
 
-List open issues:
+Inspect the issue, related comments, labels, and current repo state before
+changing anything:
 
 ```sh
 fjgo -R origin repo issues list state=open type=issues
+fjgo -R origin repo issues get ISSUE_NUMBER
+fjgo -R origin repo issues timeline get ISSUE_NUMBER
+fjgo -R origin repo labels list
 ```
 
-Create an issue:
+Comment or close only after a dry run:
 
 ```sh
-fjgo -R origin alias inspect repo issues create
-fjgo -R origin repo issues create --dry-run --yes -body '{"title":"Title","body":"Body"}'
-fjgo -R origin repo issues create --yes -body '{"title":"Title","body":"Body"}'
+fjgo -R origin repo issue comment ISSUE_NUMBER --dry-run --yes -body '{"body":"Triage note."}'
+fjgo -R origin repo issue close ISSUE_NUMBER --dry-run --yes
 ```
 
-Comment and close:
+## Open PR Summary
 
-```sh
-fjgo -R origin repo issue comment 123 --dry-run --yes -body '{"body":"Comment"}'
-fjgo -R origin repo issue comment 123 --yes -body '{"body":"Comment"}'
-fjgo -R origin repo issue close 123 --dry-run --yes
-fjgo -R origin repo issue close 123 --yes
-```
-
-## Pull Requests
-
-List and inspect pull requests:
+List open pull requests, inspect the target PR, and fetch changed files:
 
 ```sh
 fjgo -R origin repo pulls list state=open
-fjgo -R origin repo pulls get 7
-fjgo -R origin repo pulls files get 7
+fjgo -R origin repo pulls get PR_NUMBER
+fjgo -R origin repo pulls files get PR_NUMBER
+fjgo -R origin repo pulls PR_NUMBER commits get
 ```
 
-Inspect before PR mutations:
+## Publish Release
 
-```sh
-fjgo alias inspect repo pulls create
-fjgo model inspect CreatePullRequestOption
-fjgo -R origin repo pulls create --dry-run --yes -body '{"head":"branch","base":"main","title":"Title"}'
-```
-
-## Releases And Attachments
+Create and upload release assets through the task alias. Always dry-run first:
 
 ```sh
 fjgo -R origin release list
-fjgo -R origin api inspect repoCreateRelease
-fjgo -R origin api call repoCreateRelease --dry-run --yes owner=OWNER repo=REPO -body '{"tag_name":"v1.0.0","name":"v1.0.0"}'
-fjgo -R origin release upload 123 dist/fjgo.tar.gz name=fjgo.tar.gz --dry-run --yes
+fjgo -R origin release create v1.0.0 body="Release notes." --dry-run --yes
+fjgo -R origin release create v1.0.0 body="Release notes." --yes
+fjgo -R origin release upload RELEASE_ID dist/fjgo.tar.gz name=fjgo.tar.gz --dry-run --yes
+fjgo -R origin release upload RELEASE_ID dist/fjgo.tar.gz name=fjgo.tar.gz --yes
 ```
 
-## Repository Metadata
+## Update Repo Metadata
+
+Preview metadata changes before mutating:
 
 ```sh
 fjgo -R origin repo get
@@ -75,9 +68,26 @@ fjgo -R origin repo topics --set forgejo,go,cli --dry-run --yes
 fjgo -R origin repo avatar assets/icon.png --dry-run --yes
 ```
 
-## Files And Contents
+Use generic aliases for less common repository edits:
 
-Use the generated content aliases first:
+```sh
+fjgo alias inspect repo edit
+fjgo model inspect EditRepoOption
+```
+
+## Inspect Failing Action
+
+```sh
+fjgo alias list actions
+fjgo alias inspect repo actions runs list
+fjgo -R origin repo actions runs list
+fjgo -R origin repo actions runs get RUN_ID
+fjgo -R origin repo actions tasks list
+```
+
+## Read And Write Repo Contents
+
+Read contents through generated content aliases:
 
 ```sh
 fjgo alias list contents
@@ -89,7 +99,18 @@ For write bodies, inspect the operation and model:
 
 ```sh
 fjgo api inspect repoCreateFile
+fjgo api inspect repoUpdateFile
 fjgo model inspect CreateFileOptions
+fjgo model inspect UpdateFileOptions
+fjgo -R origin repo contents update README.md --dry-run --yes -body '{"message":"update README","content":"BASE64_CONTENT","branch":"main","sha":"CURRENT_FILE_SHA"}'
+```
+
+## Create Issue
+
+```sh
+fjgo -R origin alias inspect repo issues create
+fjgo -R origin repo issues create --dry-run --yes -body '{"title":"Title","body":"Body"}'
+fjgo -R origin repo issues create --yes -body '{"title":"Title","body":"Body"}'
 ```
 
 ## Optional Auth Smoke

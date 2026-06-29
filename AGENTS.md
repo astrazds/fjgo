@@ -32,7 +32,9 @@ Useful smoke check:
 ./fjgo api inspect repoSearch
 ./fjgo alias inspect repo pulls get
 ./fjgo api --json inspect repoSearch
+./fjgo release create kavemand/.forgejo v0.0.0-test --yes --dry-run
 ./fjgo release upload kavemand/.forgejo 1 ./go.mod --yes --dry-run
+./fjgo skill status
 ./fjgo auth status
 ```
 
@@ -85,6 +87,7 @@ add nicer aliases only when they remove real repetition.
 - Keep JSON output for inspect/list surfaces deterministic and parseable.
 - Keep `doctor --json` redacted: token presence is OK, token values and private
   user fields are not.
+- Keep root `--json` failures parseable for coding agents.
 - Keep `-R` / `--repo-from-remote` scoped to parsing Forgejo git remotes; do not
   guess repo context from unrelated files.
 - Keep the embedded skill concise, with workflow detail in `references/`.
@@ -103,6 +106,7 @@ The v1 surface is:
 - `version`, `me`, and raw `get`
 - embedded skill install via `skill install` / `install --skills`
 - redacted field diagnostics via `doctor --json`
+- structured root JSON errors via `--json`
 - `auth status` / `whoami` token-safe diagnostics
 - useful aliases: `repo get`, `repo topics`, `repo avatar`, `repo issue close`,
   `repo issue comment`, `release list`, `release upload`
@@ -114,6 +118,7 @@ The v1 surface is:
 - `-R` / `--repo-from-remote` for owner/repo resolution from git remotes
 - generated typed client methods and model types for the full Swagger surface
 - optional authenticated smoke via `scripts/smoke-auth.sh`
+- alpha field packet via `docs/alpha.md`
 - release archives via `scripts/release.sh`
 - repeatable verification via `scripts/verify.sh`
 

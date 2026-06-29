@@ -18,6 +18,7 @@ stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 "$bin" repo get "$repo" >/dev/null
 "$bin" repo topics "$repo" --set fjgo-smoke --dry-run --yes >/dev/null
 "$bin" repo avatar "$repo" assets/icon.png --dry-run --yes >/dev/null
+"$bin" release create "$repo" "fjgo-smoke-$stamp" body="Authenticated smoke release preview." --dry-run --yes >/dev/null
 "$bin" release upload "$repo" 1 go.mod name=go.mod --dry-run --yes >/dev/null
 
 issue="$("$bin" repo issues create "$repo" --yes -body '{"title":"fjgo smoke '"$stamp"'","body":"Created by scripts/smoke-auth.sh."}')"

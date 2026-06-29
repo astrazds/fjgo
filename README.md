@@ -38,6 +38,7 @@ Current app version: `v0.11.0`.
 - embedded Codex skill install via `fjgo skill install` or
   `fjgo install --skills`
 - redacted agent diagnostics via `fjgo doctor --json`
+- structured root error output via `fjgo --json ...`
 - `491` generated endpoint methods
 - `244` generated model types
 - `491` CLI operations via `api list`, `api inspect`, and `api call`
@@ -50,6 +51,7 @@ Current app version: `v0.11.0`.
 - multipart release/issue/comment attachment upload support through `api upload`
 - typed return values for operations with documented success response schemas
 - optional authenticated field smoke via `scripts/smoke-auth.sh`
+- alpha field-test packet in `docs/alpha.md`
 - Forgejo Actions verification and tag-release workflows
 
 Run the full local gate with:
@@ -127,13 +129,21 @@ depending on the Forgejo instance policy.
 ## CLI
 
 `fjgo doctor [owner/repo] --json` prints a redacted field-feedback bundle for
-agents: binary version, base URL, token/auth status, optional repo context,
-repository summary, recent releases, the bundled skill install path, and useful
-next commands.
+agents: binary version, runtime, executable path, base URL, token/auth status,
+optional git remote context, repository summary, latest/recent releases, bundled
+skill install status, and useful next commands.
 
 `fjgo skill install [--dir path] [--force]` installs the bundled Codex skill.
-The default target is `.agents/skills/fjgo`. `fjgo install --skills` is the same
-installer for agents that look for an install command.
+The default target is `.agents/skills/fjgo`. Use `fjgo skill status [--dir path]`
+or `fjgo install --skills --check` to check whether the skill is installed.
+`fjgo install --skills` is the same installer for agents that look for an
+install command.
+
+Use root `--json` before a command to make failures parseable:
+
+```sh
+fjgo --json api call repoGet owner=missing
+```
 
 `fjgo version` calls the Forgejo server `/version` endpoint.
 
@@ -209,6 +219,7 @@ fjgo repo topics kavemand/.forgejo
 fjgo repo topics kavemand/.forgejo --set forgejo,go,cli --dry-run --yes
 fjgo repo avatar kavemand/.forgejo assets/icon.png --dry-run --yes
 fjgo release list kavemand/.forgejo
+fjgo release create kavemand/.forgejo v1.0.0 body="Release notes." --dry-run --yes
 fjgo release upload kavemand/.forgejo 123 dist/fjgo.tar.gz name=fjgo.tar.gz --dry-run --yes
 ```
 
@@ -219,6 +230,7 @@ resolves `owner/repo` from common Forgejo HTTPS and SSH git remote forms:
 fjgo -R origin repo get
 fjgo -R origin repo issues list state=open
 fjgo -R origin release list
+fjgo -R origin release create v1.0.0 body="Release notes." --dry-run --yes
 fjgo -R origin release upload 123 dist/fjgo.tar.gz --yes
 ```
 
@@ -290,6 +302,9 @@ FJGO_BASE_URL=https://forgejo.example.com/api/v1 FJGO_TEST_REPO=owner/repo FJGO_
 When `FJGO_BASE_URL`, `FJGO_TEST_REPO`, and `FJGO_TOKEN` are set,
 `./scripts/verify.sh` runs the authenticated smoke too. The smoke creates a test
 issue, comments on it, closes it, and exercises token-safe dry-run previews.
+
+Alpha testers should use `docs/alpha.md` for the field-test checklist and
+failure-report format.
 
 ## Release
 

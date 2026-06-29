@@ -12,7 +12,9 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,6 +39,8 @@ type runConfig struct {
 	BaseURL    string
 	Token      string
 	RemoteRepo *repoRef
+	RemoteName string
+	RemoteURL  string
 }
 
 type doctorRelease struct {
@@ -48,10 +52,21 @@ type doctorRelease struct {
 }
 
 func main() {
-	if err := run(context.Background(), os.Args[1:], os.Stdout, os.Stderr); err != nil {
-		fmt.Fprintln(os.Stderr, "fjgo:", errorMessage(err))
-		os.Exit(1)
+	if code := runCLI(context.Background(), os.Args[1:], os.Stdout, os.Stderr); code != 0 {
+		os.Exit(code)
 	}
+}
+
+func runCLI(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	if err := run(ctx, args, stdout, stderr); err != nil {
+		if jsonErrorRequested(args) {
+			_ = writeJSON(stderr, errorView(args, err))
+		} else {
+			fmt.Fprintln(stderr, "fjgo:", errorMessage(err))
+		}
+		return 1
+	}
+	return 0
 }
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
@@ -59,6 +74,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	fs.SetOutput(stderr)
 	envBaseURL := os.Getenv("FJGO_BASE_URL")
 	baseURL := fs.String("base-url", getenv("FJGO_BASE_URL", defaultBaseURL), "Forgejo API base URL")
+	jsonErrors := fs.Bool("json", false, "print errors as JSON when used before the command")
 	token := fs.String("token", "", "Forgejo access token (or FJGO_TOKEN)")
 	timeout := fs.Duration("timeout", 15*time.Second, "HTTP timeout")
 	showVersion := fs.Bool("version", false, "print fjgo version")
@@ -84,9 +100,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		fmt.Fprintln(stderr, "  repo topics <owner/repo> [--set comma,separated,topics] [--yes] [--dry-run]")
 		fmt.Fprintln(stderr, "  repo avatar <owner/repo> <png> --yes [--dry-run]")
 		fmt.Fprintln(stderr, "  release list [owner/repo]")
+		fmt.Fprintln(stderr, "  release create [owner/repo] <tag> [name=value ...] --yes [--dry-run]")
 		fmt.Fprintln(stderr, "  release upload [owner/repo] <release-id> <file> [name=value ...] --yes")
 		fmt.Fprintln(stderr, "  skill install [--dir path] [--force]")
-		fmt.Fprintln(stderr, "  install --skills [--dir path] [--force]")
+		fmt.Fprintln(stderr, "  skill status [--dir path]")
+		fmt.Fprintln(stderr, "  install --skills [--dir path] [--force|--check]")
 		fmt.Fprintln(stderr, "\nflags:")
 		fs.PrintDefaults()
 	}
@@ -99,6 +117,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		fmt.Fprintf(stdout, "fjgo %s %s %s\n", version, commit, date)
 		return nil
 	}
+	_ = *jsonErrors
 	if fs.NArg() == 0 {
 		fs.Usage()
 		return errors.New("missing command")
@@ -125,11 +144,13 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	}
 	cfg := runConfig{BaseURL: *baseURL, Token: *token}
 	if *remote != "" {
-		ref, err := resolveRemoteRepo(*remote, *baseURL)
+		ref, remoteURL, err := resolveRemoteRepo(*remote, *baseURL)
 		if err != nil {
 			return err
 		}
 		cfg.RemoteRepo = ref
+		cfg.RemoteName = *remote
+		cfg.RemoteURL = remoteURL
 	}
 
 	switch fs.Arg(0) {
@@ -512,7 +533,7 @@ func runRepo(ctx context.Context, client *forgejo.Client, cfg runConfig, args []
 
 func runRelease(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: fjgo release <list|upload>")
+		return errors.New("usage: fjgo release <list|create|upload>")
 	}
 	switch args[0] {
 	case "list":
@@ -525,11 +546,69 @@ func runRelease(ctx context.Context, client *forgejo.Client, cfg runConfig, args
 			return err
 		}
 		return writeJSON(stdout, out)
+	case "create":
+		return runReleaseCreate(ctx, client, cfg, args[1:], stdout)
 	case "upload":
 		return runReleaseUpload(ctx, client, cfg, args[1:], stdout)
 	default:
 		return runAlias(ctx, client, cfg, append([]string{"repo", "releases"}, args...), stdout)
 	}
+}
+
+func runReleaseCreate(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
+	args, yes := takeYesFlag(args)
+	args, dryRun := takeDryRunFlag(args)
+	ref, rest, err := repoFromArgs(cfg, args)
+	if err != nil || len(rest) < 1 {
+		return errors.New("usage: fjgo release create [owner/repo] <tag> [name=value ...] --yes")
+	}
+	if !yes {
+		return errors.New("release create requires --yes")
+	}
+	op, ok := forgejo.OperationByID("repoCreateRelease")
+	if !ok {
+		return errors.New("missing repoCreateRelease operation")
+	}
+	body := map[string]any{"tag_name": rest[0], "name": rest[0]}
+	for _, arg := range rest[1:] {
+		name, value, ok := strings.Cut(arg, "=")
+		if !ok || name == "" {
+			return fmt.Errorf("expected name=value, got %q", arg)
+		}
+		switch name {
+		case "body", "name", "target_commitish":
+			body[name] = value
+		case "draft", "hide_archive_links", "prerelease":
+			parsed, err := strconv.ParseBool(value)
+			if err != nil {
+				return fmt.Errorf("%s expects bool: %w", name, err)
+			}
+			body[name] = parsed
+		default:
+			return fmt.Errorf("unknown release create option %q", name)
+		}
+	}
+	pathValues := map[string]string{"owner": ref.Owner, "repo": ref.Repo}
+	if dryRun {
+		return writeRequestPreview(stdout, requestPreview{
+			Operation:   op.ID,
+			Method:      op.Method,
+			Path:        previewPath(op, pathValues),
+			Body:        body,
+			AuthPresent: clientHasAuth(client),
+			RequiresYes: true,
+			YesProvided: yes,
+		})
+	}
+	out, err := client.DoOperationRaw(ctx, op, pathValues, forgejo.RequestOptions{Body: body})
+	if err != nil {
+		return err
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	_, err = stdout.Write(out)
+	return err
 }
 
 func runReleaseUpload(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
@@ -663,6 +742,7 @@ func runDoctor(ctx context.Context, client *forgejo.Client, cfg runConfig, args 
 	} else {
 		ref = cfg.RemoteRepo
 	}
+	exe, _ := os.Executable()
 	report := map[string]any{
 		"tool": map[string]string{
 			"name":    "fjgo",
@@ -670,9 +750,16 @@ func runDoctor(ctx context.Context, client *forgejo.Client, cfg runConfig, args 
 			"commit":  commit,
 			"date":    date,
 		},
-		"base_url":       cfg.BaseURL,
-		"token_present":  cfg.Token != "",
-		"field_feedback": "Share this redacted JSON with failures; it does not include token values.",
+		"runtime": map[string]string{
+			"goos":       runtime.GOOS,
+			"goarch":     runtime.GOARCH,
+			"go_version": runtime.Version(),
+		},
+		"executable":          exe,
+		"base_url":            cfg.BaseURL,
+		"base_url_configured": cfg.BaseURL != defaultBaseURL,
+		"token_present":       cfg.Token != "",
+		"field_feedback":      "Share this redacted JSON with failures; it does not include token values.",
 		"commands": []string{
 			"fjgo -R origin doctor --json",
 			"fjgo -R origin auth status",
@@ -683,7 +770,15 @@ func runDoctor(ctx context.Context, client *forgejo.Client, cfg runConfig, args 
 		"skill": map[string]any{
 			"default_install_path": fjgoskill.DefaultInstallDir(),
 			"install_command":      "fjgo skill install",
+			"status":               fjgoskill.Check(""),
 		},
+	}
+	if cfg.RemoteName != "" || cfg.RemoteURL != "" {
+		report["git"] = map[string]any{
+			"remote":     cfg.RemoteName,
+			"remote_url": redactRemoteURL(cfg.RemoteURL),
+			"repo":       cfg.RemoteRepo,
+		}
 	}
 	auth := map[string]any{"authenticated": false}
 	if cfg.Token != "" {
@@ -735,6 +830,9 @@ func runDoctor(ctx context.Context, client *forgejo.Client, cfg runConfig, args 
 					})
 				}
 				report["recent_releases"] = out
+				if len(out) > 0 {
+					report["latest_release"] = out[0]
+				}
 			}
 		}
 	}
@@ -743,11 +841,13 @@ func runDoctor(ctx context.Context, client *forgejo.Client, cfg runConfig, args 
 
 func runSkill(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: fjgo skill install [--dir path] [--force]")
+		return errors.New("usage: fjgo skill <install|status>")
 	}
 	switch args[0] {
 	case "install":
 		return runSkillInstall(args[1:], stdout, stderr)
+	case "status":
+		return runSkillStatus(args[1:], stdout, stderr)
 	default:
 		return fmt.Errorf("unknown skill command %q", args[0])
 	}
@@ -759,11 +859,15 @@ func runInstall(args []string, stdout, stderr io.Writer) error {
 	skills := fs.Bool("skills", false, "install embedded Codex skill")
 	dir := fs.String("dir", fjgoskill.DefaultInstallDir(), "skill install directory")
 	force := fs.Bool("force", false, "overwrite existing embedded skill files")
+	check := fs.Bool("check", false, "check embedded skill install status")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if !*skills || fs.NArg() != 0 {
-		return errors.New("usage: fjgo install --skills [--dir path] [--force]")
+		return errors.New("usage: fjgo install --skills [--dir path] [--force|--check]")
+	}
+	if *check {
+		return writeJSON(stdout, fjgoskill.Check(*dir))
 	}
 	return installSkill(*dir, *force, stdout)
 }
@@ -780,6 +884,19 @@ func runSkillInstall(args []string, stdout, stderr io.Writer) error {
 		return errors.New("usage: fjgo skill install [--dir path] [--force]")
 	}
 	return installSkill(*dir, *force, stdout)
+}
+
+func runSkillStatus(args []string, stdout, stderr io.Writer) error {
+	fs := flag.NewFlagSet("fjgo skill status", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	dir := fs.String("dir", fjgoskill.DefaultInstallDir(), "skill install directory")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 0 {
+		return errors.New("usage: fjgo skill status [--dir path]")
+	}
+	return writeJSON(stdout, fjgoskill.Check(*dir))
 }
 
 func installSkill(dir string, force bool, stdout io.Writer) error {
@@ -990,16 +1107,17 @@ func splitRepo(full string) (string, string, error) {
 	return owner, repo, nil
 }
 
-func resolveRemoteRepo(remote, baseURL string) (*repoRef, error) {
+func resolveRemoteRepo(remote, baseURL string) (*repoRef, string, error) {
 	out, err := exec.Command("git", "remote", "get-url", remote).Output()
 	if err != nil {
-		return nil, fmt.Errorf("resolve git remote %q: %w", remote, err)
+		return nil, "", fmt.Errorf("resolve git remote %q: %w", remote, err)
 	}
-	ref, err := parseRemoteRepo(strings.TrimSpace(string(out)), baseURL)
+	remoteURL := strings.TrimSpace(string(out))
+	ref, err := parseRemoteRepo(remoteURL, baseURL)
 	if err != nil {
-		return nil, fmt.Errorf("parse git remote %q: %w", remote, err)
+		return nil, "", fmt.Errorf("parse git remote %q: %w", remote, err)
 	}
-	return ref, nil
+	return ref, remoteURL, nil
 }
 
 func parseRemoteRepo(remoteURL, baseURL string) (*repoRef, error) {
@@ -1305,6 +1423,80 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func redactRemoteURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.User == nil {
+		return raw
+	}
+	u.User = url.User("redacted")
+	return u.String()
+}
+
+func jsonErrorRequested(args []string) bool {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			return false
+		}
+		if arg == "--json" || arg == "-json" {
+			return true
+		}
+		if !strings.HasPrefix(arg, "-") {
+			return false
+		}
+		name := strings.TrimLeft(arg, "-")
+		if before, _, ok := strings.Cut(name, "="); ok {
+			name = before
+		} else if rootFlagTakesValue(name) {
+			i++
+		}
+	}
+	return false
+}
+
+func rootFlagTakesValue(name string) bool {
+	switch name {
+	case "base-url", "token", "timeout", "R", "repo-from-remote":
+		return true
+	default:
+		return false
+	}
+}
+
+func errorView(args []string, err error) map[string]any {
+	out := map[string]any{
+		"error":   errorMessage(err),
+		"command": redactArgs(args),
+	}
+	var httpErr forgejo.HTTPError
+	if errors.As(err, &httpErr) {
+		out["status"] = httpErr.StatusCode
+		out["kind"] = "forgejo_api"
+	} else {
+		out["kind"] = "cli"
+	}
+	return out
+}
+
+func redactArgs(args []string) []string {
+	out := slices.Clone(args)
+	for i, arg := range out {
+		if arg == "-token" || arg == "--token" {
+			if i+1 < len(out) {
+				out[i+1] = "redacted"
+			}
+			continue
+		}
+		if strings.HasPrefix(arg, "-token=") {
+			out[i] = "-token=redacted"
+		}
+		if strings.HasPrefix(arg, "--token=") {
+			out[i] = "--token=redacted"
+		}
+	}
+	return out
 }
 
 func errorMessage(err error) string {
