@@ -16,10 +16,11 @@ import (
 	"strings"
 	"time"
 
+	"repos.astrazds.net/astrazds/fjgo/internal/fjgoskill"
 	"repos.astrazds.net/astrazds/fjgo/internal/forgejo"
 )
 
-const defaultBaseURL = "https://repos.astrazds.net/api/v1"
+const defaultBaseURL = "https://v15.next.forgejo.org/api/v1"
 
 var (
 	version = "v0.10.0"
@@ -38,6 +39,14 @@ type runConfig struct {
 	RemoteRepo *repoRef
 }
 
+type doctorRelease struct {
+	ID      int64  `json:"id"`
+	TagName string `json:"tag_name,omitempty"`
+	Name    string `json:"name,omitempty"`
+	HTMLURL string `json:"html_url,omitempty"`
+	Draft   bool   `json:"draft,omitempty"`
+}
+
 func main() {
 	if err := run(context.Background(), os.Args[1:], os.Stdout, os.Stderr); err != nil {
 		fmt.Fprintln(os.Stderr, "fjgo:", errorMessage(err))
@@ -48,6 +57,7 @@ func main() {
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	fs := flag.NewFlagSet("fjgo", flag.ContinueOnError)
 	fs.SetOutput(stderr)
+	envBaseURL := os.Getenv("FJGO_BASE_URL")
 	baseURL := fs.String("base-url", getenv("FJGO_BASE_URL", defaultBaseURL), "Forgejo API base URL")
 	token := fs.String("token", "", "Forgejo access token (or FJGO_TOKEN)")
 	timeout := fs.Duration("timeout", 15*time.Second, "HTTP timeout")
@@ -55,9 +65,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	remote := fs.String("R", "", "resolve owner/repo from git remote")
 	remoteLong := fs.String("repo-from-remote", "", "resolve owner/repo from git remote")
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "usage: fjgo [flags] <version|me|auth|get|api|alias|model|repo|release>")
+		fmt.Fprintln(stderr, "usage: fjgo [flags] <version|doctor|me|auth|get|api|alias|model|repo|release|skill|install>")
 		fmt.Fprintln(stderr, "\ncommands:")
 		fmt.Fprintln(stderr, "  version     print the Forgejo server version")
+		fmt.Fprintln(stderr, "  doctor      print redacted agent diagnostics as JSON")
 		fmt.Fprintln(stderr, "  me          print the authenticated user")
 		fmt.Fprintln(stderr, "  auth status print base-url/token diagnostics")
 		fmt.Fprintln(stderr, "  get <path>  GET an API path, for example /version")
@@ -70,10 +81,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		fmt.Fprintln(stderr, "  alias collisions")
 		fmt.Fprintln(stderr, "  model inspect <Model>")
 		fmt.Fprintln(stderr, "  repo get <owner/repo>")
-		fmt.Fprintln(stderr, "  repo topics <owner/repo> [--set comma,separated,topics] [--yes]")
-		fmt.Fprintln(stderr, "  repo avatar <owner/repo> <png> --yes")
+		fmt.Fprintln(stderr, "  repo topics <owner/repo> [--set comma,separated,topics] [--yes] [--dry-run]")
+		fmt.Fprintln(stderr, "  repo avatar <owner/repo> <png> --yes [--dry-run]")
 		fmt.Fprintln(stderr, "  release list [owner/repo]")
 		fmt.Fprintln(stderr, "  release upload [owner/repo] <release-id> <file> [name=value ...] --yes")
+		fmt.Fprintln(stderr, "  skill install [--dir path] [--force]")
+		fmt.Fprintln(stderr, "  install --skills [--dir path] [--force]")
 		fmt.Fprintln(stderr, "\nflags:")
 		fs.PrintDefaults()
 	}
@@ -90,7 +103,13 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		fs.Usage()
 		return errors.New("missing command")
 	}
-	if *token == "" {
+	baseURLConfigured := envBaseURL != ""
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "base-url" {
+			baseURLConfigured = true
+		}
+	})
+	if *token == "" && (*baseURL != defaultBaseURL || baseURLConfigured) {
 		*token = os.Getenv("FJGO_TOKEN")
 	}
 	if *remoteLong != "" {
@@ -114,6 +133,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	}
 
 	switch fs.Arg(0) {
+	case "doctor", "context":
+		return runDoctor(ctx, client, cfg, fs.Args()[1:], stdout)
 	case "version":
 		body, err := callOperationRaw(ctx, client, "getVersion", nil, nil)
 		if err != nil {
@@ -149,6 +170,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return runRepo(ctx, client, cfg, fs.Args()[1:], stdout)
 	case "release":
 		return runRelease(ctx, client, cfg, fs.Args()[1:], stdout)
+	case "skill":
+		return runSkill(fs.Args()[1:], stdout, stderr)
+	case "install":
+		return runInstall(fs.Args()[1:], stdout, stderr)
 	default:
 		return runAlias(ctx, client, cfg, fs.Args(), stdout)
 	}
@@ -415,6 +440,7 @@ func runRepo(ctx context.Context, client *forgejo.Client, cfg runConfig, args []
 			return errors.New("usage: fjgo repo topics <owner/repo> [--set comma,separated,topics]")
 		}
 		args, yes := takeYesFlag(rest)
+		args, dryRun := takeDryRunFlag(args)
 		args, topics, err := takeSetFlag(args)
 		if err != nil {
 			return err
@@ -425,6 +451,18 @@ func runRepo(ctx context.Context, client *forgejo.Client, cfg runConfig, args []
 		if topics != "" {
 			if !yes {
 				return errors.New("repo topics --set requires --yes")
+			}
+			if dryRun {
+				op, _ := forgejo.OperationByID("repoUpdateTopics")
+				return writeRequestPreview(stdout, requestPreview{
+					Operation:   op.ID,
+					Method:      op.Method,
+					Path:        previewPath(op, map[string]string{"owner": ref.Owner, "repo": ref.Repo}),
+					Body:        map[string]any{"topics": splitCSV(topics)},
+					AuthPresent: clientHasAuth(client),
+					RequiresYes: true,
+					YesProvided: yes,
+				})
 			}
 			if err := client.RepoUpdateTopics(ctx, ref.Owner, ref.Repo, &forgejo.RepoTopicOptions{Topics: splitCSV(topics)}, forgejo.RequestOptions{}); err != nil {
 				return err
@@ -441,11 +479,24 @@ func runRepo(ctx context.Context, client *forgejo.Client, cfg runConfig, args []
 			return errors.New("usage: fjgo repo avatar <owner/repo> <png> --yes")
 		}
 		rest, yes := takeYesFlag(rest)
+		rest, dryRun := takeDryRunFlag(rest)
 		if len(rest) != 1 {
 			return errors.New("usage: fjgo repo avatar <owner/repo> <png> --yes")
 		}
 		if !yes {
 			return errors.New("repo avatar requires --yes")
+		}
+		if dryRun {
+			op, _ := forgejo.OperationByID("repoUpdateAvatar")
+			return writeRequestPreview(stdout, requestPreview{
+				Operation:   op.ID,
+				Method:      op.Method,
+				Path:        previewPath(op, map[string]string{"owner": ref.Owner, "repo": ref.Repo}),
+				Body:        map[string]string{"image_file": rest[0], "image_base64": "omitted"},
+				AuthPresent: clientHasAuth(client),
+				RequiresYes: true,
+				YesProvided: yes,
+			})
 		}
 		b, err := os.ReadFile(rest[0])
 		if err != nil {
@@ -595,6 +646,148 @@ func runRepoIssue(ctx context.Context, client *forgejo.Client, cfg runConfig, ar
 	default:
 		return fmt.Errorf("unknown repo issue command %q", args[0])
 	}
+}
+
+func runDoctor(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
+	args, _ = takeJSONFlag(args)
+	if len(args) > 1 {
+		return errors.New("usage: fjgo doctor [owner/repo] [--json]")
+	}
+	var ref *repoRef
+	if len(args) == 1 {
+		owner, repo, err := splitRepo(args[0])
+		if err != nil {
+			return err
+		}
+		ref = &repoRef{Owner: owner, Repo: repo}
+	} else {
+		ref = cfg.RemoteRepo
+	}
+	report := map[string]any{
+		"tool": map[string]string{
+			"name":    "fjgo",
+			"version": version,
+			"commit":  commit,
+			"date":    date,
+		},
+		"base_url":       cfg.BaseURL,
+		"token_present":  cfg.Token != "",
+		"field_feedback": "Share this redacted JSON with failures; it does not include token values.",
+		"commands": []string{
+			"fjgo -R origin doctor --json",
+			"fjgo -R origin auth status",
+			"fjgo -R origin alias inspect repo issues create",
+			"fjgo -R origin repo issues list state=open",
+			"fjgo -R origin release list",
+		},
+		"skill": map[string]any{
+			"default_install_path": fjgoskill.DefaultInstallDir(),
+			"install_command":      "fjgo skill install",
+		},
+	}
+	auth := map[string]any{"authenticated": false}
+	if cfg.Token != "" {
+		user, err := client.Me(ctx)
+		if err != nil {
+			auth["error"] = errorMessage(err)
+		} else {
+			auth["authenticated"] = true
+			auth["user"] = map[string]any{
+				"id":       user.ID,
+				"login":    user.UserName,
+				"html_url": user.HTMLURL,
+				"is_admin": user.IsAdmin,
+			}
+		}
+	}
+	report["auth"] = auth
+	if ref != nil {
+		report["repo"] = ref
+		repo, err := client.RepoGet(ctx, ref.Owner, ref.Repo, forgejo.RequestOptions{})
+		if err != nil {
+			report["repo_error"] = errorMessage(err)
+		} else {
+			report["repository"] = map[string]any{
+				"full_name":         repo.FullName,
+				"html_url":          repo.HTMLURL,
+				"default_branch":    repo.DefaultBranch,
+				"private":           repo.Private,
+				"archived":          repo.Archived,
+				"open_issues_count": repo.OpenIssues,
+				"open_pr_count":     repo.OpenPulls,
+				"topics":            repo.Topics,
+			}
+			releases, err := client.RepoListReleases(ctx, ref.Owner, ref.Repo, forgejo.RequestOptions{Query: url.Values{"limit": {"5"}}})
+			if err != nil {
+				report["releases_error"] = errorMessage(err)
+			} else {
+				var out []doctorRelease
+				for _, release := range releases {
+					if release == nil {
+						continue
+					}
+					out = append(out, doctorRelease{
+						ID:      release.ID,
+						TagName: release.TagName,
+						Name:    release.Title,
+						HTMLURL: release.HTMLURL,
+						Draft:   release.IsDraft,
+					})
+				}
+				report["recent_releases"] = out
+			}
+		}
+	}
+	return writeJSON(stdout, report)
+}
+
+func runSkill(args []string, stdout, stderr io.Writer) error {
+	if len(args) == 0 {
+		return errors.New("usage: fjgo skill install [--dir path] [--force]")
+	}
+	switch args[0] {
+	case "install":
+		return runSkillInstall(args[1:], stdout, stderr)
+	default:
+		return fmt.Errorf("unknown skill command %q", args[0])
+	}
+}
+
+func runInstall(args []string, stdout, stderr io.Writer) error {
+	fs := flag.NewFlagSet("fjgo install", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	skills := fs.Bool("skills", false, "install embedded Codex skill")
+	dir := fs.String("dir", fjgoskill.DefaultInstallDir(), "skill install directory")
+	force := fs.Bool("force", false, "overwrite existing embedded skill files")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if !*skills || fs.NArg() != 0 {
+		return errors.New("usage: fjgo install --skills [--dir path] [--force]")
+	}
+	return installSkill(*dir, *force, stdout)
+}
+
+func runSkillInstall(args []string, stdout, stderr io.Writer) error {
+	fs := flag.NewFlagSet("fjgo skill install", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	dir := fs.String("dir", fjgoskill.DefaultInstallDir(), "skill install directory")
+	force := fs.Bool("force", false, "overwrite existing embedded skill files")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 0 {
+		return errors.New("usage: fjgo skill install [--dir path] [--force]")
+	}
+	return installSkill(*dir, *force, stdout)
+}
+
+func installSkill(dir string, force bool, stdout io.Writer) error {
+	result, err := fjgoskill.Install(dir, force)
+	if err != nil {
+		return err
+	}
+	return writeJSON(stdout, result)
 }
 
 func repoFromArgs(cfg runConfig, args []string) (repoRef, []string, error) {

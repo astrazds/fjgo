@@ -1,0 +1,4 @@
+interface:
+  display_name: "fjgo"
+  short_description: "Work with Forgejo repos safely"
+  default_prompt: "Use fjgo to inspect this Forgejo repository, verify auth and repo context, then perform the requested Forgejo workflow with token-safe dry runs before mutation."

@@ -1,9 +1,33 @@
 # fjgo
 
-Small Go CLI and client for the Forgejo API at `https://repos.astrazds.net/api/swagger#/`.
+Agent-first Go CLI, API client, and installable Codex skill for Forgejo repos.
 
-The API root defaults to `https://repos.astrazds.net/api/v1`; override it with
+The API root defaults to the public Forgejo demo at
+`https://v15.next.forgejo.org/api/v1`; override it with
 `FJGO_BASE_URL` or `-base-url`.
+
+## Agent Setup
+
+Build or install the binary, then install the bundled skill into the current
+project:
+
+```sh
+go build ./cmd/fjgo
+./fjgo skill install
+```
+
+Inside a Forgejo-backed checkout, start every agent workflow with:
+
+```sh
+export FJGO_BASE_URL=https://forgejo.example.com/api/v1
+export FJGO_TOKEN=your_access_token
+./fjgo -R origin doctor --json
+./fjgo -R origin alias inspect repo issues create
+./fjgo -R origin repo issues create --dry-run --yes -body '{"title":"Test","body":"Body"}'
+```
+
+`doctor --json`, `auth status`, `--dry-run`, and `--print-request` are
+token-safe. They report whether a token is present, never the token value.
 
 ## Status
 
@@ -11,6 +35,9 @@ Current app version: `v0.10.0`.
 
 `fjgo` covers the full live Forgejo Swagger surface:
 
+- embedded Codex skill install via `fjgo skill install` or
+  `fjgo install --skills`
+- redacted agent diagnostics via `fjgo doctor --json`
 - `491` generated endpoint methods
 - `244` generated model types
 - `491` CLI operations via `api list`, `api inspect`, and `api call`
@@ -22,6 +49,7 @@ Current app version: `v0.10.0`.
 - JSON output for inspect/list surfaces used by other agents
 - multipart release/issue/comment attachment upload support through `api upload`
 - typed return values for operations with documented success response schemas
+- optional authenticated field smoke via `scripts/smoke-auth.sh`
 - Forgejo Actions verification and tag-release workflows
 
 Run the full local gate with:
@@ -31,8 +59,9 @@ Run the full local gate with:
 ```
 
 The verifier regenerates API code, formats, tests, builds, runs live smoke
-checks, checks coverage counts, builds a release archive, verifies its embedded
-version metadata, and removes `dist/`.
+checks, verifies docs and embedded skill surfaces, checks coverage counts,
+builds a release archive, verifies its embedded version metadata, and removes
+`dist/`.
 
 ## Install
 
@@ -56,32 +85,39 @@ install -Dm755 fjgo_v0.10.0_linux_amd64/fjgo ~/.local/bin/fjgo
 go build ./cmd/fjgo
 
 ./fjgo --version
+./fjgo skill install
 ./fjgo version
-FJGO_TOKEN=... ./fjgo me
+./fjgo -R origin doctor --json
 ./fjgo get /version
 ./fjgo api list repo
 ./fjgo api inspect createCurrentUserRepo
 ./fjgo api inspect repoSearch
-./fjgo api call repoGet owner=astrazds repo=fjgo
+./fjgo api call repoGet owner=kavemand repo=.forgejo
 ./fjgo api --json inspect repoSearch
 ./fjgo alias list
 ./fjgo alias inspect repo issues get
 ./fjgo alias collisions
 ./fjgo model inspect CreateRepoOption
-./fjgo repo get astrazds/fjgo
+./fjgo repo get kavemand/.forgejo
 ./fjgo -R origin repo get
-./fjgo repo topics astrazds/fjgo
-./fjgo repo avatar astrazds/fjgo assets/icon.png --yes
-./fjgo release list astrazds/fjgo
-./fjgo release upload astrazds/fjgo 123 dist/fjgo.tar.gz name=fjgo.tar.gz --yes
+./fjgo repo topics kavemand/.forgejo
+./fjgo repo avatar kavemand/.forgejo assets/icon.png --dry-run --yes
+./fjgo release list kavemand/.forgejo
+./fjgo release upload kavemand/.forgejo 123 dist/fjgo.tar.gz name=fjgo.tar.gz --dry-run --yes
 ./fjgo auth status
 ```
 
 Authentication uses Forgejo's token auth header:
 
 ```sh
+export FJGO_BASE_URL=https://forgejo.example.com/api/v1
 export FJGO_TOKEN=your_access_token
 ```
+
+Set `FJGO_BASE_URL` with `FJGO_TOKEN` for private or non-demo instances. Ambient
+`FJGO_TOKEN` is ignored for the built-in public demo default unless the base URL
+is explicitly configured, which avoids sending a private token to the demo by
+accident.
 
 Use a read-only token for authenticated reads such as `fjgo me`. Repo write
 operations, including topic or avatar updates, need repository write access.
@@ -89,6 +125,15 @@ Release creation/upload needs release/package permission for the target repo,
 depending on the Forgejo instance policy.
 
 ## CLI
+
+`fjgo doctor [owner/repo] --json` prints a redacted field-feedback bundle for
+agents: binary version, base URL, token/auth status, optional repo context,
+repository summary, recent releases, the bundled skill install path, and useful
+next commands.
+
+`fjgo skill install [--dir path] [--force]` installs the bundled Codex skill.
+The default target is `.agents/skills/fjgo`. `fjgo install --skills` is the same
+installer for agents that look for an install command.
 
 `fjgo version` calls the Forgejo server `/version` endpoint.
 
@@ -113,9 +158,9 @@ fjgo api --json inspect repoSearch
 ```sh
 fjgo api call getVersion
 fjgo api call repoSearch q=fjgo limit=10
-fjgo api call repoGet owner=astrazds repo=fjgo
-fjgo api call createCurrentUserRepo --yes -body '{"name":"demo","private":true}'
+fjgo api call repoGet owner=kavemand repo=.forgejo
 fjgo api call createCurrentUserRepo --yes --dry-run -body '{"name":"demo","private":true}'
+fjgo api call createCurrentUserRepo --yes -body '{"name":"demo","private":true}'
 ```
 
 For `api call`, `name=value` arguments matching path parameters fill the path;
@@ -127,8 +172,8 @@ is omitted. Mutating operations require `--yes`. Use `--dry-run` or
 Multipart/form-data operations use `api upload`:
 
 ```sh
-fjgo api upload repoCreateReleaseAttachment owner=astrazds repo=fjgo id=123 name=fjgo.tar.gz attachment=@dist/fjgo.tar.gz --yes
-fjgo api upload issueCreateIssueAttachment owner=astrazds repo=fjgo index=7 attachment=@screenshot.png --yes
+fjgo api upload repoCreateReleaseAttachment owner=OWNER repo=REPO id=123 name=fjgo.tar.gz attachment=@dist/fjgo.tar.gz --yes
+fjgo api upload issueCreateIssueAttachment owner=OWNER repo=REPO index=7 attachment=@screenshot.png --yes
 ```
 
 `fjgo alias list` shows generated convenience commands for clear Swagger path
@@ -159,12 +204,12 @@ fjgo model inspect CreateRepoOption
 Common aliases:
 
 ```sh
-fjgo repo get astrazds/fjgo
-fjgo repo topics astrazds/fjgo
-fjgo repo topics astrazds/fjgo --set forgejo,go,cli --yes
-fjgo repo avatar astrazds/fjgo assets/icon.png --yes
-fjgo release list astrazds/fjgo
-fjgo release upload astrazds/fjgo 123 dist/fjgo.tar.gz name=fjgo.tar.gz --yes
+fjgo repo get kavemand/.forgejo
+fjgo repo topics kavemand/.forgejo
+fjgo repo topics kavemand/.forgejo --set forgejo,go,cli --dry-run --yes
+fjgo repo avatar kavemand/.forgejo assets/icon.png --dry-run --yes
+fjgo release list kavemand/.forgejo
+fjgo release upload kavemand/.forgejo 123 dist/fjgo.tar.gz name=fjgo.tar.gz --dry-run --yes
 ```
 
 When running inside a checkout, `-R <remote>` or `--repo-from-remote <remote>`
@@ -196,7 +241,7 @@ go generate ./internal/forgejo
 Refresh from live Swagger explicitly:
 
 ```sh
-curl -fsSL https://repos.astrazds.net/swagger.v1.json -o swagger.v1.json
+curl -fsSL https://v15.next.forgejo.org/swagger.v1.json -o swagger.v1.json
 go generate ./internal/forgejo
 ```
 
@@ -212,7 +257,7 @@ values. Methods with a documented success response return the generated
 response type:
 
 ```go
-repo, err := client.RepoGet(ctx, "astrazds", "fjgo", forgejo.RequestOptions{})
+repo, err := client.RepoGet(ctx, "kavemand", ".forgejo", forgejo.RequestOptions{})
 created, err := client.CreateCurrentUserRepo(ctx, &forgejo.CreateRepoOption{
 	Name:    "demo",
 	Private: true,
@@ -234,6 +279,17 @@ Generated files are committed for consumers, but should only be edited through
 
 Forgejo Actions runs the same verifier on pushes and pull requests via
 `.forgejo/workflows/verify.yml`.
+
+Optional authenticated field smoke against a disposable repo:
+
+```sh
+go build ./cmd/fjgo
+FJGO_BASE_URL=https://forgejo.example.com/api/v1 FJGO_TEST_REPO=owner/repo FJGO_TOKEN=... ./scripts/smoke-auth.sh
+```
+
+When `FJGO_BASE_URL`, `FJGO_TEST_REPO`, and `FJGO_TOKEN` are set,
+`./scripts/verify.sh` runs the authenticated smoke too. The smoke creates a test
+issue, comments on it, closes it, and exercises token-safe dry-run previews.
 
 ## Release
 

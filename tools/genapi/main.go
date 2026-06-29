@@ -15,7 +15,7 @@ import (
 	"unicode"
 )
 
-const defaultSpecURL = "https://repos.astrazds.net/swagger.v1.json"
+const defaultSpecURL = "https://v15.next.forgejo.org/swagger.v1.json"
 
 type spec struct {
 	Paths       map[string]map[string]operation `json:"paths"`

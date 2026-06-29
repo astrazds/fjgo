@@ -412,6 +412,27 @@ func TestRepoTopicsSetRequiresYes(t *testing.T) {
 	}
 }
 
+func TestRepoTopicsDryRunDoesNotCallServer(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "repo", "topics", "astra/fjgo", "--set", "go,cli", "--yes", "--dry-run"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if called {
+		t.Fatal("server was called")
+	}
+	got := stdout.String()
+	if !strings.Contains(got, `"operation": "repoUpdateTopics"`) || !strings.Contains(got, `"topics"`) {
+		t.Fatalf("preview = %s", got)
+	}
+}
+
 func TestRepoTopicsRequiresRepo(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	err := run(t.Context(), []string{"repo", "topics"}, &stdout, &stderr)
@@ -476,6 +497,27 @@ func TestRepoAvatarRequiresYes(t *testing.T) {
 	}
 	if called {
 		t.Fatal("server was called")
+	}
+}
+
+func TestRepoAvatarDryRunDoesNotReadFileOrCallServer(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "repo", "avatar", "astra/fjgo", "/no/such/icon.png", "--yes", "--dry-run"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if called {
+		t.Fatal("server was called")
+	}
+	got := stdout.String()
+	if !strings.Contains(got, `"operation": "repoUpdateAvatar"`) || strings.Contains(got, "cG5n") {
+		t.Fatalf("preview = %s", got)
 	}
 }
 
@@ -730,15 +772,15 @@ func TestReleaseUploadAlias(t *testing.T) {
 
 func TestRemoteRepoParsing(t *testing.T) {
 	for _, remote := range []string{
-		"https://repos.astrazds.net/astrazds/fjgo.git",
-		"ssh://git@repos.astrazds.net/astrazds/fjgo.git",
-		"git@repos.astrazds.net:astrazds/fjgo.git",
+		"https://v15.next.forgejo.org/kavemand/.forgejo.git",
+		"ssh://git@v15.next.forgejo.org/kavemand/.forgejo.git",
+		"git@v15.next.forgejo.org:kavemand/.forgejo.git",
 	} {
 		ref, err := parseRemoteRepo(remote, defaultBaseURL)
 		if err != nil {
 			t.Fatalf("%s: %v", remote, err)
 		}
-		if ref.Owner != "astrazds" || ref.Repo != "fjgo" {
+		if ref.Owner != "kavemand" || ref.Repo != ".forgejo" {
 			t.Fatalf("%s => %#v", remote, ref)
 		}
 	}
@@ -795,6 +837,111 @@ func TestAuthStatusDoesNotLeakToken(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), `"token_present": true`) || !strings.Contains(stdout.String(), `"authenticated": true`) {
 		t.Fatalf("auth status = %s", stdout.String())
+	}
+}
+
+func TestEnvTokenIgnoredForUnconfiguredDemoBase(t *testing.T) {
+	t.Setenv("FJGO_BASE_URL", "")
+	t.Setenv("FJGO_TOKEN", "secret")
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"auth", "status"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if strings.Contains(stdout.String(), "secret") || !strings.Contains(stdout.String(), `"token_present": false`) {
+		t.Fatalf("auth status = %s", stdout.String())
+	}
+}
+
+func TestEnvTokenUsedWhenBaseURLConfigured(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "token secret" {
+			t.Fatalf("Authorization = %q", got)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{"login": "astra"})
+	}))
+	defer server.Close()
+	t.Setenv("FJGO_BASE_URL", server.URL+"/api/v1")
+	t.Setenv("FJGO_TOKEN", "secret")
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"auth", "status"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), `"authenticated": true`) {
+		t.Fatalf("auth status = %s", stdout.String())
+	}
+}
+
+func TestDoctorRedactsTokenAndSummarizesRepo(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/user":
+			if got := r.Header.Get("Authorization"); got != "token secret" {
+				t.Fatalf("Authorization = %q", got)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": 1, "login": "astra", "email": "private@example.invalid"})
+		case "/api/v1/repos/astra/fjgo":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"full_name":         "astra/fjgo",
+				"default_branch":    "main",
+				"open_issues_count": 2,
+				"open_pr_counter":   1,
+				"topics":            []string{"forgejo", "cli"},
+			})
+		case "/api/v1/repos/astra/fjgo/releases":
+			if r.URL.Query().Get("limit") != "5" {
+				t.Fatalf("query = %q", r.URL.RawQuery)
+			}
+			_ = json.NewEncoder(w).Encode([]map[string]any{{"id": 7, "tag_name": "v0.10.0", "name": "v0.10.0"}})
+		default:
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "-token", "secret", "doctor", "astra/fjgo"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	got := stdout.String()
+	if strings.Contains(got, "secret") || strings.Contains(got, "private@example.invalid") {
+		t.Fatalf("doctor leaked sensitive data: %s", got)
+	}
+	for _, want := range []string{`"token_present": true`, `"full_name": "astra/fjgo"`, `"open_pr_count": 1`, `"tag_name": "v0.10.0"`, `"install_command": "fjgo skill install"`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("doctor missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestSkillInstallCommand(t *testing.T) {
+	dir := t.TempDir() + "/fjgo"
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"skill", "install", "--dir", dir}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if _, err := os.Stat(dir + "/SKILL.md"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), `"path": "`+dir+`"`) {
+		t.Fatalf("stdout = %s", stdout.String())
+	}
+}
+
+func TestInstallSkillsCommand(t *testing.T) {
+	dir := t.TempDir() + "/fjgo"
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"install", "--skills", "--dir", dir}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if _, err := os.Stat(dir + "/references/workflows.md"); err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -4,8 +4,7 @@ Guidance for agents working in this repository.
 
 ## Project Shape
 
-`fjgo` is a small Go CLI plus API client for the Forgejo API at
-`https://repos.astrazds.net/api/swagger#/`.
+`fjgo` is a small Go CLI, installable Codex skill, and API client for the Forgejo API.
 
 Keep the project boring:
 
@@ -26,35 +25,42 @@ Useful smoke check:
 
 ```sh
 ./fjgo --version
+./fjgo skill install --dir "$(mktemp -d)/fjgo"
+./fjgo doctor kavemand/.forgejo --json
 ./fjgo version
 ./fjgo api inspect createCurrentUserRepo
 ./fjgo api inspect repoSearch
 ./fjgo alias inspect repo pulls get
 ./fjgo api --json inspect repoSearch
-./fjgo release upload astrazds/fjgo 1 ./go.mod --yes --dry-run
+./fjgo release upload kavemand/.forgejo 1 ./go.mod --yes --dry-run
 ./fjgo auth status
 ```
 
 Authenticated commands use:
 
 ```sh
+export FJGO_BASE_URL=https://forgejo.example.com/api/v1
 export FJGO_TOKEN=...
 ```
 
-The API base defaults to `https://repos.astrazds.net/api/v1`; override with
+The API base defaults to `https://v15.next.forgejo.org/api/v1`; override with
 `FJGO_BASE_URL` or `-base-url`.
+Ambient `FJGO_TOKEN` is ignored for the built-in public demo default unless the
+base URL is explicitly configured.
 
 ## Code Layout
 
 - `cmd/fjgo`: CLI parsing and command dispatch
 - `internal/forgejo`: HTTP client, generated API methods, generated models
+- `internal/fjgoskill`: embedded Codex skill and installer helper
 - `tools/genapi`: stdlib Swagger generator for `endpoints_gen.go` and
   `models_gen.go`
 - `scripts/generate.sh`: pinned/configurable Swagger generation wrapper
 - `scripts/release.sh`: cross-platform archive builder
+- `scripts/smoke-auth.sh`: optional authenticated smoke against a disposable repo
 - `scripts/verify.sh`: full local verification gate
-- `.forgejo/workflows/verify.yml`: push/PR verification
-- `.forgejo/workflows/release.yml`: tag release archive upload
+- `.forgejo/workflows/verify.yml`: push/PR verification and tag release archive
+  upload
 - `swagger.v1.json`: pinned Swagger input for reproducible generation
 
 Keep command-specific parsing in `cmd/fjgo`. Keep HTTP details, multipart
@@ -77,8 +83,11 @@ add nicer aliases only when they remove real repetition.
 - Keep `--yes` on mutating commands, and keep `--dry-run` / `--print-request`
   token-safe.
 - Keep JSON output for inspect/list surfaces deterministic and parseable.
+- Keep `doctor --json` redacted: token presence is OK, token values and private
+  user fields are not.
 - Keep `-R` / `--repo-from-remote` scoped to parsing Forgejo git remotes; do not
   guess repo context from unrelated files.
+- Keep the embedded skill concise, with workflow detail in `references/`.
 - Prefer a raw escape hatch like `get` over prematurely wrapping the whole API.
 - Regenerate API methods with `go generate ./internal/forgejo`; do not edit
   `endpoints_gen.go` or `models_gen.go` by hand.
@@ -92,6 +101,8 @@ add nicer aliases only when they remove real repetition.
 The v1 surface is:
 
 - `version`, `me`, and raw `get`
+- embedded skill install via `skill install` / `install --skills`
+- redacted field diagnostics via `doctor --json`
 - `auth status` / `whoami` token-safe diagnostics
 - useful aliases: `repo get`, `repo topics`, `repo avatar`, `repo issue close`,
   `repo issue comment`, `release list`, `release upload`
@@ -102,6 +113,7 @@ The v1 surface is:
 - `--dry-run` / `--print-request` for token-safe request previews
 - `-R` / `--repo-from-remote` for owner/repo resolution from git remotes
 - generated typed client methods and model types for the full Swagger surface
+- optional authenticated smoke via `scripts/smoke-auth.sh`
 - release archives via `scripts/release.sh`
 - repeatable verification via `scripts/verify.sh`
 
