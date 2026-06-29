@@ -59,7 +59,7 @@ func TestVersionFlagPrintsBinaryVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); got != "fjgo v0.10.0 none unknown\n" {
+	if got := stdout.String(); got != "fjgo v0.11.0 none unknown\n" {
 		t.Fatalf("stdout = %q", got)
 	}
 }
@@ -526,7 +526,7 @@ func TestReleaseListAlias(t *testing.T) {
 		if r.URL.Path != "/api/v1/repos/astra/fjgo/releases" {
 			t.Fatalf("path = %q", r.URL.Path)
 		}
-		_, _ = w.Write([]byte(`[{"tag_name":"v0.10.0"}]`))
+		_, _ = w.Write([]byte(`[{"tag_name":"v0.11.0"}]`))
 	}))
 	defer server.Close()
 
@@ -535,7 +535,7 @@ func TestReleaseListAlias(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); !strings.Contains(got, `"tag_name": "v0.10.0"`) {
+	if got := stdout.String(); !strings.Contains(got, `"tag_name": "v0.11.0"`) {
 		t.Fatalf("stdout = %q", got)
 	}
 }
@@ -895,7 +895,7 @@ func TestDoctorRedactsTokenAndSummarizesRepo(t *testing.T) {
 			if r.URL.Query().Get("limit") != "5" {
 				t.Fatalf("query = %q", r.URL.RawQuery)
 			}
-			_ = json.NewEncoder(w).Encode([]map[string]any{{"id": 7, "tag_name": "v0.10.0", "name": "v0.10.0"}})
+			_ = json.NewEncoder(w).Encode([]map[string]any{{"id": 7, "tag_name": "v0.11.0", "name": "v0.11.0"}})
 		default:
 			t.Fatalf("path = %q", r.URL.Path)
 		}
@@ -911,7 +911,7 @@ func TestDoctorRedactsTokenAndSummarizesRepo(t *testing.T) {
 	if strings.Contains(got, "secret") || strings.Contains(got, "private@example.invalid") {
 		t.Fatalf("doctor leaked sensitive data: %s", got)
 	}
-	for _, want := range []string{`"token_present": true`, `"full_name": "astra/fjgo"`, `"open_pr_count": 1`, `"tag_name": "v0.10.0"`, `"install_command": "fjgo skill install"`} {
+	for _, want := range []string{`"token_present": true`, `"full_name": "astra/fjgo"`, `"open_pr_count": 1`, `"tag_name": "v0.11.0"`, `"install_command": "fjgo skill install"`} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("doctor missing %q:\n%s", want, got)
 		}

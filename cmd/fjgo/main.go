@@ -23,7 +23,7 @@ import (
 const defaultBaseURL = "https://v15.next.forgejo.org/api/v1"
 
 var (
-	version = "v0.10.0"
+	version = "v0.11.0"
 	commit  = "none"
 	date    = "unknown"
 )
