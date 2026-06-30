@@ -59,7 +59,7 @@ func TestVersionFlagPrintsBinaryVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); got != "fjgo v0.12.0 none unknown\n" {
+	if got := stdout.String(); got != "fjgo v0.13.0 none unknown\n" {
 		t.Fatalf("stdout = %q", got)
 	}
 }
@@ -526,7 +526,7 @@ func TestReleaseListAlias(t *testing.T) {
 		if r.URL.Path != "/api/v1/repos/astra/fjgo/releases" {
 			t.Fatalf("path = %q", r.URL.Path)
 		}
-		_, _ = w.Write([]byte(`[{"tag_name":"v0.12.0"}]`))
+		_, _ = w.Write([]byte(`[{"tag_name":"v0.13.0"}]`))
 	}))
 	defer server.Close()
 
@@ -535,7 +535,7 @@ func TestReleaseListAlias(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); !strings.Contains(got, `"tag_name": "v0.12.0"`) {
+	if got := stdout.String(); !strings.Contains(got, `"tag_name": "v0.13.0"`) {
 		t.Fatalf("stdout = %q", got)
 	}
 }
@@ -864,7 +864,7 @@ func TestAuthStatusDoesNotLeakToken(t *testing.T) {
 		if r.URL.Path != "/api/v1/user" {
 			t.Fatalf("path = %q", r.URL.Path)
 		}
-		_ = json.NewEncoder(w).Encode(map[string]string{"login": "astra"})
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": 1, "login": "astra", "email": "private@example.invalid", "login_name": "private-login"})
 	}))
 	defer server.Close()
 
@@ -873,10 +873,10 @@ func TestAuthStatusDoesNotLeakToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if strings.Contains(stdout.String(), "secret") {
+	if strings.Contains(stdout.String(), "secret") || strings.Contains(stdout.String(), "private@example.invalid") || strings.Contains(stdout.String(), "private-login") {
 		t.Fatalf("auth status leaked token: %s", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), `"token_present": true`) || !strings.Contains(stdout.String(), `"authenticated": true`) {
+	if !strings.Contains(stdout.String(), `"token_present": true`) || !strings.Contains(stdout.String(), `"authenticated": true`) || !strings.Contains(stdout.String(), `"login": "astra"`) {
 		t.Fatalf("auth status = %s", stdout.String())
 	}
 }
@@ -936,7 +936,7 @@ func TestDoctorRedactsTokenAndSummarizesRepo(t *testing.T) {
 			if r.URL.Query().Get("limit") != "5" {
 				t.Fatalf("query = %q", r.URL.RawQuery)
 			}
-			_ = json.NewEncoder(w).Encode([]map[string]any{{"id": 7, "tag_name": "v0.12.0", "name": "v0.12.0"}})
+			_ = json.NewEncoder(w).Encode([]map[string]any{{"id": 7, "tag_name": "v0.13.0", "name": "v0.13.0"}})
 		default:
 			t.Fatalf("path = %q", r.URL.Path)
 		}
@@ -952,7 +952,7 @@ func TestDoctorRedactsTokenAndSummarizesRepo(t *testing.T) {
 	if strings.Contains(got, "secret") || strings.Contains(got, "private@example.invalid") {
 		t.Fatalf("doctor leaked sensitive data: %s", got)
 	}
-	for _, want := range []string{`"token_present": true`, `"full_name": "astra/fjgo"`, `"open_pr_count": 1`, `"tag_name": "v0.12.0"`, `"latest_release"`, `"goos"`, `"goarch"`, `"go_version"`, `"executable"`, `"install_command": "fjgo skill install"`, `"status"`} {
+	for _, want := range []string{`"token_present": true`, `"full_name": "astra/fjgo"`, `"open_pr_count": 1`, `"tag_name": "v0.13.0"`, `"latest_release"`, `"goos"`, `"goarch"`, `"go_version"`, `"executable"`, `"install_command": "fjgo skill install"`, `"status"`} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("doctor missing %q:\n%s", want, got)
 		}
@@ -993,7 +993,7 @@ func TestSkillStatusCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), `"installed": false`) || !strings.Contains(stdout.String(), `"SKILL.md"`) {
+	if !strings.Contains(stdout.String(), `"current": false`) || !strings.Contains(stdout.String(), `"SKILL.md"`) {
 		t.Fatalf("stdout = %s", stdout.String())
 	}
 }
@@ -1005,7 +1005,7 @@ func TestInstallSkillsCheckCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), `"installed": false`) {
+	if !strings.Contains(stdout.String(), `"current": false`) {
 		t.Fatalf("stdout = %s", stdout.String())
 	}
 }

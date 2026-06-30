@@ -22,7 +22,7 @@ func TestInstallWritesEmbeddedSkill(t *testing.T) {
 		t.Fatal(err)
 	}
 	status := Check(dir)
-	if !status.Installed || len(status.Missing) != 0 {
+	if !status.Installed || !status.Current || len(status.Missing) != 0 || len(status.Outdated) != 0 {
 		t.Fatalf("status = %#v", status)
 	}
 	if _, err := Install(dir, false); err == nil {
@@ -32,7 +32,21 @@ func TestInstallWritesEmbeddedSkill(t *testing.T) {
 
 func TestCheckReportsMissingSkill(t *testing.T) {
 	status := Check(filepath.Join(t.TempDir(), "missing"))
-	if status.Installed || len(status.Missing) == 0 {
+	if status.Installed || status.Current || len(status.Missing) == 0 {
+		t.Fatalf("status = %#v", status)
+	}
+}
+
+func TestCheckReportsOutdatedSkill(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "fjgo")
+	if _, err := Install(dir, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("stale"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	status := Check(dir)
+	if !status.Installed || status.Current || len(status.Outdated) != 1 || status.Outdated[0] != "SKILL.md" {
 		t.Fatalf("status = %#v", status)
 	}
 }

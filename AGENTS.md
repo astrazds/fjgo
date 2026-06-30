@@ -61,6 +61,8 @@ base URL is explicitly configured.
 - `scripts/release.sh`: cross-platform archive builder
 - `scripts/smoke-auth.sh`: optional authenticated smoke against a disposable repo
 - `scripts/verify.sh`: full local verification gate
+- `docs/agent-setup-prompt.md`: copy/paste prompt for setting up a fresh coding
+  agent with `fjgo`
 - `.forgejo/workflows/verify.yml`: push/PR verification and tag release archive
   upload
 - `swagger.v1.json`: pinned Swagger input for reproducible generation
@@ -109,7 +111,7 @@ The v1 surface is:
 - structured root JSON errors via `--json`
 - `auth status` / `whoami` token-safe diagnostics
 - useful aliases: `repo get`, `repo topics`, `repo avatar`, `repo issue close`,
-  `repo issue comment`, `release list`, `release upload`
+  `repo issue comment`, `release list`, `release create`, `release upload`
 - generic `api list/inspect/call/upload` coverage for the Swagger operation
   surface, including multipart release/issue/comment attachment uploads
 - generated `alias list/inspect/collisions` and `model inspect`
@@ -119,6 +121,7 @@ The v1 surface is:
 - generated typed client methods and model types for the full Swagger surface
 - optional authenticated smoke via `scripts/smoke-auth.sh`
 - alpha field packet via `docs/alpha.md`
+- agent setup prompt via `docs/agent-setup-prompt.md`
 - release archives via `scripts/release.sh`
 - repeatable verification via `scripts/verify.sh`
 

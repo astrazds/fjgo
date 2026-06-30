@@ -3,6 +3,7 @@
 ## Orientation
 
 ```sh
+export FJGO_BASE_URL=https://forgejo.example.com/api/v1
 fjgo -R origin doctor --json
 fjgo auth status
 fjgo skill status
@@ -42,7 +43,7 @@ List open pull requests, inspect the target PR, and fetch changed files:
 fjgo -R origin repo pulls list state=open
 fjgo -R origin repo pulls get PR_NUMBER
 fjgo -R origin repo pulls files get PR_NUMBER
-fjgo -R origin repo pulls PR_NUMBER commits get
+fjgo -R origin repo pulls commits get PR_NUMBER
 ```
 
 ## Publish Release
@@ -108,7 +109,7 @@ fjgo -R origin repo contents update README.md --dry-run --yes -body '{"message":
 ## Create Issue
 
 ```sh
-fjgo -R origin alias inspect repo issues create
+fjgo alias inspect repo issues create
 fjgo -R origin repo issues create --dry-run --yes -body '{"title":"Title","body":"Body"}'
 fjgo -R origin repo issues create --yes -body '{"title":"Title","body":"Body"}'
 ```

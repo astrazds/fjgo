@@ -16,22 +16,28 @@ go build ./cmd/fjgo
 ./fjgo skill install
 ```
 
+For a fresh coding agent, paste
+[`docs/agent-setup-prompt.md`](docs/agent-setup-prompt.md) into the agent while
+it is inside a Forgejo-backed checkout. The prompt installs `fjgo`, refreshes
+the skill, checks repo/auth context, and prints user-facing next commands.
+
 Inside a Forgejo-backed checkout, start every agent workflow with:
 
 ```sh
 export FJGO_BASE_URL=https://forgejo.example.com/api/v1
 export FJGO_TOKEN=your_access_token
 ./fjgo -R origin doctor --json
-./fjgo -R origin alias inspect repo issues create
+./fjgo alias inspect repo issues create
 ./fjgo -R origin repo issues create --dry-run --yes -body '{"title":"Test","body":"Body"}'
 ```
 
 `doctor --json`, `auth status`, `--dry-run`, and `--print-request` are
-token-safe. They report whether a token is present, never the token value.
+token-safe. They report token presence and redacted user context, never the
+token value.
 
 ## Status
 
-Current app version: `v0.12.0`.
+Current app version: `v0.13.0`.
 
 `fjgo` covers the full live Forgejo Swagger surface:
 
@@ -52,6 +58,7 @@ Current app version: `v0.12.0`.
 - typed return values for operations with documented success response schemas
 - optional authenticated field smoke via `scripts/smoke-auth.sh`
 - alpha field-test packet in `docs/alpha.md`
+- copy/paste setup prompt in `docs/agent-setup-prompt.md`
 - Forgejo Actions verification and tag-release workflows
 
 Run the full local gate with:
@@ -76,9 +83,9 @@ go install repos.astrazds.net/astrazds/fjgo/cmd/fjgo@latest
 From a release archive:
 
 ```sh
-curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.12.0/fjgo_v0.12.0_linux_amd64.tar.gz
-tar -xzf fjgo_v0.12.0_linux_amd64.tar.gz
-install -Dm755 fjgo_v0.12.0_linux_amd64/fjgo ~/.local/bin/fjgo
+curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.13.0/fjgo_v0.13.0_linux_amd64.tar.gz
+tar -xzf fjgo_v0.13.0_linux_amd64.tar.gz
+install -Dm755 fjgo_v0.13.0_linux_amd64/fjgo ~/.local/bin/fjgo
 ```
 
 ## Quick Start
@@ -135,7 +142,8 @@ skill install status, and useful next commands.
 
 `fjgo skill install [--dir path] [--force]` installs the bundled Codex skill.
 The default target is `.agents/skills/fjgo`. Use `fjgo skill status [--dir path]`
-or `fjgo install --skills --check` to check whether the skill is installed.
+or `fjgo install --skills --check` to check whether the installed skill matches
+the bundled copy.
 `fjgo install --skills` is the same installer for agents that look for an
 install command.
 
@@ -311,7 +319,7 @@ failure-report format.
 Build release archives into `dist/`:
 
 ```sh
-VERSION=v0.12.0 ./scripts/release.sh
+VERSION=v0.13.0 ./scripts/release.sh
 ```
 
 Override targets when testing locally:
@@ -329,7 +337,7 @@ archives and uploads them to a Forgejo release using the Actions token.
 Smoke check a published release archive:
 
 ```sh
-VERSION=v0.12.0 ./scripts/smoke-release.sh
+VERSION=v0.13.0 ./scripts/smoke-release.sh
 ```
 
 ## License

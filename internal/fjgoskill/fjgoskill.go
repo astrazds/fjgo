@@ -20,7 +20,9 @@ type InstallResult struct {
 type Status struct {
 	Path      string   `json:"path"`
 	Installed bool     `json:"installed"`
+	Current   bool     `json:"current"`
 	Missing   []string `json:"missing,omitempty"`
+	Outdated  []string `json:"outdated,omitempty"`
 }
 
 func DefaultInstallDir() string {
@@ -31,14 +33,32 @@ func Check(dir string) Status {
 	if dir == "" {
 		dir = DefaultInstallDir()
 	}
-	status := Status{Path: dir, Installed: true}
-	for _, rel := range []string{"SKILL.md", "references/workflows.md", "agents/openai.yaml"} {
-		if _, err := os.Stat(filepath.Join(dir, rel)); err != nil {
+	status := Status{Path: dir, Installed: true, Current: true}
+	for _, rel := range skillFiles() {
+		want, err := embedded.ReadFile(filepath.ToSlash(filepath.Join("skill/fjgo", rel)))
+		if err != nil {
 			status.Installed = false
+			status.Current = false
 			status.Missing = append(status.Missing, filepath.ToSlash(rel))
+			continue
+		}
+		got, err := os.ReadFile(filepath.Join(dir, rel))
+		if err != nil {
+			status.Installed = false
+			status.Current = false
+			status.Missing = append(status.Missing, filepath.ToSlash(rel))
+			continue
+		}
+		if string(got) != string(want) {
+			status.Current = false
+			status.Outdated = append(status.Outdated, filepath.ToSlash(rel))
 		}
 	}
 	return status
+}
+
+func skillFiles() []string {
+	return []string{"SKILL.md", "references/workflows.md", "agents/openai.yaml"}
 }
 
 func Install(dir string, force bool) (InstallResult, error) {

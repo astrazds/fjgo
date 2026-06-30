@@ -10,6 +10,7 @@ smoke_repo="${FJGO_SMOKE_REPO:-kavemand/.forgejo}"
 
 test -f .forgejo/workflows/verify.yml
 test -f docs/alpha.md
+test -f docs/agent-setup-prompt.md
 test -x scripts/smoke-auth.sh
 sh -n scripts/smoke-auth.sh
 ! grep -R '\.forgejo/workflows/release\.yml' README.md AGENTS.md

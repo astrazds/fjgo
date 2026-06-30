@@ -25,7 +25,7 @@ import (
 const defaultBaseURL = "https://v15.next.forgejo.org/api/v1"
 
 var (
-	version = "v0.12.0"
+	version = "v0.13.0"
 	commit  = "none"
 	date    = "unknown"
 )
@@ -763,7 +763,7 @@ func runDoctor(ctx context.Context, client *forgejo.Client, cfg runConfig, args 
 		"commands": []string{
 			"fjgo -R origin doctor --json",
 			"fjgo -R origin auth status",
-			"fjgo -R origin alias inspect repo issues create",
+			"fjgo alias inspect repo issues create",
 			"fjgo -R origin repo issues list state=open",
 			"fjgo -R origin release list",
 		},
@@ -787,12 +787,7 @@ func runDoctor(ctx context.Context, client *forgejo.Client, cfg runConfig, args 
 			auth["error"] = errorMessage(err)
 		} else {
 			auth["authenticated"] = true
-			auth["user"] = map[string]any{
-				"id":       user.ID,
-				"login":    user.UserName,
-				"html_url": user.HTMLURL,
-				"is_admin": user.IsAdmin,
-			}
+			auth["user"] = userSummary(user)
 		}
 	}
 	report["auth"] = auth
@@ -1174,9 +1169,18 @@ func runAuth(ctx context.Context, client *forgejo.Client, cfg runConfig, args []
 			return writeJSON(stdout, status)
 		}
 		status["authenticated"] = true
-		status["user"] = user
+		status["user"] = userSummary(user)
 	}
 	return writeJSON(stdout, status)
+}
+
+func userSummary(user forgejo.User) map[string]any {
+	return map[string]any{
+		"id":       user.ID,
+		"login":    user.UserName,
+		"html_url": user.HTMLURL,
+		"is_admin": user.IsAdmin,
+	}
 }
 
 func takeSetFlag(args []string) ([]string, string, error) {

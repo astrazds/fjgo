@@ -2,16 +2,20 @@
 
 Use this packet to test `fjgo` as a coding-agent-first Forgejo CLI plus skill.
 
+For a fresh agent, paste `docs/agent-setup-prompt.md` into the agent while it is
+inside a Forgejo-backed checkout.
+
 ## Install
 
 ```sh
-curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.12.0/fjgo_v0.12.0_linux_amd64.tar.gz
-tar -xzf fjgo_v0.12.0_linux_amd64.tar.gz
-install -Dm755 fjgo_v0.12.0_linux_amd64/fjgo ~/.local/bin/fjgo
+curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.13.0/fjgo_v0.13.0_linux_amd64.tar.gz
+tar -xzf fjgo_v0.13.0_linux_amd64.tar.gz
+install -Dm755 fjgo_v0.13.0_linux_amd64/fjgo ~/.local/bin/fjgo
 fjgo skill install --force
 ```
 
-For private or non-demo Forgejo instances:
+Set the API base to the same Forgejo host as the checkout remote before using
+`-R origin`. Add a token for private repos or write tasks:
 
 ```sh
 export FJGO_BASE_URL=https://forgejo.example.com/api/v1
@@ -20,14 +24,14 @@ export FJGO_TOKEN=your_access_token
 
 ## First Check
 
-Run this inside a Forgejo-backed checkout:
+Run this inside a Forgejo-backed checkout after setting `FJGO_BASE_URL`:
 
 ```sh
 fjgo -R origin doctor --json
 fjgo skill status
 ```
 
-If `skill status` reports missing files, reinstall with:
+If `skill status` reports missing or outdated files, reinstall with:
 
 ```sh
 fjgo skill install --force

@@ -10,16 +10,18 @@ diff, and remote operations.
 
 ## First Command
 
-Run this before acting on a repo:
+Set `FJGO_BASE_URL` to the same Forgejo host as the checkout remote, then run
+this before acting on a repo:
 
 ```sh
+export FJGO_BASE_URL=https://forgejo.example.com/api/v1
 fjgo -R origin doctor --json
 ```
 
 If there is no git remote, pass `owner/repo` to repo-scoped commands directly.
-For private or non-demo instances, rely on `FJGO_BASE_URL` and `FJGO_TOKEN` from
-the environment. Never print or ask to expose the token. `doctor`, `auth
-status`, dry runs, and request previews report only whether auth is present.
+For private instances or write tasks, rely on `FJGO_TOKEN` from the environment.
+Never print or ask to expose the token. `doctor`, `auth status`, dry runs, and
+request previews do not print token values.
 
 ## Safe Defaults
 
@@ -35,3 +37,6 @@ status`, dry runs, and request previews report only whether auth is present.
 Read [references/workflows.md](references/workflows.md) for issue, pull request,
 release, repository metadata, file/content, field feedback, and auth-smoke
 recipes.
+
+For first-time setup of another agent, use the repository prompt at
+`docs/agent-setup-prompt.md`.
