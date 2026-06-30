@@ -31,7 +31,7 @@ token-safe. They report whether a token is present, never the token value.
 
 ## Status
 
-Current app version: `v0.11.0`.
+Current app version: `v0.12.0`.
 
 `fjgo` covers the full live Forgejo Swagger surface:
 
@@ -76,9 +76,9 @@ go install repos.astrazds.net/astrazds/fjgo/cmd/fjgo@latest
 From a release archive:
 
 ```sh
-curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.11.0/fjgo_v0.11.0_linux_amd64.tar.gz
-tar -xzf fjgo_v0.11.0_linux_amd64.tar.gz
-install -Dm755 fjgo_v0.11.0_linux_amd64/fjgo ~/.local/bin/fjgo
+curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.12.0/fjgo_v0.12.0_linux_amd64.tar.gz
+tar -xzf fjgo_v0.12.0_linux_amd64.tar.gz
+install -Dm755 fjgo_v0.12.0_linux_amd64/fjgo ~/.local/bin/fjgo
 ```
 
 ## Quick Start
@@ -311,7 +311,7 @@ failure-report format.
 Build release archives into `dist/`:
 
 ```sh
-VERSION=v0.11.0 ./scripts/release.sh
+VERSION=v0.12.0 ./scripts/release.sh
 ```
 
 Override targets when testing locally:
@@ -329,7 +329,7 @@ archives and uploads them to a Forgejo release using the Actions token.
 Smoke check a published release archive:
 
 ```sh
-VERSION=v0.11.0 ./scripts/smoke-release.sh
+VERSION=v0.12.0 ./scripts/smoke-release.sh
 ```
 
 ## License

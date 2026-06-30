@@ -5,9 +5,9 @@ Use this packet to test `fjgo` as a coding-agent-first Forgejo CLI plus skill.
 ## Install
 
 ```sh
-curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.11.0/fjgo_v0.11.0_linux_amd64.tar.gz
-tar -xzf fjgo_v0.11.0_linux_amd64.tar.gz
-install -Dm755 fjgo_v0.11.0_linux_amd64/fjgo ~/.local/bin/fjgo
+curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.12.0/fjgo_v0.12.0_linux_amd64.tar.gz
+tar -xzf fjgo_v0.12.0_linux_amd64.tar.gz
+install -Dm755 fjgo_v0.12.0_linux_amd64/fjgo ~/.local/bin/fjgo
 fjgo skill install --force
 ```
 
