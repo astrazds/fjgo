@@ -9,6 +9,8 @@ Set up this checkout for Forgejo work with fjgo.
 Rules:
 - Do not ask me to paste a token into chat.
 - Do not print token values.
+- Treat `doctor`, `auth status`, dry runs, request previews, and API errors as
+  token-safe diagnostics.
 - Use normal git for local git work and fjgo for Forgejo API work.
 - Prefer dry runs before any Forgejo write.
 - Keep changes minimal; do not add project files unless setup requires it.
@@ -19,7 +21,7 @@ Steps:
    - If missing, install the current alpha release for this machine:
      - Detect OS with `uname -s`, mapping Linux to `linux` and Darwin to `darwin`.
      - Detect arch with `uname -m`, mapping `x86_64` to `amd64` and `aarch64`/`arm64` to `arm64`.
-     - Download `https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.13.0/fjgo_v0.13.0_${os}_${arch}.tar.gz`.
+     - Download `https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.14.0/fjgo_v0.14.0_${os}_${arch}.tar.gz`.
      - Extract it and install `fjgo` to `~/.local/bin/fjgo`.
      - If the OS/arch is unsupported or `~/.local/bin` is not on PATH, stop and tell me the exact command to run.
 2. Run `fjgo --version`.

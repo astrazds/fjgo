@@ -14,7 +14,8 @@ fjgo model inspect CreateIssueOption
 ```
 
 Use `doctor --json` output as the field-feedback artifact when a workflow fails.
-It is redacted: token value is never printed.
+It is redacted: token value is never printed, including when a Forgejo API error
+body reflects the configured token.
 
 ## Triage Issue
 

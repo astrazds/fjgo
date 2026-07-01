@@ -8,9 +8,9 @@ inside a Forgejo-backed checkout.
 ## Install
 
 ```sh
-curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.13.0/fjgo_v0.13.0_linux_amd64.tar.gz
-tar -xzf fjgo_v0.13.0_linux_amd64.tar.gz
-install -Dm755 fjgo_v0.13.0_linux_amd64/fjgo ~/.local/bin/fjgo
+curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.14.0/fjgo_v0.14.0_linux_amd64.tar.gz
+tar -xzf fjgo_v0.14.0_linux_amd64.tar.gz
+install -Dm755 fjgo_v0.14.0_linux_amd64/fjgo ~/.local/bin/fjgo
 fjgo skill install --force
 ```
 
@@ -109,3 +109,7 @@ Also include:
 - full stdout/stderr
 - expected result
 - whether the command was run by a human or a coding agent
+
+Diagnostics are intended to be shareable: token presence may be shown, but token
+values are redacted from `doctor`, `auth status`, dry runs, request previews,
+root `--json` errors, and Forgejo API error text.

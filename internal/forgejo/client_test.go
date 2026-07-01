@@ -3,9 +3,11 @@ package forgejo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -123,5 +125,31 @@ func TestGeneratedRepositoryModelSupportsParent(t *testing.T) {
 	}
 	if got.Parent == nil || got.Parent.FullName != "astra/template" {
 		t.Fatalf("parent = %#v", got.Parent)
+	}
+}
+
+func TestHTTPErrorRedactsToken(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"message":"bad secret-token","url":"https://forgejo.test/?token=secret-token"}`, http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL+"/api/v1", "secret-token", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.Me(context.Background())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if strings.Contains(err.Error(), "secret-token") {
+		t.Fatalf("error leaked token: %s", err)
+	}
+}
+
+func TestReadLimitedBodyRejectsOversize(t *testing.T) {
+	_, err := readLimitedBody(strings.NewReader("abcd"), 3)
+	if !errors.Is(err, errResponseBodyTooLarge) {
+		t.Fatalf("error = %v", err)
 	}
 }

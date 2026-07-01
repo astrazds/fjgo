@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -14,6 +15,10 @@ import (
 	"path/filepath"
 	"strings"
 )
+
+const maxResponseBodyBytes int64 = 32 << 20
+
+var errResponseBodyTooLarge = errors.New("response body too large")
 
 type Client struct {
 	baseURL *url.URL
@@ -299,12 +304,34 @@ func (c *Client) do(req *http.Request) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 
-	b, err := io.ReadAll(resp.Body)
+	b, err := readLimitedBody(resp.Body, maxResponseBodyBytes)
 	if err != nil {
+		if errors.Is(err, errResponseBodyTooLarge) && (resp.StatusCode < 200 || resp.StatusCode > 299) {
+			return nil, HTTPError{StatusCode: resp.StatusCode, Body: errResponseBodyTooLarge.Error()}
+		}
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return nil, HTTPError{StatusCode: resp.StatusCode, Body: strings.TrimSpace(string(b))}
+		return nil, HTTPError{StatusCode: resp.StatusCode, Body: redactSecret(strings.TrimSpace(string(b)), c.token)}
 	}
 	return b, nil
+}
+
+func readLimitedBody(r io.Reader, max int64) ([]byte, error) {
+	var buf bytes.Buffer
+	n, err := io.CopyN(&buf, r, max+1)
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+	if n > max {
+		return nil, errResponseBodyTooLarge
+	}
+	return buf.Bytes(), nil
+}
+
+func redactSecret(s, secret string) string {
+	if secret == "" {
+		return s
+	}
+	return strings.ReplaceAll(s, secret, "redacted")
 }

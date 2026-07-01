@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -137,5 +139,12 @@ func TestHasUploadDetectsMultipart(t *testing.T) {
 	}
 	if !hasUpload(operation{Parameters: []parameter{{In: "formData", Type: "file"}}}) {
 		t.Fatal("expected formData upload")
+	}
+}
+
+func TestReadLimitedSpecRejectsOversize(t *testing.T) {
+	_, err := readLimitedSpec(strings.NewReader("abcd"), 3)
+	if !errors.Is(err, errSpecTooLarge) {
+		t.Fatalf("error = %v", err)
 	}
 }

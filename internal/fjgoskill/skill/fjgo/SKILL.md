@@ -21,7 +21,8 @@ fjgo -R origin doctor --json
 If there is no git remote, pass `owner/repo` to repo-scoped commands directly.
 For private instances or write tasks, rely on `FJGO_TOKEN` from the environment.
 Never print or ask to expose the token. `doctor`, `auth status`, dry runs, and
-request previews do not print token values.
+request previews do not print token values. API error diagnostics are also
+token-safe, including server-reflected token text.
 
 ## Safe Defaults
 

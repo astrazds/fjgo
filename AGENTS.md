@@ -76,6 +76,7 @@ add nicer aliases only when they remove real repetition.
 
 - Preserve context-aware HTTP calls.
 - Keep request timeouts.
+- Keep remote response reads bounded.
 - Keep token auth as `Authorization: token <token>` unless Forgejo changes.
 - Return useful API errors with status code and response body.
 - Add one focused test for new non-trivial client behavior.
@@ -89,6 +90,7 @@ add nicer aliases only when they remove real repetition.
 - Keep JSON output for inspect/list surfaces deterministic and parseable.
 - Keep `doctor --json` redacted: token presence is OK, token values and private
   user fields are not.
+- Keep API error diagnostics token-safe, including server-reflected token text.
 - Keep root `--json` failures parseable for coding agents.
 - Keep `-R` / `--repo-from-remote` scoped to parsing Forgejo git remotes; do not
   guess repo context from unrelated files.
@@ -98,6 +100,7 @@ add nicer aliases only when they remove real repetition.
   `endpoints_gen.go` or `models_gen.go` by hand.
 - Use `SPEC=/path/to/swagger.v1.json go generate ./internal/forgejo` when
   intentionally generating from a non-pinned spec.
+- Keep remote Swagger fetches timed out and size-limited.
 - Keep `scripts/verify.sh` aligned with the live Swagger counts when the
   upstream API changes.
 

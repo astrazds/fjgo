@@ -33,11 +33,12 @@ export FJGO_TOKEN=your_access_token
 
 `doctor --json`, `auth status`, `--dry-run`, and `--print-request` are
 token-safe. They report token presence and redacted user context, never the
-token value.
+token value. API error bodies are also scrubbed before they are shown, so a
+server cannot reflect the configured token back into diagnostics.
 
 ## Status
 
-Current app version: `v0.13.0`.
+Current app version: `v0.14.0`.
 
 `fjgo` covers the full live Forgejo Swagger surface:
 
@@ -83,9 +84,9 @@ go install repos.astrazds.net/astrazds/fjgo/cmd/fjgo@latest
 From a release archive:
 
 ```sh
-curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.13.0/fjgo_v0.13.0_linux_amd64.tar.gz
-tar -xzf fjgo_v0.13.0_linux_amd64.tar.gz
-install -Dm755 fjgo_v0.13.0_linux_amd64/fjgo ~/.local/bin/fjgo
+curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.14.0/fjgo_v0.14.0_linux_amd64.tar.gz
+tar -xzf fjgo_v0.14.0_linux_amd64.tar.gz
+install -Dm755 fjgo_v0.14.0_linux_amd64/fjgo ~/.local/bin/fjgo
 ```
 
 ## Quick Start
@@ -244,6 +245,9 @@ fjgo -R origin release upload 123 dist/fjgo.tar.gz --yes
 
 `fjgo auth status` prints the active base URL, whether a token is present, and
 the authenticated user when the token works. It never prints the token value.
+HTTP error text from the Forgejo server is still included when useful, but any
+configured token value is replaced before the error reaches stderr or JSON
+diagnostics.
 
 ## Go Client
 
@@ -271,6 +275,10 @@ Or generate from another compatible spec:
 SPEC=/path/to/swagger.v1.json go generate ./internal/forgejo
 ```
 
+`SPEC` may also be an `http://` or `https://` URL. Remote spec fetches use a
+30 second timeout and a 32 MiB response limit; normal verification uses the
+pinned local `swagger.v1.json`.
+
 Generated methods accept typed path parameters, typed body parameters when the
 operation has a Swagger body schema, plus `forgejo.RequestOptions` for query
 values. Methods with a documented success response return the generated
@@ -287,6 +295,9 @@ created, err := client.CreateCurrentUserRepo(ctx, &forgejo.CreateRepoOption{
 Use `forgejo.RequestOptions.Query` for query parameters. Multipart operations
 can be executed with `DoOperationMultipart`; the CLI uses that path for release,
 issue, and comment attachment uploads.
+Client response bodies are bounded to 32 MiB before decoding or reporting
+errors, which keeps malicious or broken Forgejo-compatible servers from forcing
+unbounded local memory use.
 
 ## Development
 
@@ -319,7 +330,7 @@ failure-report format.
 Build release archives into `dist/`:
 
 ```sh
-VERSION=v0.13.0 ./scripts/release.sh
+VERSION=v0.14.0 ./scripts/release.sh
 ```
 
 Override targets when testing locally:
@@ -337,7 +348,7 @@ archives and uploads them to a Forgejo release using the Actions token.
 Smoke check a published release archive:
 
 ```sh
-VERSION=v0.13.0 ./scripts/smoke-release.sh
+VERSION=v0.14.0 ./scripts/smoke-release.sh
 ```
 
 ## License

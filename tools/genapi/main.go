@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"go/format"
@@ -12,10 +13,17 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 	"unicode"
 )
 
 const defaultSpecURL = "https://v15.next.forgejo.org/swagger.v1.json"
+const maxSpecBytes int64 = 32 << 20
+
+var (
+	errSpecTooLarge = errors.New("spec response body too large")
+	specHTTPClient  = &http.Client{Timeout: 30 * time.Second}
+)
 
 type spec struct {
 	Paths       map[string]map[string]operation `json:"paths"`
@@ -128,7 +136,7 @@ func main() {
 
 func readSpec(path string) ([]byte, error) {
 	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
-		resp, err := http.Get(path)
+		resp, err := specHTTPClient.Get(path)
 		if err != nil {
 			return nil, err
 		}
@@ -136,9 +144,21 @@ func readSpec(path string) ([]byte, error) {
 		if resp.StatusCode < 200 || resp.StatusCode > 299 {
 			return nil, fmt.Errorf("fetch spec: %s", resp.Status)
 		}
-		return io.ReadAll(resp.Body)
+		return readLimitedSpec(resp.Body, maxSpecBytes)
 	}
 	return os.ReadFile(path)
+}
+
+func readLimitedSpec(r io.Reader, max int64) ([]byte, error) {
+	var buf bytes.Buffer
+	n, err := io.CopyN(&buf, r, max+1)
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+	if n > max {
+		return nil, errSpecTooLarge
+	}
+	return buf.Bytes(), nil
 }
 
 func endpointsFromSpec(s spec) []endpoint {
