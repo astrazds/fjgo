@@ -32,6 +32,12 @@ type RequestOptions struct {
 	Out   any
 }
 
+type RawResponse struct {
+	Body       []byte
+	StatusCode int
+	Header     http.Header
+}
+
 type OperationParam struct {
 	Name        string `json:"name"`
 	Type        string `json:"type,omitempty"`
@@ -116,11 +122,38 @@ func (c *Client) Me(ctx context.Context) (User, error) {
 }
 
 func (c *Client) GetRaw(ctx context.Context, apiPath string) ([]byte, error) {
-	req, err := c.newRequest(ctx, http.MethodGet, apiPath, nil)
+	resp, err := c.GetRawResponse(ctx, apiPath)
 	if err != nil {
 		return nil, err
 	}
-	return c.do(req)
+	return resp.Body, nil
+}
+
+func (c *Client) GetRawResponse(ctx context.Context, apiPath string) (RawResponse, error) {
+	req, err := c.newRequest(ctx, http.MethodGet, apiPath, nil)
+	if err != nil {
+		return RawResponse{}, err
+	}
+	return c.doResponse(req)
+}
+
+func (c *Client) GetExternalRawResponse(ctx context.Context, rawURL string) (RawResponse, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return RawResponse{}, err
+	}
+	if u.Scheme == "" || u.Host == "" {
+		return RawResponse{}, fmt.Errorf("download URL must be absolute: %q", rawURL)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return RawResponse{}, err
+	}
+	req.Header.Set("Accept", "application/octet-stream, text/plain, application/json")
+	if c.token != "" && strings.EqualFold(u.Host, c.baseURL.Host) {
+		req.Header.Set("Authorization", "token "+c.token)
+	}
+	return c.doResponse(req)
 }
 
 func (c *Client) Do(ctx context.Context, method, apiPath string, opts RequestOptions) error {
@@ -129,22 +162,30 @@ func (c *Client) Do(ctx context.Context, method, apiPath string, opts RequestOpt
 }
 
 func (c *Client) DoRaw(ctx context.Context, method, apiPath string, opts RequestOptions) ([]byte, error) {
+	resp, err := c.DoRawResponse(ctx, method, apiPath, opts)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body, nil
+}
+
+func (c *Client) DoRawResponse(ctx context.Context, method, apiPath string, opts RequestOptions) (RawResponse, error) {
 	var body io.Reader
 	if opts.Body != nil {
 		b, err := json.Marshal(opts.Body)
 		if err != nil {
-			return nil, err
+			return RawResponse{}, err
 		}
 		body = bytes.NewReader(b)
 	}
 	req, err := c.newRequest(ctx, method, withQuery(apiPath, opts.Query), body)
 	if err != nil {
-		return nil, err
+		return RawResponse{}, err
 	}
 	if opts.Body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	return c.do(req)
+	return c.doResponse(req)
 }
 
 func (c *Client) DoMultipart(ctx context.Context, method, apiPath string, query url.Values, fields map[string]string, files []UploadPart, out any) ([]byte, error) {
@@ -226,15 +267,23 @@ func (c *Client) DoOperation(ctx context.Context, op Operation, pathValues map[s
 }
 
 func (c *Client) DoOperationRaw(ctx context.Context, op Operation, pathValues map[string]string, opts RequestOptions) ([]byte, error) {
+	resp, err := c.DoOperationRawResponse(ctx, op, pathValues, opts)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body, nil
+}
+
+func (c *Client) DoOperationRawResponse(ctx context.Context, op Operation, pathValues map[string]string, opts RequestOptions) (RawResponse, error) {
 	apiPath := op.Path
 	for _, name := range op.PathParams {
 		value, ok := pathValues[name]
 		if !ok {
-			return nil, fmt.Errorf("missing path parameter %q", name)
+			return RawResponse{}, fmt.Errorf("missing path parameter %q", name)
 		}
 		apiPath = strings.ReplaceAll(apiPath, "{"+name+"}", url.PathEscape(value))
 	}
-	return c.DoRaw(ctx, op.Method, apiPath, opts)
+	return c.DoRawResponse(ctx, op.Method, apiPath, opts)
 }
 
 func withQuery(apiPath string, query url.Values) string {
@@ -298,23 +347,31 @@ func (c *Client) newRequest(ctx context.Context, method, apiPath string, body io
 }
 
 func (c *Client) do(req *http.Request) ([]byte, error) {
-	resp, err := c.http.Do(req)
+	resp, err := c.doResponse(req)
 	if err != nil {
 		return nil, err
+	}
+	return resp.Body, nil
+}
+
+func (c *Client) doResponse(req *http.Request) (RawResponse, error) {
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return RawResponse{}, err
 	}
 	defer resp.Body.Close()
 
 	b, err := readLimitedBody(resp.Body, maxResponseBodyBytes)
 	if err != nil {
 		if errors.Is(err, errResponseBodyTooLarge) && (resp.StatusCode < 200 || resp.StatusCode > 299) {
-			return nil, HTTPError{StatusCode: resp.StatusCode, Body: errResponseBodyTooLarge.Error()}
+			return RawResponse{}, HTTPError{StatusCode: resp.StatusCode, Body: errResponseBodyTooLarge.Error()}
 		}
-		return nil, err
+		return RawResponse{}, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return nil, HTTPError{StatusCode: resp.StatusCode, Body: redactSecret(strings.TrimSpace(string(b)), c.token)}
+		return RawResponse{}, HTTPError{StatusCode: resp.StatusCode, Body: redactSecret(strings.TrimSpace(string(b)), c.token)}
 	}
-	return b, nil
+	return RawResponse{Body: b, StatusCode: resp.StatusCode, Header: resp.Header.Clone()}, nil
 }
 
 func readLimitedBody(r io.Reader, max int64) ([]byte, error) {

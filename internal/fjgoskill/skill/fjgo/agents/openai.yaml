@@ -1,4 +1,4 @@
 interface:
   display_name: "fjgo"
-  short_description: "Work with Forgejo repos safely"
-  default_prompt: "Use fjgo to inspect this Forgejo repository, verify auth and repo context, then perform the requested Forgejo workflow with token-safe dry runs before mutation."
+  short_description: "Work with Forgejo repos through AXI-style TOON output"
+  default_prompt: "Use fjgo to inspect this Forgejo repository, verify auth and repo context, then perform the requested Forgejo workflow with token-safe dry runs before mutation. Prefer curated repo, issue, PR, release, run, workflow, search, label, secret, and variable commands before raw API fallback. Prefer TOON defaults; use --json only when raw JSON is needed."

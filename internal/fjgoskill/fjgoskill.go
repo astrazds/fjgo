@@ -18,11 +18,13 @@ type InstallResult struct {
 }
 
 type Status struct {
-	Path      string   `json:"path"`
-	Installed bool     `json:"installed"`
-	Current   bool     `json:"current"`
-	Missing   []string `json:"missing,omitempty"`
-	Outdated  []string `json:"outdated,omitempty"`
+	Path                    string   `json:"path"`
+	Installed               bool     `json:"installed"`
+	Current                 bool     `json:"current"`
+	EmbeddedGuidanceCurrent bool     `json:"embedded_guidance_current"`
+	EmbeddedSkillCurrent    bool     `json:"embedded_skill_current"`
+	Missing                 []string `json:"missing,omitempty"`
+	Outdated                []string `json:"outdated,omitempty"`
 }
 
 func DefaultInstallDir() string {
@@ -33,7 +35,17 @@ func Check(dir string) Status {
 	if dir == "" {
 		dir = DefaultInstallDir()
 	}
-	status := Status{Path: dir, Installed: true, Current: true}
+	guidanceCurrent, _, _ := EmbeddedGuidanceCurrent()
+	skillCurrent, _, _ := EmbeddedSkillCurrent()
+	status := Status{Path: dir, Installed: true, Current: true, EmbeddedGuidanceCurrent: guidanceCurrent, EmbeddedSkillCurrent: skillCurrent}
+	if !guidanceCurrent {
+		status.Current = false
+		status.Outdated = append(status.Outdated, "SKILL.md:static-guidance")
+	}
+	if !skillCurrent {
+		status.Current = false
+		status.Outdated = append(status.Outdated, "SKILL.md:generated")
+	}
 	for _, rel := range skillFiles() {
 		want, err := embedded.ReadFile(filepath.ToSlash(filepath.Join("skill/fjgo", rel)))
 		if err != nil {

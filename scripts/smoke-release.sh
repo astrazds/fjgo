@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-version="${VERSION:?set VERSION, for example VERSION=v0.14.0}"
+version="${VERSION:?set VERSION, for example VERSION=v0.15.0}"
 os="${OS:-linux}"
 arch="${ARCH:-amd64}"
 base="${BASE_URL:-https://repos.astrazds.net/astrazds/fjgo/releases/download}"

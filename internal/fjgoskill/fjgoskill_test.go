@@ -3,6 +3,7 @@ package fjgoskill
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -48,5 +49,28 @@ func TestCheckReportsOutdatedSkill(t *testing.T) {
 	status := Check(dir)
 	if !status.Installed || status.Current || len(status.Outdated) != 1 || status.Outdated[0] != "SKILL.md" {
 		t.Fatalf("status = %#v", status)
+	}
+}
+
+func TestEmbeddedSkillDocumentsAxiSetup(t *testing.T) {
+	b, err := embedded.ReadFile("skill/fjgo/SKILL.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(b)
+	for _, want := range []string{"AXI-shaped", "fjgo setup hooks", "TOON", "--full"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("skill missing %q:\n%s", want, text)
+		}
+	}
+}
+
+func TestEmbeddedSkillStaticGuidanceCurrent(t *testing.T) {
+	current, want, err := EmbeddedGuidanceCurrent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !current {
+		t.Fatalf("embedded static guidance drifted; expected block:\n%s", want)
 	}
 }
