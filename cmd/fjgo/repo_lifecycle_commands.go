@@ -298,7 +298,7 @@ func runRepoBranches(ctx context.Context, client *forgejo.Client, cfg runConfig,
 	case "delete", "remove":
 		return runRepoBranchDelete(ctx, client, cfg, args[1:], stdout, jsonOut)
 	default:
-		return fmt.Errorf("unknown repo branches command %q", args[0])
+		return unknownSubcommandError("repo branches", args[0], []string{"list", "get", "create", "delete", "remove"})
 	}
 }
 
@@ -457,7 +457,7 @@ func runRepoCollaborators(ctx context.Context, client *forgejo.Client, cfg runCo
 	case "remove", "delete":
 		return runRepoCollaboratorRemove(ctx, client, cfg, args[1:], stdout, jsonOut)
 	default:
-		return fmt.Errorf("unknown repo collaborators command %q", args[0])
+		return unknownSubcommandError("repo collaborators", args[0], []string{"list", "check", "get", "permission", "add", "remove", "delete"})
 	}
 }
 
@@ -627,7 +627,7 @@ func runRepoBranchProtection(ctx context.Context, client *forgejo.Client, cfg ru
 	case "delete", "remove":
 		return runRepoBranchProtectionDelete(ctx, client, cfg, args[1:], stdout, jsonOut)
 	default:
-		return fmt.Errorf("unknown repo branch-protection command %q", args[0])
+		return unknownSubcommandError("repo branch-protection", args[0], []string{"list", "get", "create", "edit", "delete", "remove"})
 	}
 }
 

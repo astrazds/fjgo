@@ -23,12 +23,22 @@ examples:
   fjgo -R origin search issues "login" --state open
   fjgo search prs "fix" --repo OWNER/REPO
   fjgo search repos "forgejo cli" --limit 20
-  fjgo search topics "actions"`
+	  fjgo search topics "actions"`
+}
+
+func searchCommandHelps() map[string]commandHelpSpec {
+	return map[string]commandHelpSpec{
+		"issues": {Usage: "fjgo search issues <query> [flags]", Flags: []string{"--repo <owner/repo>, --owner <owner>", "--state <open|closed|all>, --labels <a,b>", "--sort <key>, --limit <n>, --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin search issues \"login\" --state open", "fjgo search issues \"bug\" --repo OWNER/REPO"}},
+		"prs":    {Usage: "fjgo search prs <query> [flags]", Flags: []string{"--repo <owner/repo>, --owner <owner>", "--state <open|closed|all>, --labels <a,b>", "--sort <key>, --limit <n>, --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin search prs \"fix\" --state open", "fjgo search prs \"fix\" --repo OWNER/REPO"}},
+		"pulls":  {Usage: "fjgo search pulls <query> [flags]", Flags: []string{"--repo <owner/repo>, --owner <owner>", "--state <open|closed|all>, --labels <a,b>", "--sort <key>, --limit <n>, --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin search pulls \"fix\" --state open", "fjgo search pulls \"fix\" --repo OWNER/REPO"}},
+		"repos":  {Usage: "fjgo search repos <query> [flags]", Flags: []string{"--sort <key>, --limit <n>, --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo search repos \"forgejo cli\" --limit 20", "fjgo search repos fjgo --fields name,private,archived"}},
+		"topics": {Usage: "fjgo search topics <query> [--json]", Examples: []string{"fjgo search topics \"actions\"", "fjgo search topics forgejo --json"}},
+	}
 }
 
 func runSearch(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if len(args) == 0 || hasHelp(args) {
-		return writeHelp(stdout, searchHelp())
+	if help, ok := subcommandHelp(args, searchHelp(), searchCommandHelps()); ok {
+		return writeHelp(stdout, help)
 	}
 	switch args[0] {
 	case "issues":
@@ -40,7 +50,7 @@ func runSearch(ctx context.Context, client *forgejo.Client, cfg runConfig, args 
 	case "topics":
 		return runSearchTopics(ctx, client, args[1:], stdout)
 	default:
-		return fmt.Errorf("unknown search type %q", args[0])
+		return unknownSubcommandError("search", args[0], []string{"issues", "prs", "repos", "topics"})
 	}
 }
 
@@ -265,12 +275,21 @@ examples:
   fjgo -R origin label list
   fjgo -R origin label create --name bug --color ff0000 --dry-run --yes
   fjgo -R origin label edit 42 --name defect --dry-run --yes
-  fjgo -R origin label delete 42 --yes`
+	  fjgo -R origin label delete 42 --yes`
+}
+
+func labelCommandHelps() map[string]commandHelpSpec {
+	return map[string]commandHelpSpec{
+		"list":   {Usage: "fjgo label list [owner/repo] [flags]", Flags: []string{"--limit <n> (default 100), --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin label list", "fjgo label list OWNER/REPO --fields id,name,color"}},
+		"create": {Usage: "fjgo label create [owner/repo] --name <name> [flags] --yes", Flags: []string{"--color <hex>, --description <text>", "--exclusive, --archived", "--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin label create --name bug --color ff0000 --dry-run --yes", "fjgo label create OWNER/REPO --name bug --yes"}},
+		"edit":   {Usage: "fjgo label edit [owner/repo] <id> [flags] --yes", Flags: []string{"--name <name>, --color <hex>, --description <text>", "--exclusive <bool>, --archived <bool>", "--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin label edit 42 --name defect --dry-run --yes", "fjgo label edit OWNER/REPO 42 --color ff0000 --yes"}},
+		"delete": {Usage: "fjgo label delete [owner/repo] <id> --yes", Flags: []string{"--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin label delete 42 --dry-run --yes", "fjgo label delete OWNER/REPO 42 --yes"}},
+	}
 }
 
 func runLabel(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if len(args) == 0 || hasHelp(args) {
-		return writeHelp(stdout, labelHelp())
+	if help, ok := subcommandHelp(args, labelHelp(), labelCommandHelps()); ok {
+		return writeHelp(stdout, help)
 	}
 	switch args[0] {
 	case "list":
@@ -282,7 +301,7 @@ func runLabel(ctx context.Context, client *forgejo.Client, cfg runConfig, args [
 	case "delete":
 		return runLabelDelete(ctx, client, cfg, args[1:], stdout)
 	default:
-		return fmt.Errorf("unknown label command %q", args[0])
+		return unknownSubcommandError("label", args[0], []string{"list", "create", "edit", "delete"})
 	}
 }
 

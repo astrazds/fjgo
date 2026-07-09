@@ -64,14 +64,13 @@ printf secret | ./fjgo secret set kavemand/.forgejo VERIFY_SECRET --yes --dry-ru
 Authenticated commands use:
 
 ```sh
-export FJGO_BASE_URL=https://forgejo.example.com/api/v1
 export FJGO_HOST=forgejo.example.com
 export FJGO_TOKEN=...
 ```
 
 The API base defaults to `https://v15.next.forgejo.org/api/v1`; override with
-`FJGO_HOST`, `--host`, `FJGO_BASE_URL`, or `-base-url`. `FJGO_HOST` and
-`--host` derive `https://host/api/v1`. Repo context can be supplied explicitly
+`FJGO_HOST`, `--host`, or explicit `-base-url`. `FJGO_HOST` and `--host`
+derive `https://host/api/v1`. Repo context can be supplied explicitly
 with root or command-local `--repo OWNER/REPO`, `FJGO_REPO=OWNER/REPO`,
 positional repo args on repo-scoped commands, or `-R` / `--repo-from-remote`
 for Forgejo git remotes.
@@ -97,7 +96,7 @@ base URL is explicitly configured.
   `models_gen.go`
 - `scripts/generate.sh`: pinned/configurable Swagger generation wrapper
 - `scripts/release.sh`: cross-platform archive builder
-- `scripts/smoke-auth.sh`: optional authenticated smoke against a disposable repo
+- `scripts/smoke-auth.sh`: optional authenticated smoke against a temporary repo
 - `scripts/verify.sh`: full local verification gate
 - `docs/agent-setup-prompt.md`: copy/paste prompt for setting up a fresh coding
   agent with `fjgo`
@@ -147,9 +146,8 @@ surface; add nicer aliases only when they remove real repetition.
 - Keep explicit repo context predictable: root or command-local `--repo` /
   `FJGO_REPO` win when set; `-R` / `--repo-from-remote` stay scoped to parsing
   Forgejo git remotes; do not guess repo context from unrelated files.
-- Keep `FJGO_HOST` / `--host` as a convenience derivation for
-  `https://host/api/v1`; use `FJGO_BASE_URL` / `-base-url` for non-standard API
-  paths.
+- Keep `FJGO_HOST` / `--host` as the environment and CLI convenience derivation
+  for `https://host/api/v1`; use explicit `-base-url` for non-standard API paths.
 - Keep `setup hooks` explicit, idempotent, path-repairing, and scoped to the
   managed Claude Code, Codex, and OpenCode hook/plugin files.
 - Keep the embedded skill concise, generated from `internal/fjgoskill`, with

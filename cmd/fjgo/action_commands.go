@@ -39,9 +39,25 @@ examples:
   fjgo -R origin run view 123 --log-failed`
 }
 
+func runCommandHelps() map[string]commandHelpSpec {
+	return map[string]commandHelpSpec{
+		"list": {
+			Usage: "fjgo run list [owner/repo] [flags]",
+			Flags: []string{
+				"--status <status>, --workflow <file>, --ref <ref>, --event <event>, --sha <sha>",
+				"--limit <n> (default " + defaultListLimit + "), --page <n>",
+				"--fields <a,b,c>, --json",
+			},
+			Examples: []string{"fjgo -R origin run list --status failure", "fjgo run list OWNER/REPO --fields id,status,workflow"},
+		},
+		"view":  {Usage: "fjgo run view [owner/repo] <id> [flags]", Flags: []string{"--log-failed", "--full", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin run view 123", "fjgo run view OWNER/REPO 123 --log-failed --full"}},
+		"watch": {Usage: "fjgo run watch [owner/repo] <id> [flags]", Flags: []string{"--interval <duration> (default 5s)", "--timeout <duration> (default 10m)", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin run watch 123 --timeout 2m", "fjgo run watch OWNER/REPO 123 --interval 10s"}},
+	}
+}
+
 func runActions(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if len(args) == 0 || hasHelp(args) {
-		return writeHelp(stdout, runHelp())
+	if help, ok := subcommandHelp(args, runHelp(), runCommandHelps()); ok {
+		return writeHelp(stdout, help)
 	}
 	switch args[0] {
 	case "list":
@@ -51,7 +67,7 @@ func runActions(ctx context.Context, client *forgejo.Client, cfg runConfig, args
 	case "watch":
 		return runActionWatch(ctx, client, cfg, args[1:], stdout)
 	default:
-		return fmt.Errorf("unknown run command %q", args[0])
+		return unknownSubcommandError("run", args[0], []string{"list", "view", "watch"})
 	}
 }
 
@@ -318,9 +334,17 @@ examples:
   fjgo -R origin workflow run verify.yml --ref main --input smoke=true --dry-run --yes`
 }
 
+func workflowCommandHelps() map[string]commandHelpSpec {
+	return map[string]commandHelpSpec{
+		"list": {Usage: "fjgo workflow list [owner/repo] [--ref branch] [--json]", Examples: []string{"fjgo -R origin workflow list", "fjgo workflow list OWNER/REPO --ref main"}},
+		"view": {Usage: "fjgo workflow view [owner/repo] <workflow.yml> [flags]", Flags: []string{"--ref <branch>", "--full", "--json"}, Examples: []string{"fjgo -R origin workflow view verify.yml --full", "fjgo workflow view OWNER/REPO verify.yml --ref main"}},
+		"run":  {Usage: "fjgo workflow run [owner/repo] <workflow.yml> --ref <ref> [flags] --yes", Flags: []string{"--input <key=value> (repeatable)", "--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin workflow run verify.yml --ref main --input smoke=true --dry-run --yes", "fjgo workflow run OWNER/REPO verify.yml --ref main --yes"}},
+	}
+}
+
 func runWorkflow(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if len(args) == 0 || hasHelp(args) {
-		return writeHelp(stdout, workflowHelp())
+	if help, ok := subcommandHelp(args, workflowHelp(), workflowCommandHelps()); ok {
+		return writeHelp(stdout, help)
 	}
 	switch args[0] {
 	case "list":
@@ -330,7 +354,7 @@ func runWorkflow(ctx context.Context, client *forgejo.Client, cfg runConfig, arg
 	case "run":
 		return runWorkflowDispatch(ctx, client, cfg, args[1:], stdout)
 	default:
-		return fmt.Errorf("unknown workflow command %q", args[0])
+		return unknownSubcommandError("workflow", args[0], []string{"list", "view", "run"})
 	}
 }
 

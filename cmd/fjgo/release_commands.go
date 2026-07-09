@@ -260,7 +260,7 @@ func runReleaseAssets(ctx context.Context, client *forgejo.Client, cfg runConfig
 	case "delete", "remove":
 		return runReleaseAssetDelete(ctx, client, cfg, args[1:], stdout, jsonOut)
 	default:
-		return fmt.Errorf("unknown release assets command %q", args[0])
+		return unknownSubcommandError("release assets", args[0], []string{"list", "delete", "remove"})
 	}
 }
 

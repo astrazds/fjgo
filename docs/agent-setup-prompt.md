@@ -26,7 +26,7 @@ Steps:
    - If missing, install the current alpha release for this machine:
      - Detect OS with `uname -s`, mapping Linux to `linux` and Darwin to `darwin`.
      - Detect arch with `uname -m`, mapping `x86_64` to `amd64` and `aarch64`/`arm64` to `arm64`.
-     - Download `https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.15.0/fjgo_v0.15.0_${os}_${arch}.tar.gz`.
+     - Download `https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.16.0/fjgo_v0.16.0_${os}_${arch}.tar.gz`.
      - Extract it and install `fjgo` to `~/.local/bin/fjgo`.
      - If the OS/arch is unsupported or `~/.local/bin` is not on PATH, stop and tell me the exact command to run.
 2. Run `fjgo --version`.
@@ -38,11 +38,10 @@ Steps:
 5. Install or refresh the bundled skill with `fjgo skill install --force`, then
    run `fjgo skill generate --check`.
 6. Determine the Forgejo API base:
-   - If `FJGO_BASE_URL` is already set, use it.
    - If `FJGO_HOST` is already set, use it; it derives `https://host/api/v1`.
    - Otherwise inspect `git remote get-url origin`.
    - For a remote like `https://host/owner/repo.git` or `git@host:owner/repo.git`, export `FJGO_HOST=host`.
-   - If a non-standard API path is required, export it for this session as `FJGO_BASE_URL`.
+   - If a non-standard API path is required, pass it explicitly as `-base-url`.
 7. Determine repo context:
    - Prefer `git remote get-url origin` plus `fjgo -R origin` when it is a Forgejo remote on the configured base host.
    - If there is no suitable remote and `FJGO_REPO` is unset, ask me for the `owner/repo` value.
@@ -61,7 +60,7 @@ Steps:
    - `fjgo release list`
 10. If `skill status` reports `current: false`, rerun `fjgo skill install --force` and check again.
 11. Finish by printing concise user instructions:
-   - the detected `FJGO_HOST` or `FJGO_BASE_URL`
+   - the detected `FJGO_HOST` or explicit `-base-url`
    - the detected repo context (`FJGO_REPO`, `--repo`, or `-R origin`)
    - whether a token is present, without printing it
    - the first commands to use:

@@ -9,9 +9,9 @@ inside a Forgejo-backed checkout.
 ## Install
 
 ```sh
-curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.15.0/fjgo_v0.15.0_linux_amd64.tar.gz
-tar -xzf fjgo_v0.15.0_linux_amd64.tar.gz
-install -Dm755 fjgo_v0.15.0_linux_amd64/fjgo ~/.local/bin/fjgo
+curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.16.0/fjgo_v0.16.0_linux_amd64.tar.gz
+tar -xzf fjgo_v0.16.0_linux_amd64.tar.gz
+install -Dm755 fjgo_v0.16.0_linux_amd64/fjgo ~/.local/bin/fjgo
 fjgo setup hooks --check
 fjgo setup hooks
 fjgo skill install --force
@@ -28,8 +28,7 @@ export FJGO_TOKEN=your_access_token
 
 ## First Check
 
-Run this inside a Forgejo-backed checkout after setting `FJGO_HOST` or
-`FJGO_BASE_URL`:
+Run this inside a Forgejo-backed checkout after setting `FJGO_HOST`:
 
 ```sh
 fjgo -R origin doctor --json
@@ -150,14 +149,15 @@ fjgo api raw PATCH /repos/OWNER/REPO --dry-run --yes -body '{"description":"upda
 
 ## Optional Write Smoke
 
-Use only with a disposable repo:
+This creates a unique private repo, runs the write smoke inside it, and deletes
+the repo on exit or failure:
 
 ```sh
-FJGO_BASE_URL=https://forgejo.example.com/api/v1 FJGO_TEST_REPO=owner/repo FJGO_TOKEN=... ./scripts/smoke-auth.sh
+FJGO_HOST=forgejo.example.com FJGO_TOKEN=... ./scripts/smoke-auth.sh
 ```
 
-The smoke creates an issue, comments on it, closes it, and exercises token-safe
-dry-run previews for repo lifecycle, release, issue, and PR commands.
+Set `FJGO_TEST_ORG=org` to create the temporary repo in an organization. Set
+`FJGO_SMOKE_AUTH=1` to include this smoke in `./scripts/verify.sh`.
 
 ## Failure Report
 

@@ -3,14 +3,14 @@ set -eu
 
 go generate ./internal/forgejo
 gofmt -w cmd/fjgo internal/forgejo tools/genapi
-go test ./...
+env -u FJGO_HOST -u FJGO_TOKEN go test ./...
 go build ./cmd/fjgo
 
 smoke_repo="${FJGO_SMOKE_REPO:-kavemand/.forgejo}"
-smoke_base_url="${FJGO_SMOKE_BASE_URL:-https://v15.next.forgejo.org/api/v1}"
+smoke_host="${FJGO_SMOKE_HOST:-v15.next.forgejo.org}"
 
 fjgo_smoke() {
-	FJGO_BASE_URL="$smoke_base_url" FJGO_TOKEN= ./fjgo "$@"
+	FJGO_HOST="$smoke_host" FJGO_TOKEN= ./fjgo "$@"
 }
 
 test -f .forgejo/workflows/verify.yml
@@ -45,7 +45,7 @@ grep -q '"error":' "$json_err"
 rm -f "$json_err"
 fjgo_smoke repo get "$smoke_repo" >/dev/null
 fjgo_smoke --repo "$smoke_repo" repo get >/dev/null
-FJGO_BASE_URL= FJGO_HOST= FJGO_TOKEN= ./fjgo --host "$smoke_base_url" --repo "$smoke_repo" repo get >/dev/null
+FJGO_HOST= FJGO_TOKEN= ./fjgo --host "$smoke_host" --repo "$smoke_repo" repo get >/dev/null
 fjgo_smoke repo topics "$smoke_repo" >/dev/null
 fjgo_smoke repo topics "$smoke_repo" --set forgejo,go,cli --yes --dry-run >/dev/null
 fjgo_smoke repo avatar "$smoke_repo" assets/icon.png --yes --dry-run >/dev/null
@@ -102,11 +102,11 @@ rm -rf "$skill_tmp"
 test "$(grep -c '^func (c \*Client)' internal/forgejo/endpoints_gen.go)" = "491"
 test "$(grep -c '^type ' internal/forgejo/models_gen.go)" = "244"
 
-if [ -n "${FJGO_TOKEN:-}" ] && [ -n "${FJGO_BASE_URL:-}" ]; then
+if [ -n "${FJGO_TOKEN:-}" ] && [ -n "${FJGO_HOST:-}" ]; then
 	./fjgo me >/dev/null
 fi
 
-if [ -n "${FJGO_TOKEN:-}" ] && [ -n "${FJGO_BASE_URL:-}" ] && [ -n "${FJGO_TEST_REPO:-}" ]; then
+if [ "${FJGO_SMOKE_AUTH:-}" = "1" ] && [ -n "${FJGO_TOKEN:-}" ] && [ -n "${FJGO_HOST:-}" ]; then
 	./scripts/smoke-auth.sh
 fi
 

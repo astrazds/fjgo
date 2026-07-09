@@ -103,7 +103,7 @@ func runIssueDependencies(ctx context.Context, client *forgejo.Client, cfg runCo
 	case "remove", "delete":
 		return runIssueDependencyMutate(ctx, client, cfg, args[1:], stdout, kind, false)
 	default:
-		return fmt.Errorf("unknown issue %s command %q", kind, args[0])
+		return unknownSubcommandError("issue "+kind, args[0], []string{"list", "add", "remove", "delete"})
 	}
 }
 
@@ -216,7 +216,7 @@ func runIssueReactions(ctx context.Context, client *forgejo.Client, cfg runConfi
 	case "remove", "delete":
 		return runIssueReactionMutate(ctx, client, cfg, args[1:], stdout, false)
 	default:
-		return fmt.Errorf("unknown issue reactions command %q", args[0])
+		return unknownSubcommandError("issue reactions", args[0], []string{"list", "add", "remove", "delete"})
 	}
 }
 
@@ -307,7 +307,7 @@ func runIssueDeadline(ctx context.Context, client *forgejo.Client, cfg runConfig
 	}
 	clear := args[0] == "clear" || args[0] == "delete"
 	if args[0] != "set" && !clear {
-		return fmt.Errorf("unknown issue deadline command %q", args[0])
+		return unknownSubcommandError("issue deadline", args[0], []string{"set", "clear", "delete"})
 	}
 	restArgs := args[1:]
 	if err := rejectUnknownFlags(restArgs, "issue deadline "+args[0], []string{"--yes", "--dry-run", "--print-request", "--json"}, nil); err != nil {
@@ -357,7 +357,7 @@ func runIssueTime(ctx context.Context, client *forgejo.Client, cfg runConfig, ar
 	case "delete", "remove":
 		return runIssueTimeDelete(ctx, client, cfg, args[1:], stdout)
 	default:
-		return fmt.Errorf("unknown issue time command %q", args[0])
+		return unknownSubcommandError("issue time", args[0], []string{"list", "add", "reset", "delete", "remove"})
 	}
 }
 

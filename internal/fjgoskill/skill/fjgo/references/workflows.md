@@ -183,11 +183,12 @@ fjgo -R origin variable set BUILD_MODE --body release --dry-run --yes
 
 ## Optional Auth Smoke
 
-When field-testing with a disposable repo:
+When field-testing authenticated writes, the smoke creates a unique private repo,
+runs inside it, and deletes the repo on exit or failure:
 
 ```sh
-FJGO_BASE_URL=https://forgejo.example.com/api/v1 FJGO_TEST_REPO=owner/repo FJGO_TOKEN=... ./scripts/smoke-auth.sh
+FJGO_HOST=forgejo.example.com FJGO_TOKEN=... ./scripts/smoke-auth.sh
 ```
 
-The smoke creates a test issue, comments on it, closes it, and exercises
-token-safe dry-run previews for repo lifecycle, release, issue, and PR commands.
+Set `FJGO_TEST_ORG=org` to create the temporary repo in an organization. Set
+`FJGO_SMOKE_AUTH=1` to include this smoke in `./scripts/verify.sh`.

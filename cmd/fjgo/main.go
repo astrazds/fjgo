@@ -25,7 +25,7 @@ import (
 const defaultBaseURL = "https://v15.next.forgejo.org/api/v1"
 
 var (
-	version = "v0.15.0"
+	version = "v0.16.0"
 	commit  = "none"
 	date    = "unknown"
 )
@@ -79,20 +79,14 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
+	if err := rejectUnknownRootFlags(args); err != nil {
+		return err
+	}
 	fs := flag.NewFlagSet("fjgo", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	envBaseURL := os.Getenv("FJGO_BASE_URL")
 	envHost := os.Getenv("FJGO_HOST")
-	defaultURL := defaultBaseURL
-	if envBaseURL == "" && envHost != "" {
-		derived, err := apiBaseURLFromHost(envHost)
-		if err != nil {
-			return err
-		}
-		defaultURL = derived
-	}
-	baseURL := fs.String("base-url", getenv("FJGO_BASE_URL", defaultURL), "Forgejo API base URL")
-	host := fs.String("host", "", "Forgejo host; derives https://host/api/v1")
+	baseURL := fs.String("base-url", defaultBaseURL, "Forgejo API base URL")
+	host := fs.String("host", envHost, "Forgejo host; derives https://host/api/v1")
 	jsonErrors := fs.Bool("json", false, "print errors as JSON when used before the command")
 	token := fs.String("token", "", "Forgejo access token (or FJGO_TOKEN)")
 	timeout := fs.Duration("timeout", 15*time.Second, "HTTP timeout")
@@ -113,21 +107,24 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return nil
 	}
 	_ = *jsonErrors
-	baseURLConfigured := envBaseURL != ""
+	baseURLConfigured := false
 	hostConfigured := envHost != ""
+	hostFlagConfigured := false
 	fs.Visit(func(f *flag.Flag) {
 		if f.Name == "base-url" {
 			baseURLConfigured = true
 		}
 		if f.Name == "host" {
 			hostConfigured = true
+			hostFlagConfigured = true
 		}
 	})
 	if contextFlags.Host != "" {
 		*host = contextFlags.Host
 		hostConfigured = true
+		hostFlagConfigured = true
 	}
-	if *host != "" {
+	if *host != "" && (!baseURLConfigured || hostFlagConfigured) {
 		derived, err := apiBaseURLFromHost(*host)
 		if err != nil {
 			return err
@@ -268,11 +265,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 }
 
 func runAPI(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout, stderr io.Writer) error {
-	if len(args) == 0 {
-		return writeHelp(stdout, apiHelp())
-	}
-	if hasHelp(args) {
-		return writeHelp(stdout, apiHelp())
+	if help, ok := subcommandHelp(args, apiHelp(), apiCommandHelps()); ok {
+		return writeHelp(stdout, help)
 	}
 	args, jsonOut := takeJSONFlag(args)
 	args, fields, err := takeFieldsFlag(args)
@@ -319,7 +313,18 @@ func runAPI(ctx context.Context, client *forgejo.Client, cfg runConfig, args []s
 	case "raw", "request":
 		return rawRequest(ctx, client, args[1:], stdout, jsonOut, full)
 	default:
-		return fmt.Errorf("unknown api command %q", args[0])
+		return unknownSubcommandError("api", args[0], []string{"list", "inspect", "call", "upload", "raw"})
+	}
+}
+
+func apiCommandHelps() map[string]commandHelpSpec {
+	return map[string]commandHelpSpec{
+		"list":    {Usage: "fjgo api list [filter] [--fields <a,b,c>] [--json]", Examples: []string{"fjgo api list repo", "fjgo api list release --fields id,method,path"}},
+		"inspect": {Usage: "fjgo api inspect <operationId> [--json]", Examples: []string{"fjgo api inspect createCurrentUserRepo", "fjgo api inspect repoSearch --json"}},
+		"call":    {Usage: "fjgo api call <operationId> [name=value ...] [flags]", Flags: []string{"-body <json|@file|->", "--yes, --dry-run, --print-request", "--full, --json"}, Examples: []string{"fjgo api call repoGet owner=OWNER repo=REPO", "fjgo api call createCurrentUserRepo -body @repo.json --dry-run --yes"}},
+		"upload":  {Usage: "fjgo api upload <operationId> [name=value ...] attachment=@file [flags] --yes", Flags: []string{"--dry-run, --print-request", "--full, --json"}, Examples: []string{"fjgo api upload repoCreateReleaseAttachment owner=OWNER repo=REPO id=1 attachment=@dist.tgz --dry-run --yes", "fjgo api upload issueCreateIssueAttachment owner=OWNER repo=REPO index=1 attachment=@file.txt --yes"}},
+		"raw":     {Usage: "fjgo api raw <METHOD> <path> [name=value ...] [flags]", Flags: []string{"-body <json|@file|->", "--yes, --dry-run, --print-request", "--full, --json"}, Examples: []string{"fjgo api raw GET /version", "fjgo api raw PATCH /repos/OWNER/REPO -body @body.json --dry-run --yes"}},
+		"request": {Usage: "fjgo api request <METHOD> <path> [name=value ...] [flags]", Flags: []string{"-body <json|@file|->", "--yes, --dry-run, --print-request", "--full, --json"}, Examples: []string{"fjgo api request GET /version", "fjgo api request PATCH /repos/OWNER/REPO -body @body.json --dry-run --yes"}},
 	}
 }
 
@@ -601,11 +606,8 @@ func rawRequest(ctx context.Context, client *forgejo.Client, args []string, stdo
 }
 
 func runRepo(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if len(args) == 0 {
-		return writeHelp(stdout, repoHelp())
-	}
-	if hasHelp(args) {
-		return writeHelp(stdout, repoHelp())
+	if help, ok := subcommandHelp(args, repoHelp(), repoCommandHelps()); ok {
+		return writeHelp(stdout, help)
 	}
 	args, jsonOut := takeJSONFlag(args)
 	args, full := takeFullFlag(args)
@@ -740,12 +742,26 @@ func runRepo(ctx context.Context, client *forgejo.Client, cfg runConfig, args []
 	}
 }
 
-func runRelease(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if len(args) == 0 {
-		return writeHelp(stdout, releaseHelp())
+func repoCommandHelps() map[string]commandHelpSpec {
+	return map[string]commandHelpSpec{
+		"list":               {Usage: "fjgo repo list [flags]", Flags: []string{"--user <user>, --org <org>, --q <text>", "--limit <n> (default " + defaultListLimit + "), --page <n>, --sort <key>, --private <bool>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo repo list --org OWNER --fields name,private,archived", "fjgo repo list --q \"forgejo cli\" --limit 20"}},
+		"create":             {Usage: "fjgo repo create <name> [flags] --yes", Flags: []string{"--org <org>, --description <text>, --private, --auto-init", "--dry-run, --print-request, --json, --full"}, Examples: []string{"fjgo repo create demo --private --dry-run --yes", "fjgo repo create demo --org OWNER --yes"}},
+		"get":                {Usage: "fjgo repo get [owner/repo] [--fields <a,b,c>] [--json]", Examples: []string{"fjgo --repo OWNER/REPO repo get", "fjgo repo get OWNER/REPO --fields full_name,default_branch,open_issues"}},
+		"edit":               {Usage: "fjgo repo edit [owner/repo] [flags] --yes", Flags: []string{"--description <text>", "--private <bool>, --archived <bool>, --has-issues <bool>, --has-pulls <bool>, --has-wiki <bool>", "--dry-run, --print-request, --json, --full"}, Examples: []string{"fjgo --repo OWNER/REPO repo edit --description \"CLI\" --dry-run --yes", "fjgo repo edit OWNER/REPO --archived false --yes"}},
+		"fork":               {Usage: "fjgo repo fork [owner/repo] [flags] --yes", Flags: []string{"--name <name>, --org <org>", "--dry-run, --print-request, --json, --full"}, Examples: []string{"fjgo --repo OWNER/REPO repo fork --dry-run --yes", "fjgo repo fork OWNER/REPO --name fork --yes"}},
+		"branches":           {Usage: "fjgo repo branches <list|get|create|delete> [owner/repo] [flags]", Flags: []string{"--fields <a,b,c>, --json", "--name <branch>, --from <branch>", "--yes, --dry-run, --print-request"}, Examples: []string{"fjgo --repo OWNER/REPO repo branches list", "fjgo --repo OWNER/REPO repo branches create --name feature --from main --dry-run --yes"}},
+		"collaborators":      {Usage: "fjgo repo collaborators <list|check|permission|add|remove> [owner/repo] [flags]", Flags: []string{"--permission <read|write|admin>", "--fields <a,b,c>, --json", "--yes, --dry-run, --print-request"}, Examples: []string{"fjgo --repo OWNER/REPO repo collaborators list", "fjgo --repo OWNER/REPO repo collaborators add alice --permission write --dry-run --yes"}},
+		"branch-protection":  {Usage: "fjgo repo branch-protection <list|get|create|edit|delete> [owner/repo] [flags]", Flags: []string{"--name <branch>, --required-approvals <n>", "--fields <a,b,c>, --json, --full", "--yes, --dry-run, --print-request"}, Examples: []string{"fjgo --repo OWNER/REPO repo branch-protection list", "fjgo --repo OWNER/REPO repo branch-protection create --name main --required-approvals 1 --dry-run --yes"}},
+		"branch-protections": {Usage: "fjgo repo branch-protections <list|get|create|edit|delete> [owner/repo] [flags]", Flags: []string{"--name <branch>, --required-approvals <n>", "--fields <a,b,c>, --json, --full", "--yes, --dry-run, --print-request"}, Examples: []string{"fjgo --repo OWNER/REPO repo branch-protections list", "fjgo --repo OWNER/REPO repo branch-protections create --name main --required-approvals 1 --dry-run --yes"}},
+		"topics":             {Usage: "fjgo repo topics [owner/repo] [--set comma,separated,topics] [flags]", Flags: []string{"--set <topic,topic>", "--yes, --dry-run, --print-request, --json"}, Examples: []string{"fjgo repo topics OWNER/REPO", "fjgo repo topics OWNER/REPO --set forgejo,go --dry-run --yes"}},
+		"avatar":             {Usage: "fjgo repo avatar [owner/repo] <png> --yes", Flags: []string{"--dry-run, --print-request"}, Examples: []string{"fjgo --repo OWNER/REPO repo avatar icon.png --dry-run --yes", "fjgo repo avatar OWNER/REPO icon.png --yes"}},
+		"issue":              {Usage: "fjgo repo issue <close|comment> [owner/repo] <index> [flags]", Flags: []string{"-body <json|@file|->", "--yes, --dry-run, --print-request"}, Examples: []string{"fjgo -R origin repo issue close 42 --dry-run --yes", "fjgo -R origin repo issue comment 42 -body '{\"body\":\"note\"}' --dry-run --yes"}},
 	}
-	if hasHelp(args) {
-		return writeHelp(stdout, releaseHelp())
+}
+
+func runRelease(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
+	if help, ok := subcommandHelp(args, releaseHelp(), releaseCommandHelps()); ok {
+		return writeHelp(stdout, help)
 	}
 	args, jsonOut := takeJSONFlag(args)
 	args, full := takeFullFlag(args)
@@ -776,6 +792,20 @@ func runRelease(ctx context.Context, client *forgejo.Client, cfg runConfig, args
 			aliasArgs = append(aliasArgs, "--full")
 		}
 		return runAlias(ctx, client, cfg, aliasArgs, stdout)
+	}
+}
+
+func releaseCommandHelps() map[string]commandHelpSpec {
+	return map[string]commandHelpSpec{
+		"list":   {Usage: "fjgo release list [owner/repo] [flags]", Flags: []string{"--limit <n> (default " + defaultListLimit + "), --page <n>", "--draft <bool>, --prerelease <bool>, --q <text>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo --repo OWNER/REPO release list", "fjgo release list OWNER/REPO --fields id,tag,title"}},
+		"view":   {Usage: "fjgo release view [owner/repo] <id|tag> [flags]", Flags: []string{"--tag", "--full", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo --repo OWNER/REPO release view v1.2.3", "fjgo release view OWNER/REPO 123 --full"}},
+		"latest": {Usage: "fjgo release latest [owner/repo] [--full] [--fields <a,b,c>] [--json]", Examples: []string{"fjgo --repo OWNER/REPO release latest", "fjgo release latest OWNER/REPO --fields id,tag,title"}},
+		"create": {Usage: "fjgo release create [owner/repo] <tag> [flags] --yes", Flags: []string{"--name <text>, --target <ref>", "--body|--notes <text>, --body-file|--notes-file <path>", "--draft, --prerelease, --hide-archive-links", "--dry-run, --print-request, --json, --full"}, Examples: []string{"fjgo --repo OWNER/REPO release create v1.2.3 --body-file notes.md --dry-run --yes", "fjgo release create OWNER/REPO v1.2.3 --yes"}},
+		"edit":   {Usage: "fjgo release edit [owner/repo] <id> [flags] --yes", Flags: []string{"--name <text>, --target <ref>", "--body|--notes <text>, --body-file|--notes-file <path>", "--draft <bool>, --prerelease <bool>, --hide-archive-links <bool>", "--dry-run, --print-request, --json, --full"}, Examples: []string{"fjgo --repo OWNER/REPO release edit 123 --prerelease false --dry-run --yes", "fjgo release edit OWNER/REPO 123 --name \"v1.2.3\" --yes"}},
+		"delete": {Usage: "fjgo release delete [owner/repo] <id|tag> --yes", Flags: []string{"--tag", "--dry-run, --print-request, --json"}, Examples: []string{"fjgo --repo OWNER/REPO release delete 123 --dry-run --yes", "fjgo release delete OWNER/REPO v1.2.3 --tag --yes"}},
+		"upload": {Usage: "fjgo release upload [owner/repo] <release-id> <file> [name=value ...] --yes", Flags: []string{"--dry-run, --print-request, --json, --full"}, Examples: []string{"fjgo --repo OWNER/REPO release upload 123 dist/app.tar.gz name=app.tar.gz --dry-run --yes", "fjgo release upload OWNER/REPO 123 dist/app.tar.gz --yes"}},
+		"assets": {Usage: "fjgo release assets <list|delete> [owner/repo] <release-id> [asset-id] [flags]", Flags: []string{"--fields <a,b,c>, --json", "--yes, --dry-run, --print-request"}, Examples: []string{"fjgo --repo OWNER/REPO release assets list 123", "fjgo --repo OWNER/REPO release assets delete 123 456 --dry-run --yes"}},
+		"asset":  {Usage: "fjgo release asset <list|delete> [owner/repo] <release-id> [asset-id] [flags]", Flags: []string{"--fields <a,b,c>, --json", "--yes, --dry-run, --print-request"}, Examples: []string{"fjgo --repo OWNER/REPO release asset list 123", "fjgo --repo OWNER/REPO release asset delete 123 456 --dry-run --yes"}},
 	}
 }
 
@@ -1012,7 +1042,7 @@ func runRepoIssue(ctx context.Context, client *forgejo.Client, cfg runConfig, ar
 		}
 		return writeJSONAsTOON(stdout, out, "comment", false)
 	default:
-		return fmt.Errorf("unknown repo issue command %q", args[0])
+		return unknownSubcommandError("repo issue", args[0], []string{"close", "comment"})
 	}
 }
 
@@ -1133,8 +1163,8 @@ func runSkill(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
 		return writeHelp(stdout, "usage: fjgo skill <install|status|generate> [flags]\nexamples:\n  fjgo skill install --force\n  fjgo skill status --json\n  fjgo skill generate --check")
 	}
-	if hasHelp(args) {
-		return writeHelp(stdout, "usage: fjgo skill <install|status|generate> [flags]\nflags:\n  --dir <path>, --force, --check, --json\nexamples:\n  fjgo skill install --force\n  fjgo skill status --json\n  fjgo skill generate --check")
+	if help, ok := subcommandHelp(args, "usage: fjgo skill <install|status|generate> [flags]\nflags:\n  --dir <path>, --force, --check, --json\nexamples:\n  fjgo skill install --force\n  fjgo skill status --json\n  fjgo skill generate --check", skillCommandHelps()); ok {
+		return writeHelp(stdout, help)
 	}
 	switch args[0] {
 	case "install":
@@ -1144,7 +1174,15 @@ func runSkill(args []string, stdout, stderr io.Writer) error {
 	case "generate":
 		return runSkillGenerate(args[1:], stdout)
 	default:
-		return fmt.Errorf("unknown skill command %q", args[0])
+		return unknownSubcommandError("skill", args[0], []string{"install", "status", "generate"})
+	}
+}
+
+func skillCommandHelps() map[string]commandHelpSpec {
+	return map[string]commandHelpSpec{
+		"install":  {Usage: "fjgo skill install [--dir path] [--force] [--json]", Examples: []string{"fjgo skill install --force", "fjgo skill install --dir .agents/skills/fjgo"}},
+		"status":   {Usage: "fjgo skill status [--dir path] [--json]", Examples: []string{"fjgo skill status", "fjgo skill status --dir .agents/skills/fjgo --json"}},
+		"generate": {Usage: "fjgo skill generate [--check] [--json]", Examples: []string{"fjgo skill generate --check", "fjgo skill generate > internal/fjgoskill/skill/fjgo/SKILL.md"}},
 	}
 }
 
@@ -1159,7 +1197,7 @@ func runInstall(args []string, stdout, stderr io.Writer) error {
 	force := fs.Bool("force", false, "overwrite existing embedded skill files")
 	check := fs.Bool("check", false, "check embedded skill install status")
 	jsonOut := fs.Bool("json", false, "output JSON instead of TOON")
-	if err := fs.Parse(args); err != nil {
+	if err := parseKnownFlagSet(fs, args, "install", []string{"--skills", "--dir", "--force", "--check", "--json"}, []string{"--dir"}); err != nil {
 		return err
 	}
 	if !*skills || fs.NArg() != 0 {
@@ -1181,7 +1219,7 @@ func runSkillInstall(args []string, stdout, stderr io.Writer) error {
 	dir := fs.String("dir", fjgoskill.DefaultInstallDir(), "skill install directory")
 	force := fs.Bool("force", false, "overwrite existing embedded skill files")
 	jsonOut := fs.Bool("json", false, "output JSON instead of TOON")
-	if err := fs.Parse(args); err != nil {
+	if err := parseKnownFlagSet(fs, args, "skill install", []string{"--dir", "--force", "--json"}, []string{"--dir"}); err != nil {
 		return err
 	}
 	if fs.NArg() != 0 {
@@ -1195,7 +1233,7 @@ func runSkillStatus(args []string, stdout, stderr io.Writer) error {
 	fs.SetOutput(io.Discard)
 	dir := fs.String("dir", fjgoskill.DefaultInstallDir(), "skill install directory")
 	jsonOut := fs.Bool("json", false, "output JSON instead of TOON")
-	if err := fs.Parse(args); err != nil {
+	if err := parseKnownFlagSet(fs, args, "skill status", []string{"--dir", "--json"}, []string{"--dir"}); err != nil {
 		return err
 	}
 	if fs.NArg() != 0 {
@@ -1213,7 +1251,7 @@ func runSkillGenerate(args []string, stdout io.Writer) error {
 	fs.SetOutput(io.Discard)
 	check := fs.Bool("check", false, "check embedded SKILL.md against generated content")
 	jsonOut := fs.Bool("json", false, "output JSON instead of TOON")
-	if err := fs.Parse(args); err != nil {
+	if err := parseKnownFlagSet(fs, args, "skill generate", []string{"--check", "--json"}, nil); err != nil {
 		return err
 	}
 	if fs.NArg() != 0 {
@@ -1266,8 +1304,8 @@ func runAliasInfo(args []string, stdout io.Writer) error {
 	if len(args) == 0 {
 		return writeHelp(stdout, aliasHelp())
 	}
-	if hasHelp(args) {
-		return writeHelp(stdout, aliasHelp())
+	if help, ok := subcommandHelp(args, aliasHelp(), aliasCommandHelps()); ok {
+		return writeHelp(stdout, help)
 	}
 	args, jsonOut := takeJSONFlag(args)
 	args, fields, err := takeFieldsFlag(args)
@@ -1276,6 +1314,12 @@ func runAliasInfo(args []string, stdout io.Writer) error {
 	}
 	switch args[0] {
 	case "list":
+		if err := rejectUnknownFlags(args[1:], "alias list", []string{"--json", "--fields"}, []string{"--fields"}); err != nil {
+			return err
+		}
+		if len(args) > 2 {
+			return newUsageError("usage: fjgo alias list [filter] [--fields <a,b,c>] [--json]")
+		}
 		filter := ""
 		if len(args) > 1 {
 			filter = strings.ToLower(args[1])
@@ -1293,6 +1337,12 @@ func runAliasInfo(args []string, stdout io.Writer) error {
 		}
 		return writeAliasList(stdout, aliases, fields)
 	case "collisions":
+		if err := rejectUnknownFlags(args[1:], "alias collisions", []string{"--json"}, nil); err != nil {
+			return err
+		}
+		if len(args) != 1 {
+			return newUsageError("usage: fjgo alias collisions [--json]")
+		}
 		if jsonOut {
 			return writeJSON(stdout, forgejo.AliasCollisions())
 		}
@@ -1307,6 +1357,9 @@ func runAliasInfo(args []string, stdout io.Writer) error {
 		}
 		return writeTOON(stdout, tableBlock("collisions", []string{"command", "kept", "skipped", "reason"}, rows))
 	case "inspect":
+		if err := rejectUnknownFlags(args[1:], "alias inspect", []string{"--json"}, nil); err != nil {
+			return err
+		}
 		if len(args) < 2 {
 			return newUsageError("usage: fjgo alias inspect <command...>", "Run `fjgo alias list <filter>` to find aliases")
 		}
@@ -1319,13 +1372,24 @@ func runAliasInfo(args []string, stdout io.Writer) error {
 		}
 		return writeTOON(stdout, aliasBlocks(alias))
 	default:
-		return fmt.Errorf("unknown alias command %q", args[0])
+		return unknownSubcommandError("alias", args[0], []string{"list", "inspect", "collisions"})
+	}
+}
+
+func aliasCommandHelps() map[string]commandHelpSpec {
+	return map[string]commandHelpSpec{
+		"list":       {Usage: "fjgo alias list [filter] [--fields <a,b,c>] [--json]", Examples: []string{"fjgo alias list repo", "fjgo alias list pulls --fields command,operation,path"}},
+		"inspect":    {Usage: "fjgo alias inspect <command...> [--json]", Examples: []string{"fjgo alias inspect repo pulls get", "fjgo alias inspect repo issues list --json"}},
+		"collisions": {Usage: "fjgo alias collisions [--json]", Examples: []string{"fjgo alias collisions", "fjgo alias collisions --json"}},
 	}
 }
 
 func runModel(args []string, stdout io.Writer) error {
 	if len(args) == 0 || hasHelp(args) {
 		return writeHelp(stdout, "usage: fjgo model inspect <Model> [--json]\nexamples:\n  fjgo model inspect CreateIssueOption\n  fjgo model --json inspect CreateIssueOption")
+	}
+	if err := rejectUnknownFlags(args, "model inspect", []string{"--json"}, nil); err != nil {
+		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
 	if len(args) != 2 || args[0] != "inspect" {
@@ -1350,7 +1414,7 @@ func runAlias(ctx context.Context, client *forgejo.Client, cfg runConfig, args [
 	}
 	alias, rest, ok := matchAlias(args)
 	if !ok {
-		return fmt.Errorf("unknown command %q", args[0])
+		return unknownCommandError(args[0], rootCommands())
 	}
 	if err := rejectUnknownFlags(rest, strings.Join(alias.Command, " "), []string{"--json", "--full", "-body", "--yes", "--dry-run", "--print-request"}, []string{"-body"}); err != nil {
 		return err
@@ -1535,6 +1599,9 @@ func parseRemoteRepo(remoteURL, baseURL string) (*repoRef, error) {
 func runAuth(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
 	if hasHelp(args) {
 		return writeHelp(stdout, "usage: fjgo auth status [--json]\nexamples:\n  fjgo auth status\n  fjgo -R origin auth status --json")
+	}
+	if err := rejectUnknownFlags(args, "auth status", []string{"--json"}, nil); err != nil {
+		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
 	if len(args) > 1 || (len(args) == 1 && args[0] != "status") {

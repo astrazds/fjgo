@@ -367,7 +367,9 @@ import { spawn } from "node:child_process";
 
 const command = ` + string(commandJSON) + `;
 const args = ["-R", "origin"];
+const captureArgs = ["hook", "capture"];
 const timeoutMs = 10000;
+let captureRegistered = false;
 
 function runFjgoHome(directory) {
   return new Promise((resolve) => {
@@ -406,8 +408,29 @@ function runFjgoHome(directory) {
   });
 }
 
+function runFjgoCapture(directory) {
+  try {
+    const child = spawn(command, captureArgs, {
+      cwd: typeof directory === "string" && directory.length > 0 ? directory : process.cwd(),
+      env: process.env,
+      shell: false,
+      stdio: "ignore",
+    });
+    child.unref?.();
+  } catch {
+    // Best-effort session capture must not affect OpenCode shutdown.
+  }
+}
+
+function registerFjgoCapture(directory) {
+  if (captureRegistered) return;
+  captureRegistered = true;
+  process.once("beforeExit", () => runFjgoCapture(directory));
+}
+
 export const AxiFjgoAmbientContextPlugin = async ({ directory }) => {
   const sessionCache = new Map();
+  registerFjgoCapture(directory);
   return {
     "experimental.chat.system.transform": async (input, output) => {
       const sessionID = input.sessionID ?? "__global__";
@@ -425,11 +448,17 @@ export const AxiFjgoAmbientContextPlugin = async ({ directory }) => {
 }
 
 func runHook(args []string, stdout io.Writer) error {
+	if hasHelp(args) {
+		return writeHelp(stdout, "usage: fjgo hook capture\nCapture lightweight session-end context for future fjgo diagnostics.")
+	}
 	if len(args) == 0 || args[0] != "capture" {
 		return newUsageError("usage: fjgo hook capture")
 	}
-	if hasHelp(args) {
-		return writeHelp(stdout, "usage: fjgo hook capture\nCapture lightweight session-end context for future fjgo diagnostics.")
+	if err := rejectUnknownFlags(args[1:], "hook capture", nil, nil); err != nil {
+		return err
+	}
+	if len(args) != 1 {
+		return newUsageError("usage: fjgo hook capture")
 	}
 	home, err := hookHomeDir()
 	if err != nil {
@@ -439,12 +468,66 @@ func runHook(args []string, stdout io.Writer) error {
 	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		return err
 	}
-	cwd, _ := os.Getwd()
-	line := fmt.Sprintf("%s\t%s\t%s/%s\n", time.Now().UTC().Format(time.RFC3339), runtime.GOOS, runtime.GOARCH, cwd)
+	record := hookCaptureRecord()
+	lineBytes, err := json.Marshal(record)
+	if err != nil {
+		return err
+	}
+	line := string(lineBytes) + "\n"
 	if err := appendFile(filepath.Join(stateDir, "sessions.log"), line); err != nil {
 		return err
 	}
 	return writeTOON(stdout, map[string]any{"capture": "recorded"})
+}
+
+func hookCaptureRecord() map[string]any {
+	cwd, _ := os.Getwd()
+	record := map[string]any{
+		"time":   time.Now().UTC().Format(time.RFC3339),
+		"goos":   runtime.GOOS,
+		"goarch": runtime.GOARCH,
+		"cwd":    cwd,
+	}
+	if branch := gitOutput("rev-parse", "--abbrev-ref", "HEAD"); branch != "" {
+		record["branch"] = branch
+	}
+	if head := gitOutput("rev-parse", "--short", "HEAD"); head != "" {
+		record["head"] = head
+	}
+	if status := gitOutput("status", "--porcelain"); status != "" {
+		record["dirty_files"] = len(strings.Split(status, "\n"))
+	} else if isGitWorktree() {
+		record["dirty_files"] = 0
+	}
+	if ref := gitRemoteRepo("origin"); ref != "" {
+		record["repo"] = ref
+	}
+	return record
+}
+
+func gitOutput(args ...string) string {
+	cmd := exec.Command("git", args...)
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func isGitWorktree() bool {
+	return gitOutput("rev-parse", "--is-inside-work-tree") == "true"
+}
+
+func gitRemoteRepo(remote string) string {
+	raw := gitOutput("remote", "get-url", remote)
+	if raw == "" {
+		return ""
+	}
+	ref, err := parseRemoteRepo(raw, "")
+	if err != nil {
+		return ""
+	}
+	return ref.Owner + "/" + ref.Repo
 }
 
 func appendFile(path, text string) error {

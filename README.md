@@ -7,8 +7,8 @@ interactive prompts, token-safe dry runs, and explicit opt-in ambient context.
 
 The API root defaults to the public Forgejo demo at
 `https://v15.next.forgejo.org/api/v1`; override it with
-`FJGO_HOST`, `--host`, `FJGO_BASE_URL`, or `-base-url`. `FJGO_HOST` and
-`--host` derive `https://host/api/v1`.
+`FJGO_HOST`, `--host`, or explicit `-base-url`. `FJGO_HOST` and `--host`
+derive `https://host/api/v1`.
 
 ## Agent Setup
 
@@ -68,14 +68,13 @@ token back into diagnostics.
 
 ## Status
 
-Current app version: `v0.15.0`.
+Current app version: `v0.16.0`.
 
-`v0.15.0` is the AXI expansion release. It adds command-local repo/host
-context, generated skill drift checks, ambient hook setup, richer issue/PR,
-repo, release, search, label, secret, variable, Actions, and workflow aliases,
-structured token-safe errors, TOON-first output, guarded self-update checks,
-and the rule that curated commands must be backed by pinned Forgejo Swagger
-operations.
+`v0.16.0` is the AXI hardening release. It tightens structured root and nested
+subcommand errors, adds focused help coverage, includes cheap home-view totals,
+records richer session-end hook context, keeps tests isolated from ambient
+Forgejo credentials, and makes authenticated smoke create and clean up its own
+temporary repository.
 
 See [`CHANGELOG.md`](CHANGELOG.md) for release notes.
 
@@ -146,9 +145,9 @@ go install repos.astrazds.net/astrazds/fjgo/cmd/fjgo@latest
 From a release archive:
 
 ```sh
-curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.15.0/fjgo_v0.15.0_linux_amd64.tar.gz
-tar -xzf fjgo_v0.15.0_linux_amd64.tar.gz
-install -Dm755 fjgo_v0.15.0_linux_amd64/fjgo ~/.local/bin/fjgo
+curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.16.0/fjgo_v0.16.0_linux_amd64.tar.gz
+tar -xzf fjgo_v0.16.0_linux_amd64.tar.gz
+install -Dm755 fjgo_v0.16.0_linux_amd64/fjgo ~/.local/bin/fjgo
 ```
 
 Check for a newer release without changing files:
@@ -237,10 +236,10 @@ export FJGO_HOST=forgejo.example.com
 export FJGO_TOKEN=your_access_token
 ```
 
-Set `FJGO_HOST` or `FJGO_BASE_URL` with `FJGO_TOKEN` for private or non-demo instances. Ambient
-`FJGO_TOKEN` is ignored for the built-in public demo default unless the base URL
-is explicitly configured, which avoids sending a private token to the demo by
-accident.
+Set `FJGO_HOST` with `FJGO_TOKEN` for private or non-demo instances. Ambient
+`FJGO_TOKEN` is ignored for the built-in public demo default unless `FJGO_HOST`,
+`--host`, or `-base-url` is explicitly configured, which avoids sending a
+private token to the demo by accident.
 
 Use a read-only token for authenticated reads such as `fjgo me`. Repo write
 operations, including topic or avatar updates, need repository write access.
@@ -508,16 +507,18 @@ Generated files are committed for consumers, but should only be edited through
 Forgejo Actions runs the same verifier on pushes and pull requests via
 `.forgejo/workflows/verify.yml`.
 
-Optional authenticated field smoke against a disposable repo:
+Optional authenticated field smoke. This creates a unique private repo, runs the
+write smoke inside it, and deletes the repo on exit or failure:
 
 ```sh
 go build ./cmd/fjgo
-FJGO_BASE_URL=https://forgejo.example.com/api/v1 FJGO_TEST_REPO=owner/repo FJGO_TOKEN=... ./scripts/smoke-auth.sh
+FJGO_HOST=forgejo.example.com FJGO_TOKEN=... ./scripts/smoke-auth.sh
 ```
 
-When `FJGO_BASE_URL`, `FJGO_TEST_REPO`, and `FJGO_TOKEN` are set,
-`./scripts/verify.sh` runs the authenticated smoke too. The smoke creates a test
-issue, comments on it, closes it, and exercises token-safe dry-run previews.
+Set `FJGO_TEST_ORG=org` to create the temporary repo in an organization, or
+`FJGO_TEST_REPO_NAME=name` to choose the temporary repo name. To include this
+authenticated smoke in `./scripts/verify.sh`, set `FJGO_SMOKE_AUTH=1` along with
+`FJGO_HOST` and `FJGO_TOKEN`.
 
 Alpha testers should use `docs/alpha.md` for the field-test checklist and
 failure-report format.
@@ -527,7 +528,7 @@ failure-report format.
 Build release archives into `dist/`:
 
 ```sh
-VERSION=v0.15.0 ./scripts/release.sh
+VERSION=v0.16.0 ./scripts/release.sh
 ```
 
 Override targets when testing locally:
@@ -546,7 +547,7 @@ Release notes live in [`CHANGELOG.md`](CHANGELOG.md).
 Smoke check a published release archive:
 
 ```sh
-VERSION=v0.15.0 ./scripts/smoke-release.sh
+VERSION=v0.16.0 ./scripts/smoke-release.sh
 ```
 
 ## License

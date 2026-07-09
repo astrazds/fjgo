@@ -12,7 +12,7 @@ dry runs/request previews are token-safe.
 
 ## First Command
 
-Set `FJGO_HOST` or `FJGO_BASE_URL` to the same Forgejo host as the checkout remote,
+Set `FJGO_HOST` to the same Forgejo host as the checkout remote,
 then run this before acting on a repo:
 
 ```sh

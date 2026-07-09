@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -84,7 +85,76 @@ func errorHelp(err error) []string {
 
 func unknownFlagError(command, flag string, valid []string) error {
 	help := fmt.Sprintf("valid flags for `%s`: %s (--help always allowed)", command, strings.Join(valid, ", "))
+	if len(valid) == 0 {
+		help = fmt.Sprintf("`%s` accepts no flags except --help", command)
+	}
 	return newUsageError(fmt.Sprintf("unknown flag %s for `%s`", flag, command), help)
+}
+
+func unknownSubcommandError(command, got string, valid []string) error {
+	return newUsageError(
+		fmt.Sprintf("unknown %s command %q", command, got),
+		fmt.Sprintf("valid subcommands for `%s`: %s", command, strings.Join(valid, ", ")),
+	)
+}
+
+func unknownCommandError(got string, valid []string) error {
+	return newUsageError(
+		fmt.Sprintf("unknown command %q", got),
+		"valid commands: "+strings.Join(valid, ", "),
+	)
+}
+
+func rootFlags() []string {
+	return []string{"-R", "-base-url", "-timeout", "-token", "--help", "--host", "--json", "--repo", "--repo-from-remote", "--version"}
+}
+
+func rootValueFlags() []string {
+	return []string{"-R", "-base-url", "-timeout", "-token", "--host", "--repo", "--repo-from-remote"}
+}
+
+func rootCommands() []string {
+	return []string{
+		"setup", "hook", "doctor", "context", "version", "me", "auth", "whoami",
+		"get", "api", "alias", "model", "repo", "issue", "pr", "pull", "run",
+		"workflow", "search", "label", "secret", "variable", "release", "update",
+		"skill", "install",
+	}
+}
+
+func rejectUnknownRootFlags(args []string) error {
+	allowed := rootFlags()
+	valueFlags := rootValueFlags()
+	allowedSet := map[string]bool{"-h": true}
+	valueSet := map[string]bool{}
+	for _, flag := range allowed {
+		allowedSet[flag] = true
+	}
+	for _, flag := range valueFlags {
+		valueSet[flag] = true
+	}
+	valid := slices.Clone(allowed)
+	sortFlags(valid)
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			return nil
+		}
+		if !strings.HasPrefix(arg, "-") || arg == "-" {
+			return nil
+		}
+		name := arg
+		if before, _, ok := strings.Cut(arg, "="); ok {
+			name = before
+		}
+		if !allowedSet[name] {
+			return unknownFlagError("fjgo", name, valid)
+		}
+		if valueSet[name] && !strings.Contains(arg, "=") {
+			i++
+		}
+	}
+	return nil
 }
 
 func rejectUnknownFlags(args []string, command string, allowed, valueFlags []string) error {
@@ -120,12 +190,68 @@ func rejectUnknownFlags(args []string, command string, allowed, valueFlags []str
 	return nil
 }
 
+func parseKnownFlagSet(fs *flag.FlagSet, args []string, command string, allowed, valueFlags []string) error {
+	if err := rejectUnknownFlags(args, command, allowed, valueFlags); err != nil {
+		return err
+	}
+	if err := fs.Parse(args); err != nil {
+		return newUsageError(err.Error())
+	}
+	return nil
+}
+
 func sortFlags(flags []string) {
 	slices.Sort(flags)
 }
 
 func hasHelp(args []string) bool {
 	return slices.Contains(args, "--help") || slices.Contains(args, "-h")
+}
+
+type commandHelpSpec struct {
+	Usage    string
+	Flags    []string
+	Examples []string
+}
+
+func formatCommandHelp(spec commandHelpSpec) string {
+	var b strings.Builder
+	b.WriteString("usage: ")
+	b.WriteString(spec.Usage)
+	if len(spec.Flags) != 0 {
+		b.WriteString("\n\nflags:\n")
+		for _, line := range spec.Flags {
+			b.WriteString("  ")
+			b.WriteString(line)
+			b.WriteByte('\n')
+		}
+	}
+	if len(spec.Examples) != 0 {
+		if len(spec.Flags) != 0 {
+			b.WriteString("\nexamples:\n")
+		} else {
+			b.WriteString("\n\nexamples:\n")
+		}
+		for _, line := range spec.Examples {
+			b.WriteString("  ")
+			b.WriteString(line)
+			b.WriteByte('\n')
+		}
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+func subcommandHelp(args []string, groupHelp string, specs map[string]commandHelpSpec) (string, bool) {
+	if len(args) == 0 {
+		return groupHelp, true
+	}
+	if !hasHelp(args) {
+		return "", false
+	}
+	if spec, ok := specs[args[0]]; ok {
+		return formatCommandHelp(spec), true
+	}
+	return groupHelp, true
 }
 
 type peeledContextFlags struct {
@@ -471,17 +597,27 @@ func writeHome(ctx context.Context, client *forgejo.Client, cfg runConfig, stdou
 	} else if repo != nil {
 		blocks = append(blocks, repoSummaryBlock(*repo))
 	}
-	issues, issueErr := client.IssueListIssues(ctx, ref.Owner, ref.Repo, forgejo.RequestOptions{Query: url.Values{"state": {"open"}, "type": {"issues"}, "limit": {"3"}}})
+	issuesResp, issueErr := rawOperationResponse(ctx, client, "issueListIssues", repoPath(ref), url.Values{"state": {"open"}, "type": {"issues"}, "limit": {"3"}}, nil)
 	if issueErr != nil {
 		blocks = append(blocks, map[string]any{"issues_error": errorMessage(issueErr)})
 	} else {
-		blocks = append(blocks, issueListBlock("issues", issues))
+		issues, err := decodeBody[[]*forgejo.Issue](issuesResp.Body)
+		if err != nil {
+			blocks = append(blocks, map[string]any{"issues_error": errorMessage(err)})
+		} else {
+			blocks = append(blocks, issueListBlock("issues", issues, responseTotal(issuesResp))...)
+		}
 	}
-	pulls, pullErr := client.RepoListPullRequests(ctx, ref.Owner, ref.Repo, forgejo.RequestOptions{Query: url.Values{"state": {"open"}, "limit": {"3"}}})
+	pullsResp, pullErr := rawOperationResponse(ctx, client, "repoListPullRequests", repoPath(ref), url.Values{"state": {"open"}, "limit": {"3"}}, nil)
 	if pullErr != nil {
 		blocks = append(blocks, map[string]any{"pulls_error": errorMessage(pullErr)})
 	} else {
-		blocks = append(blocks, pullListBlock("pulls", pulls))
+		pulls, err := decodeBody[[]*forgejo.PullRequest](pullsResp.Body)
+		if err != nil {
+			blocks = append(blocks, map[string]any{"pulls_error": errorMessage(err)})
+		} else {
+			blocks = append(blocks, pullListBlock("pulls", pulls, responseTotal(pullsResp))...)
+		}
 	}
 	blocks = append(blocks, suggestionHelp(suggestionContext{Domain: "home", Action: "repo", Repo: &ref}))
 	return writeTOON(stdout, blocks)
@@ -501,7 +637,7 @@ func repoSummaryBlock(repo forgejo.Repository) any {
 	}
 }
 
-func issueListBlock(label string, issues []*forgejo.Issue) any {
+func issueListBlock(label string, issues []*forgejo.Issue, total int64) toonBlocks {
 	rows := make([]map[string]any, 0, len(issues))
 	for _, issue := range issues {
 		if issue == nil {
@@ -523,12 +659,12 @@ func issueListBlock(label string, issues []*forgejo.Issue) any {
 		})
 	}
 	if len(rows) == 0 {
-		return map[string]any{label: "0 open"}
+		return toonBlocks{map[string]any{label: "0 open"}}
 	}
-	return tableBlock(label, []string{"number", "title", "state", "author"}, rows)
+	return homeListBlocks(label, []string{"number", "title", "state", "author"}, rows, total)
 }
 
-func pullListBlock(label string, pulls []*forgejo.PullRequest) any {
+func pullListBlock(label string, pulls []*forgejo.PullRequest, total int64) toonBlocks {
 	rows := make([]map[string]any, 0, len(pulls))
 	for _, pr := range pulls {
 		if pr == nil {
@@ -550,9 +686,20 @@ func pullListBlock(label string, pulls []*forgejo.PullRequest) any {
 		})
 	}
 	if len(rows) == 0 {
-		return map[string]any{label: "0 open"}
+		return toonBlocks{map[string]any{label: "0 open"}}
 	}
-	return tableBlock(label, []string{"number", "title", "state", "author"}, rows)
+	return homeListBlocks(label, []string{"number", "title", "state", "author"}, rows, total)
+}
+
+func homeListBlocks(label string, fields []string, rows []map[string]any, total int64) toonBlocks {
+	count := any(len(rows))
+	if total > int64(len(rows)) {
+		count = fmt.Sprintf("%d of %d total", len(rows), total)
+	}
+	return toonBlocks{
+		map[string]any{label + "_count": count},
+		tableBlock(label, fields, rows),
+	}
 }
 
 func writeOperationsList(stdout io.Writer, ops []forgejo.Operation, fields []string) error {

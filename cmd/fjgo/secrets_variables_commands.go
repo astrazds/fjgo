@@ -18,12 +18,20 @@ notes:
 examples:
   fjgo -R origin secret list
   echo -n "$TOKEN" | fjgo -R origin secret set DEPLOY_TOKEN --dry-run --yes
-  fjgo -R origin secret delete DEPLOY_TOKEN --yes`
+	  fjgo -R origin secret delete DEPLOY_TOKEN --yes`
+}
+
+func secretCommandHelps() map[string]commandHelpSpec {
+	return map[string]commandHelpSpec{
+		"list":   {Usage: "fjgo secret list [owner/repo] [flags]", Flags: []string{"--limit <n>, --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin secret list", "fjgo secret list OWNER/REPO --fields name,created"}},
+		"set":    {Usage: "fjgo secret set [owner/repo] <name> --yes", Flags: []string{"secret value is read from stdin", "--dry-run, --print-request, --json"}, Examples: []string{"printf secret | fjgo -R origin secret set DEPLOY_TOKEN --dry-run --yes", "printf secret | fjgo secret set OWNER/REPO DEPLOY_TOKEN --yes"}},
+		"delete": {Usage: "fjgo secret delete [owner/repo] <name> --yes", Flags: []string{"--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin secret delete DEPLOY_TOKEN --dry-run --yes", "fjgo secret delete OWNER/REPO DEPLOY_TOKEN --yes"}},
+	}
 }
 
 func runSecret(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if len(args) == 0 || hasHelp(args) {
-		return writeHelp(stdout, secretHelp())
+	if help, ok := subcommandHelp(args, secretHelp(), secretCommandHelps()); ok {
+		return writeHelp(stdout, help)
 	}
 	switch args[0] {
 	case "list":
@@ -33,7 +41,7 @@ func runSecret(ctx context.Context, client *forgejo.Client, cfg runConfig, args 
 	case "delete":
 		return runSecretDelete(ctx, client, cfg, args[1:], stdout)
 	default:
-		return fmt.Errorf("unknown secret command %q", args[0])
+		return unknownSubcommandError("secret", args[0], []string{"list", "set", "delete"})
 	}
 }
 
@@ -157,12 +165,21 @@ examples:
   fjgo -R origin variable get BUILD_MODE
   fjgo -R origin variable set BUILD_MODE --body release --dry-run --yes
   echo -n release | fjgo -R origin variable set BUILD_MODE --yes
-  fjgo -R origin variable delete BUILD_MODE --yes`
+	  fjgo -R origin variable delete BUILD_MODE --yes`
+}
+
+func variableCommandHelps() map[string]commandHelpSpec {
+	return map[string]commandHelpSpec{
+		"list":   {Usage: "fjgo variable list [owner/repo] [flags]", Flags: []string{"--limit <n>, --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin variable list", "fjgo variable list OWNER/REPO --fields name,value"}},
+		"get":    {Usage: "fjgo variable get [owner/repo] <name> [--json]", Examples: []string{"fjgo -R origin variable get BUILD_MODE", "fjgo variable get OWNER/REPO BUILD_MODE --json"}},
+		"set":    {Usage: "fjgo variable set [owner/repo] <name> [--body <value>] --yes", Flags: []string{"--body <value>; otherwise value is read from stdin", "--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin variable set BUILD_MODE --body release --dry-run --yes", "printf release | fjgo variable set OWNER/REPO BUILD_MODE --yes"}},
+		"delete": {Usage: "fjgo variable delete [owner/repo] <name> --yes", Flags: []string{"--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin variable delete BUILD_MODE --dry-run --yes", "fjgo variable delete OWNER/REPO BUILD_MODE --yes"}},
+	}
 }
 
 func runVariable(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if len(args) == 0 || hasHelp(args) {
-		return writeHelp(stdout, variableHelp())
+	if help, ok := subcommandHelp(args, variableHelp(), variableCommandHelps()); ok {
+		return writeHelp(stdout, help)
 	}
 	switch args[0] {
 	case "list":
@@ -174,7 +191,7 @@ func runVariable(ctx context.Context, client *forgejo.Client, cfg runConfig, arg
 	case "delete":
 		return runVariableDelete(ctx, client, cfg, args[1:], stdout)
 	default:
-		return fmt.Errorf("unknown variable command %q", args[0])
+		return unknownSubcommandError("variable", args[0], []string{"list", "get", "set", "delete"})
 	}
 }
 

@@ -18,6 +18,14 @@ import (
 	"repos.astrazds.net/astrazds/fjgo/internal/forgejo"
 )
 
+func TestMain(m *testing.M) {
+	_ = os.Unsetenv("FJGO_HOST")
+	_ = os.Unsetenv("FJGO_BASE_URL")
+	_ = os.Unsetenv("FJGO_TOKEN")
+	_ = os.Unsetenv("FJGO_REPO")
+	os.Exit(m.Run())
+}
+
 func TestAPICallRunsGeneratedOperation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v1/version" {
@@ -62,7 +70,7 @@ func TestVersionFlagPrintsBinaryVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); got != "fjgo v0.15.0 none unknown\n" {
+	if got := stdout.String(); got != "fjgo v0.16.0 none unknown\n" {
 		t.Fatalf("stdout = %q", got)
 	}
 }
@@ -75,6 +83,49 @@ func TestHomeNoArgsShowsAxiHeader(t *testing.T) {
 	}
 	got := stdout.String()
 	for _, want := range []string{"bin:", "description:", "repo: none", "help["} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("home output missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestHomeShowsCheapTotals(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/repos/astra/fjgo":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"full_name":      "astra/fjgo",
+				"default_branch": "main",
+			})
+		case "/api/v1/repos/astra/fjgo/issues":
+			w.Header().Set("X-Total-Count", "7")
+			_ = json.NewEncoder(w).Encode([]map[string]any{{
+				"number": 1,
+				"title":  "Bug",
+				"state":  "open",
+				"user":   map[string]any{"login": "alice"},
+			}})
+		case "/api/v1/repos/astra/fjgo/pulls":
+			w.Header().Set("X-Total-Count", "5")
+			_ = json.NewEncoder(w).Encode([]map[string]any{{
+				"number": 2,
+				"title":  "Fix",
+				"state":  "open",
+				"user":   map[string]any{"login": "bob"},
+			}})
+		default:
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "--repo", "astra/fjgo"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	got := stdout.String()
+	for _, want := range []string{"issues_count: 1 of 7 total", "pulls_count: 1 of 5 total", "issues[1]{number,title,state,author}", "pulls[1]{number,title,state,author}"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("home output missing %q:\n%s", want, got)
 		}
@@ -95,6 +146,131 @@ func TestRunCLIUsageErrorStructuredOnStdout(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("structured error missing %q:\n%s", want, got)
 		}
+	}
+}
+
+func TestAXIRootUnknownFlagIsStructuredWithoutHelpDump(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := runCLI(t.Context(), []string{"--json", "--bogus"}, &stdout, &stderr)
+	if code != 2 {
+		t.Fatalf("code = %d", code)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %s", stderr.String())
+	}
+	got := stdout.String()
+	for _, want := range []string{`"code": "USAGE"`, "unknown flag --bogus for `fjgo`", "valid flags for `fjgo`"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("structured error missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "usage: fjgo [flags]") {
+		t.Fatalf("root help leaked into JSON error:\n%s", got)
+	}
+}
+
+func TestAXIUnknownFlagsFailLoud(t *testing.T) {
+	cases := [][]string{
+		{"hook", "capture", "--bogus"},
+		{"alias", "list", "--bogus"},
+		{"alias", "collisions", "--bogus"},
+		{"skill", "status", "--bogus"},
+		{"install", "--skills", "--bogus"},
+		{"model", "inspect", "CreateIssueOption", "--bogus"},
+		{"auth", "status", "--bogus"},
+	}
+	for _, args := range cases {
+		t.Run(strings.Join(args, "_"), func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := runCLI(t.Context(), args, &stdout, &stderr)
+			if code != 2 {
+				t.Fatalf("code = %d, stdout = %s", code, stdout.String())
+			}
+			got := stdout.String()
+			for _, want := range []string{"code: USAGE", "unknown flag --bogus"} {
+				if !strings.Contains(got, want) {
+					t.Fatalf("structured error missing %q:\n%s", want, got)
+				}
+			}
+		})
+	}
+}
+
+func TestAXIFocusedSubcommandHelp(t *testing.T) {
+	cases := []struct {
+		name  string
+		args  []string
+		usage string
+	}{
+		{"issue list", []string{"issue", "list", "--help"}, "usage: fjgo issue list"},
+		{"pr view", []string{"pr", "view", "--help"}, "usage: fjgo pr view"},
+		{"release list", []string{"release", "list", "--help"}, "usage: fjgo release list"},
+		{"run list", []string{"run", "list", "--help"}, "usage: fjgo run list"},
+		{"repo get", []string{"repo", "get", "--help"}, "usage: fjgo repo get"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			err := run(t.Context(), tc.args, &stdout, &stderr)
+			if err != nil {
+				t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+			}
+			got := stdout.String()
+			if !strings.Contains(got, tc.usage) {
+				t.Fatalf("help missing focused usage %q:\n%s", tc.usage, got)
+			}
+			if strings.Contains(got, "subcommands:") {
+				t.Fatalf("focused help included group subcommands:\n%s", got)
+			}
+		})
+	}
+}
+
+func TestAXIUnknownSubcommandSuggestsValidSubcommands(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := runCLI(t.Context(), []string{"issue", "lsit"}, &stdout, &stderr)
+	if code != 2 {
+		t.Fatalf("code = %d", code)
+	}
+	got := stdout.String()
+	for _, want := range []string{"code: USAGE", "unknown issue command \\\"lsit\\\"", "valid subcommands for `issue`"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("structured error missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestAXINestedUnknownSubcommandsSuggestValidSubcommands(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"repo issue", []string{"repo", "issue", "wat"}, "valid subcommands for `repo issue`"},
+		{"repo branches", []string{"repo", "branches", "wat"}, "valid subcommands for `repo branches`"},
+		{"repo collaborators", []string{"repo", "collaborators", "wat"}, "valid subcommands for `repo collaborators`"},
+		{"repo branch protection", []string{"repo", "branch-protection", "wat"}, "valid subcommands for `repo branch-protection`"},
+		{"issue dependencies", []string{"issue", "dependencies", "wat"}, "valid subcommands for `issue dependencies`"},
+		{"issue reactions", []string{"issue", "reactions", "wat"}, "valid subcommands for `issue reactions`"},
+		{"issue deadline", []string{"issue", "deadline", "wat"}, "valid subcommands for `issue deadline`"},
+		{"issue time", []string{"issue", "time", "wat"}, "valid subcommands for `issue time`"},
+		{"release assets", []string{"release", "assets", "wat"}, "valid subcommands for `release assets`"},
+		{"top level", []string{"project", "list"}, "valid commands:"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := runCLI(t.Context(), tc.args, &stdout, &stderr)
+			if code != 2 {
+				t.Fatalf("code = %d, stdout = %s", code, stdout.String())
+			}
+			got := stdout.String()
+			for _, want := range []string{"code: USAGE", tc.want} {
+				if !strings.Contains(got, want) {
+					t.Fatalf("structured error missing %q:\n%s", want, got)
+				}
+			}
+		})
 	}
 }
 
@@ -772,7 +948,7 @@ func TestNonAPIAliasesAreNotRegistered(t *testing.T) {
 		{name: "run-download", args: []string{"run", "download", "astra/fjgo", "1", "--job", "0"}, want: `unknown run command "download"`},
 		{name: "run-rerun", args: []string{"run", "rerun", "astra/fjgo", "1", "--yes"}, want: `unknown run command "rerun"`},
 		{name: "workflow-enable", args: []string{"workflow", "enable", "astra/fjgo", "verify.yml", "--yes"}, want: `unknown workflow command "enable"`},
-		{name: "search-code", args: []string{"search", "code", "query"}, want: `unknown search type "code"`},
+		{name: "search-code", args: []string{"search", "code", "query"}, want: `unknown search command "code"`},
 		{name: "project", args: []string{"project", "list"}, want: `unknown command "project"`},
 		{name: "release-download", args: []string{"release", "download", "astra/fjgo", "7", "asset.txt"}, want: `unknown command "repo"`},
 	}
@@ -1286,7 +1462,6 @@ func TestCommandLocalRepoAndHostContext(t *testing.T) {
 		_, _ = w.Write([]byte(`[{"number":1,"title":"Bug","state":"open","user":{"login":"alice"}}]`))
 	}))
 	defer server.Close()
-	t.Setenv("FJGO_BASE_URL", "")
 	t.Setenv("FJGO_HOST", server.URL)
 
 	var stdout, stderr bytes.Buffer
@@ -1308,8 +1483,6 @@ func TestCommandLocalHostOverridesBaseURL(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]string{"full_name": "astra/fjgo"})
 	}))
 	defer server.Close()
-	t.Setenv("FJGO_BASE_URL", "")
-
 	var stdout, stderr bytes.Buffer
 	err := run(t.Context(), []string{"repo", "get", "--host", server.URL, "--repo", "astra/fjgo"}, &stdout, &stderr)
 	if err != nil {
@@ -1317,6 +1490,31 @@ func TestCommandLocalHostOverridesBaseURL(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "full_name: astra/fjgo") {
 		t.Fatalf("stdout = %s", stdout.String())
+	}
+}
+
+func TestExplicitBaseURLOverridesAmbientHost(t *testing.T) {
+	explicit := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/version" {
+			t.Fatalf("explicit path = %q", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"version":"explicit"}`))
+	}))
+	defer explicit.Close()
+	ambient := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"version":"ambient"}`))
+	}))
+	defer ambient.Close()
+	t.Setenv("FJGO_HOST", ambient.URL)
+	t.Setenv("FJGO_TOKEN", "secret")
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", explicit.URL + "/api/v1", "version"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if got := stdout.String(); got != "version: explicit\n" {
+		t.Fatalf("stdout = %q", got)
 	}
 }
 
@@ -1616,7 +1814,6 @@ func TestAuthStatusDoesNotLeakToken(t *testing.T) {
 }
 
 func TestEnvTokenIgnoredForUnconfiguredDemoBase(t *testing.T) {
-	t.Setenv("FJGO_BASE_URL", "")
 	t.Setenv("FJGO_TOKEN", "secret")
 
 	var stdout, stderr bytes.Buffer
@@ -1629,7 +1826,7 @@ func TestEnvTokenIgnoredForUnconfiguredDemoBase(t *testing.T) {
 	}
 }
 
-func TestEnvTokenUsedWhenBaseURLConfigured(t *testing.T) {
+func TestEnvTokenUsedWhenHostConfigured(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.Header.Get("Authorization"); got != "token secret" {
 			t.Fatalf("Authorization = %q", got)
@@ -1637,7 +1834,7 @@ func TestEnvTokenUsedWhenBaseURLConfigured(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]string{"login": "astra"})
 	}))
 	defer server.Close()
-	t.Setenv("FJGO_BASE_URL", server.URL+"/api/v1")
+	t.Setenv("FJGO_HOST", server.URL)
 	t.Setenv("FJGO_TOKEN", "secret")
 
 	var stdout, stderr bytes.Buffer
@@ -1647,6 +1844,27 @@ func TestEnvTokenUsedWhenBaseURLConfigured(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "authenticated: true") {
 		t.Fatalf("auth status = %s", stdout.String())
+	}
+}
+
+func TestLegacyBaseURLEnvIgnored(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/version" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"version":"host"}`))
+	}))
+	defer server.Close()
+	t.Setenv("FJGO_"+"BASE_URL", "https://example.invalid/api/v1")
+	t.Setenv("FJGO_HOST", server.URL)
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"version"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "version: host") {
+		t.Fatalf("stdout = %s", stdout.String())
 	}
 }
 
@@ -1755,6 +1973,20 @@ func TestInstallSkillsCheckCommand(t *testing.T) {
 	}
 }
 
+func TestOpenCodePluginRegistersAmbientContextAndCapture(t *testing.T) {
+	source := openCodePluginSource("/tmp/fjgo")
+	for _, want := range []string{
+		"experimental.chat.system.transform",
+		"const captureArgs = [\"hook\", \"capture\"]",
+		"process.once(\"beforeExit\"",
+		"runFjgoCapture(directory)",
+	} {
+		if !strings.Contains(source, want) {
+			t.Fatalf("plugin source missing %q:\n%s", want, source)
+		}
+	}
+}
+
 func TestUpdateCheckReportsLatestReleaseAsset(t *testing.T) {
 	assetName := fmt.Sprintf("fjgo_v9.9.9_%s_%s.tar.gz", runtime.GOOS, runtime.GOARCH)
 	var server *httptest.Server
@@ -1844,6 +2076,66 @@ func TestSetupHooksInstallsManagedFiles(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "status: installed") {
 		t.Fatalf("stdout = %s", stdout.String())
+	}
+}
+
+func TestHookCaptureRecordsGitContext(t *testing.T) {
+	home := t.TempDir()
+	repo := t.TempDir()
+	t.Setenv("FJGO_HOOK_HOME", home)
+	for _, args := range [][]string{
+		{"init"},
+		{"config", "user.email", "agent@example.invalid"},
+		{"config", "user.name", "Agent"},
+	} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = repo
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(repo, "README.md"), []byte("test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"add", "README.md"},
+		{"commit", "-m", "initial"},
+		{"remote", "add", "origin", "https://repos.example.invalid/astra/fjgo.git"},
+	} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = repo
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(repo, "dirty.txt"), []byte("dirty\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(repo)
+
+	var stdout bytes.Buffer
+	if err := runHook([]string{"capture"}, &stdout); err != nil {
+		t.Fatalf("hook capture: %v", err)
+	}
+	logPath := filepath.Join(home, ".local", "state", "fjgo", "sessions.log")
+	b, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var record map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(b), &record); err != nil {
+		t.Fatalf("capture log is not JSON: %v\n%s", err, b)
+	}
+	for _, key := range []string{"time", "goos", "goarch", "cwd", "branch", "head", "repo", "dirty_files"} {
+		if _, ok := record[key]; !ok {
+			t.Fatalf("capture record missing %s: %#v", key, record)
+		}
+	}
+	if record["cwd"] != repo || record["repo"] != "astra/fjgo" {
+		t.Fatalf("capture record = %#v", record)
+	}
+	if got, ok := record["dirty_files"].(float64); !ok || got != 1 {
+		t.Fatalf("dirty_files = %#v in %#v", record["dirty_files"], record)
 	}
 }
 
