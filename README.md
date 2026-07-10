@@ -68,13 +68,13 @@ token back into diagnostics.
 
 ## Status
 
-Current app version: `v0.16.0`.
+Current app version: `v1.0.0`.
 
-`v0.16.0` is the AXI hardening release. It tightens structured root and nested
-subcommand errors, adds focused help coverage, includes cheap home-view totals,
-records richer session-end hook context, keeps tests isolated from ambient
-Forgejo credentials, and makes authenticated smoke create and clean up its own
-temporary repository.
+`v1.0.0` is the feature-complete Forgejo API fidelity release. It combines the
+AXI-first curated workflows with exact coverage of all 491 pinned/live v15
+Swagger operations, faithful typed/text/binary/multipart transports, complete
+operation/model inspection, deterministic JSON and TOON boundaries, and
+repeatable coverage audits that fail on unexplained drift.
 
 See [`CHANGELOG.md`](CHANGELOG.md) for release notes.
 
@@ -91,7 +91,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for release notes.
 - `491` generated endpoint methods
 - `244` generated model types
 - `491` CLI operations via `api list`, `api inspect`, and `api call`
-- `419` generated convenience aliases via `alias list` and `alias inspect`
+- `413` generated convenience aliases via `alias list` and `alias inspect`
 - explicit repo context through root or command-local `--repo OWNER/REPO`,
   `FJGO_REPO`, positional repo args, or scoped Forgejo git remote parsing with
   `-R`
@@ -108,20 +108,30 @@ See [`CHANGELOG.md`](CHANGELOG.md) for release notes.
   update, diff, and patch
 - workflow/run lifecycle surfaces for workflow view and run watch, backed by
   repository contents and Actions run operations
-- raw API escape hatch via `fjgo api raw <METHOD> <path>`
+- raw text request bodies plus streamed binary/raw responses via
+  `-body-raw`, `--raw`, and `--output`
 - generated embedded skill check via `fjgo skill generate --check`
 - guarded update check via `fjgo update --check`
 - visible generated alias collisions via `alias collisions`
-- generated query/form parameter inspection for operations
+- explained non-alias operations via `alias omissions`, each with its generic
+  command escape hatch
+- generated path/query/body/form constraints, response codes/headers, and
+  request/response media type inspection, with local validation before requests
 - typed body parameters for operations with Swagger body schemas
 - generated model field inspection via `model inspect`
 - explicit JSON output for inspect/list/raw surfaces used by scripts
 - multipart release/issue/comment attachment upload support through `api upload`
+  and usable generated typed client methods
+- token or Basic authentication, optional TOTP and sudo impersonation, with
+  credential-safe diagnostics
 - typed return values for operations with documented success response schemas
 - optional authenticated field smoke via `scripts/smoke-auth.sh`
-- alpha field-test packet in `docs/alpha.md`
+- v1 field-validation packet in `docs/alpha.md`
 - copy/paste setup prompt in `docs/agent-setup-prompt.md`
 - Forgejo Actions verification and tag-release workflows
+
+The requirement-by-requirement implementation record is in
+[`docs/axi-compliance.md`](docs/axi-compliance.md).
 
 Run the full local gate with:
 
@@ -145,9 +155,9 @@ go install repos.astrazds.net/astrazds/fjgo/cmd/fjgo@latest
 From a release archive:
 
 ```sh
-curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.16.0/fjgo_v0.16.0_linux_amd64.tar.gz
-tar -xzf fjgo_v0.16.0_linux_amd64.tar.gz
-install -Dm755 fjgo_v0.16.0_linux_amd64/fjgo ~/.local/bin/fjgo
+curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v1.0.0/fjgo_v1.0.0_linux_amd64.tar.gz
+tar -xzf fjgo_v1.0.0_linux_amd64.tar.gz
+install -Dm755 fjgo_v1.0.0_linux_amd64/fjgo ~/.local/bin/fjgo
 ```
 
 Check for a newer release without changing files:
@@ -229,7 +239,7 @@ echo -n "$DEPLOY_TOKEN" | ./fjgo secret set kavemand/.forgejo DEPLOY_TOKEN --dry
 ./fjgo update --check
 ```
 
-Authentication uses Forgejo's token auth header:
+Token authentication uses Forgejo's token auth header:
 
 ```sh
 export FJGO_HOST=forgejo.example.com
@@ -240,6 +250,21 @@ Set `FJGO_HOST` with `FJGO_TOKEN` for private or non-demo instances. Ambient
 `FJGO_TOKEN` is ignored for the built-in public demo default unless `FJGO_HOST`,
 `--host`, or `-base-url` is explicitly configured, which avoids sending a
 private token to the demo by accident.
+
+Basic authentication, Forgejo TOTP, and sudo impersonation are also available:
+
+```sh
+export FJGO_HOST=forgejo.example.com
+export FJGO_USERNAME=alice
+export FJGO_PASSWORD=your_password
+export FJGO_OTP=123456       # only when the account requires TOTP
+export FJGO_SUDO=bob         # optional impersonation, when authorized
+```
+
+The equivalent root flags are `--username`, `--password`, `--otp`, and
+`--sudo`. Ambient Basic/TOTP/sudo values follow the same public-demo safety
+rule as tokens. Passwords and OTP values are redacted from diagnostics and
+server-reflected API errors.
 
 Use a read-only token for authenticated reads such as `fjgo me`. Repo write
 operations, including topic or avatar updates, need repository write access.
@@ -338,9 +363,10 @@ out of the command surface.
 fjgo api list release
 ```
 
-`fjgo api inspect <operationId>` shows method, path, summary, path parameters,
-query parameters, typed body model and fields, multipart form parameters, and
-typed return model:
+`fjgo api inspect <operationId>` shows method, path, summary/description,
+tags/deprecation, request and response media types, documented response
+codes/headers, path/query/body/form constraints (including required, enum,
+default, minimum, and collection format), typed body fields, and return model:
 
 ```sh
 fjgo api inspect createCurrentUserRepo
@@ -358,17 +384,35 @@ fjgo api call repoSearch q=fjgo limit=10
 fjgo api call repoGet owner=kavemand repo=.forgejo
 fjgo api call createCurrentUserRepo --yes --dry-run -body '{"name":"demo","private":true}'
 fjgo api call createCurrentUserRepo --yes -body '{"name":"demo","private":true}'
+fjgo api call renderMarkdownRaw --yes -body-raw @README.md --content-type text/plain
+fjgo api call repoCreateReleaseAttachment owner=OWNER repo=REPO id=123 name=app.tgz -body-raw @app.tgz --yes
+fjgo api call repoGetArchive owner=OWNER repo=REPO archive=main.zip --output repo.zip
 fjgo api raw GET /repos/OWNER/REPO
 fjgo api raw PATCH /repos/OWNER/REPO --dry-run --yes -body '{"description":"updated"}'
 ```
 
 For `api call`, `name=value` arguments matching path parameters fill the path;
-the rest become query parameters. JSON bodies can be inline, `@file`, or `-`
-for stdin. Operations with a documented body schema fail locally when `-body`
-is omitted. Mutating operations require `--yes`. Use `--dry-run` or
+declared query parameters are validated locally for names, required values,
+types, enums, collection formats, and numeric minimums. JSON bodies can be
+inline, `@file`, or `-` for stdin and are validated against generated required
+fields, types, enums, numeric minimums, and closed model fields. A body is
+required locally only when Swagger marks its body parameter required. Use
+`-body-raw` for a
+documented non-JSON body. Use `--raw` to stream response bytes to stdout or
+`--output <path>` for an atomic file write; streamed success responses are not
+subject to the normal buffered response limit. Use `--include-response` on a
+buffered call to include the status and response headers; credential-bearing
+headers such as `Set-Cookie` are redacted. Mutating operations require
+`--yes`. Use `--dry-run` or
 `--print-request` to print the request without performing network I/O.
+For the release attachment endpoint, `api upload` uses multipart while
+`api call ... -body-raw @file` selects its documented
+`application/octet-stream` request mode.
 Use `fjgo api raw <METHOD> <path>` when an API path is easier to express
 directly than by operation ID. Raw mutations still require `--yes`.
+Explicit `--json` output is always parseable: JSON API bodies retain their
+native shape, text responses use a `{result, encoding}` wrapper, binary bodies
+are base64 encoded, and empty successes return `{"result":"ok"}`.
 
 Multipart/form-data operations use `api upload`:
 
@@ -383,8 +427,11 @@ positional args, method, path, query params, body fields, form fields, return
 type, upload status, and whether `--yes` is required. Aliases use positional
 path args plus `name=value` query args, with `-body` matching `api call`.
 Generated aliases for mutating operations require `--yes`.
-`fjgo alias collisions` lists generated aliases that were skipped because
+`fjgo alias collisions [filter]` lists generated aliases that were skipped because
 another operation already claimed the same command.
+`fjgo alias omissions [filter]` explains every operation without an alias and prints the
+exact `api call` or `api upload` escape hatch. Together, aliases and explained
+omissions form an exact partition of all generated operations.
 
 Inspect/list commands support `--json` for scripts that need raw JSON:
 
@@ -392,11 +439,13 @@ Inspect/list commands support `--json` for scripts that need raw JSON:
 fjgo api --json list repo
 fjgo alias --json inspect repo issues create
 fjgo alias --json collisions
+fjgo alias --json omissions
 fjgo model --json inspect CreateIssueOption
 ```
 
-`fjgo model inspect <Model>` prints generated JSON fields and Go types for a
-Swagger model:
+`fjgo model inspect <Model>` prints generated JSON fields, Go types, semantic
+formats, defaults, enums, examples, and model title/description for a Swagger
+model:
 
 ```sh
 fjgo model inspect CreateRepoOption
@@ -440,10 +489,12 @@ fjgo -R origin release create v1.0.0 --body-file notes.md --dry-run --yes
 fjgo -R origin release upload 123 dist/fjgo.tar.gz --yes
 ```
 
-`fjgo auth status` prints the active base URL, whether a token is present, and
-the authenticated user when the token works. It never prints the token value.
+`fjgo auth status` prints the active base URL, which authentication modes are
+present, and the authenticated user when credentials work. It never prints
+token, password, or OTP values.
 HTTP error text from the Forgejo server is still included when useful, but any
-configured token value is replaced before the error reaches stdout diagnostics.
+configured credential value is replaced before the error reaches stdout
+diagnostics.
 
 ## Go Client
 
@@ -478,7 +529,8 @@ pinned local `swagger.v1.json`.
 Generated methods accept typed path parameters, typed body parameters when the
 operation has a Swagger body schema, plus `forgejo.RequestOptions` for query
 values. Methods with a documented success response return the generated
-response type:
+response type, including `string` for text and `[]byte` for binary/file
+responses. Generated calls carry Swagger request and response media types:
 
 ```go
 repo, err := client.RepoGet(ctx, "kavemand", ".forgejo", forgejo.RequestOptions{})
@@ -490,10 +542,24 @@ created, err := client.CreateCurrentUserRepo(ctx, &forgejo.CreateRepoOption{
 
 Use `forgejo.RequestOptions.Query` for query parameters. Multipart operations
 can be executed with `DoOperationMultipart`; the CLI uses that path for release,
-issue, and comment attachment uploads.
+issue, and comment attachment uploads. Multipart file bodies stream from disk
+instead of being buffered in memory.
+Set `RequestOptions.Response` to capture the response status and headers from a
+typed call. `DoOperationRawResponse`, `DoOperationMultipartResponse`, and the
+streaming methods provide the equivalent metadata on generic calls.
+Generated methods leave optional nil body pointers absent and respect an
+explicit `RequestOptions.Body`; the latter is the escape hatch for request
+shapes that must distinguish an omitted scalar from an explicit `false` or
+`0` in Swagger's shared value structs.
 Client response bodies are bounded to 32 MiB before decoding or reporting
 errors, which keeps malicious or broken Forgejo-compatible servers from forcing
 unbounded local memory use.
+
+Generation rejects operation IDs, methods, parameter locations, schema
+constraints, and composition features that the generator cannot faithfully
+represent. Verification also compares every generated operation ID/method/path
+and model name with the pinned Swagger, and requires each operation to have
+either an alias or an explained omission.
 
 ## Development
 
@@ -520,7 +586,7 @@ Set `FJGO_TEST_ORG=org` to create the temporary repo in an organization, or
 authenticated smoke in `./scripts/verify.sh`, set `FJGO_SMOKE_AUTH=1` along with
 `FJGO_HOST` and `FJGO_TOKEN`.
 
-Alpha testers should use `docs/alpha.md` for the field-test checklist and
+Release validators should use `docs/alpha.md` for the field-test checklist and
 failure-report format.
 
 ## Release
@@ -528,7 +594,7 @@ failure-report format.
 Build release archives into `dist/`:
 
 ```sh
-VERSION=v0.16.0 ./scripts/release.sh
+VERSION=v1.0.0 ./scripts/release.sh
 ```
 
 Override targets when testing locally:
@@ -547,7 +613,7 @@ Release notes live in [`CHANGELOG.md`](CHANGELOG.md).
 Smoke check a published release archive:
 
 ```sh
-VERSION=v0.16.0 ./scripts/smoke-release.sh
+VERSION=v1.0.0 ./scripts/smoke-release.sh
 ```
 
 ## License

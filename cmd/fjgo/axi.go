@@ -106,11 +106,11 @@ func unknownCommandError(got string, valid []string) error {
 }
 
 func rootFlags() []string {
-	return []string{"-R", "-base-url", "-timeout", "-token", "--help", "--host", "--json", "--repo", "--repo-from-remote", "--version"}
+	return []string{"-R", "-base-url", "-timeout", "-token", "--help", "--host", "--json", "--otp", "--password", "--repo", "--repo-from-remote", "--sudo", "--username", "--version"}
 }
 
 func rootValueFlags() []string {
-	return []string{"-R", "-base-url", "-timeout", "-token", "--host", "--repo", "--repo-from-remote"}
+	return []string{"-R", "-base-url", "-timeout", "-token", "--host", "--otp", "--password", "--repo", "--repo-from-remote", "--sudo", "--username"}
 }
 
 func rootCommands() []string {
@@ -241,6 +241,15 @@ func formatCommandHelp(spec commandHelpSpec) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
+func renamedCommandHelp(spec commandHelpSpec, from, to string) commandHelpSpec {
+	spec.Usage = strings.Replace(spec.Usage, from, to, 1)
+	spec.Examples = slices.Clone(spec.Examples)
+	for i, example := range spec.Examples {
+		spec.Examples[i] = strings.Replace(example, from, to, 1)
+	}
+	return spec
+}
+
 func subcommandHelp(args []string, groupHelp string, specs map[string]commandHelpSpec) (string, bool) {
 	if len(args) == 0 {
 		return groupHelp, true
@@ -248,10 +257,22 @@ func subcommandHelp(args []string, groupHelp string, specs map[string]commandHel
 	if !hasHelp(args) {
 		return "", false
 	}
+	for end := len(args); end > 1; end-- {
+		if args[end-1] == "--help" || args[end-1] == "-h" {
+			continue
+		}
+		candidate := strings.Join(args[:end], " ")
+		if spec, ok := specs[candidate]; ok {
+			return formatCommandHelp(spec), true
+		}
+	}
 	if spec, ok := specs[args[0]]; ok {
 		return formatCommandHelp(spec), true
 	}
-	return groupHelp, true
+	if args[0] == "--help" || args[0] == "-h" {
+		return groupHelp, true
+	}
+	return "", false
 }
 
 type peeledContextFlags struct {
@@ -415,7 +436,7 @@ commands:
   auth status                 show token-safe auth diagnostics
   get <path>                  GET an API path
   api <list|inspect|call|upload|raw>
-  alias <list|inspect|collisions>
+  alias <list|inspect|collisions|omissions>
   model inspect <Model>
   repo <list|create|get|edit|fork|branches|collaborators|branch-protection|topics|avatar|issue>
   issue <list|view|create|edit|close|reopen|comment>
@@ -434,6 +455,10 @@ global flags:
   -base-url <url>             Forgejo API base URL
   --host <host>               Forgejo host; derives https://host/api/v1
   -token <token>              Forgejo access token; prefer FJGO_TOKEN
+  --username <user>           Basic Auth username; prefer FJGO_USERNAME
+  --password <password>       Basic Auth password; prefer FJGO_PASSWORD
+  --otp <code>                Basic Auth TOTP; prefer FJGO_OTP
+  --sudo <user>               act as another user when authorized; prefer FJGO_SUDO
   -timeout <duration>         HTTP timeout (default 15s)
   --repo <owner/repo>         explicit repo context; also supported via FJGO_REPO
   -R, --repo-from-remote <n>  resolve owner/repo from a Forgejo git remote
@@ -467,6 +492,11 @@ flags:
   --fields <a,b,c>              list fields to include
   --full                        do not truncate long response strings
   -body <json|@file|->          request body for operations with body schema
+  -body-raw <text|@file|->     unencoded request body for text/octet-stream APIs
+  --content-type <type>         override request Content-Type
+  --accept <type>               override response Accept type
+  --output <path>               stream raw response bytes atomically to a file
+  --raw                         stream raw response bytes to stdout
   --yes                         required for mutating operations
   --dry-run, --print-request    print token-safe request preview
 
@@ -479,7 +509,7 @@ examples:
 }
 
 func aliasHelp() string {
-	return `usage: fjgo alias <list|inspect|collisions> [flags]
+	return `usage: fjgo alias <list|inspect|collisions|omissions> [flags]
 
 flags:
   --json              output JSON instead of TOON
@@ -488,7 +518,8 @@ flags:
 examples:
   fjgo alias list repo
   fjgo alias inspect repo issues create
-  fjgo alias collisions`
+  fjgo alias collisions
+  fjgo alias omissions`
 }
 
 func repoHelp() string {
@@ -709,13 +740,16 @@ func writeOperationsList(stdout io.Writer, ops []forgejo.Operation, fields []str
 	rows := make([]map[string]any, 0, len(ops))
 	for _, op := range ops {
 		row := map[string]any{
-			"id":      op.ID,
-			"method":  op.Method,
-			"path":    op.Path,
-			"summary": op.Summary,
-			"returns": op.ReturnType,
-			"body":    op.BodyType,
-			"upload":  op.Upload,
+			"id":          op.ID,
+			"method":      op.Method,
+			"path":        op.Path,
+			"summary":     op.Summary,
+			"description": op.Description,
+			"returns":     op.ReturnType,
+			"body":        op.BodyType,
+			"upload":      op.Upload,
+			"tags":        strings.Join(op.Tags, ","),
+			"deprecated":  op.Deprecated,
 		}
 		rows = append(rows, selectFields(row, fields))
 	}
@@ -741,8 +775,14 @@ func operationBlocks(op forgejo.Operation) toonBlocks {
 	if op.Summary != "" {
 		info["summary"] = op.Summary
 	}
+	if op.Description != "" {
+		info["description"] = op.Description
+	}
 	if op.BodyType != "" {
 		info["body"] = op.BodyType
+		if op.BodyParam != nil {
+			info["body_required"] = op.BodyParam.Required
+		}
 	}
 	if op.ReturnType != "" {
 		info["returns"] = op.ReturnType
@@ -750,20 +790,55 @@ func operationBlocks(op forgejo.Operation) toonBlocks {
 	if op.Upload {
 		info["upload"] = "multipart/form-data"
 	}
+	if len(op.Tags) != 0 {
+		info["tags"] = op.Tags
+	}
+	if op.Deprecated {
+		info["deprecated"] = true
+	}
+	if len(op.Consumes) != 0 {
+		info["consumes"] = op.Consumes
+	}
+	if len(op.Produces) != 0 {
+		info["produces"] = op.Produces
+	}
 	blocks := toonBlocks{map[string]any{"operation": info}}
 	if len(op.PathParams) != 0 {
-		blocks = append(blocks, map[string]any{"path_params": op.PathParams})
+		if len(op.PathParamInfo) != 0 {
+			blocks = append(blocks, paramsTable("path_params", op.PathParamInfo))
+		} else {
+			blocks = append(blocks, map[string]any{"path_params": op.PathParams})
+		}
 	}
 	if len(op.QueryParams) != 0 {
 		blocks = append(blocks, paramsTable("query_params", op.QueryParams))
 	}
 	if op.BodyType != "" {
+		if op.BodyParam != nil {
+			blocks = append(blocks, paramsTable("body_param", []forgejo.OperationParam{*op.BodyParam}))
+		}
 		if model, ok := forgejo.ModelByName(strings.TrimPrefix(op.BodyType, "*")); ok && len(model.Fields) != 0 {
 			blocks = append(blocks, modelFieldsTable("body_fields", model.Fields))
 		}
 	}
 	if len(op.FormParams) != 0 {
 		blocks = append(blocks, paramsTable("form_params", op.FormParams))
+	}
+	if len(op.Responses) != 0 {
+		rows := make([]map[string]any, 0, len(op.Responses))
+		for _, response := range op.Responses {
+			headerNames := make([]string, 0, len(response.Headers))
+			for _, header := range response.Headers {
+				headerNames = append(headerNames, header.Name)
+			}
+			rows = append(rows, map[string]any{
+				"code":        response.Code,
+				"type":        response.Type,
+				"headers":     strings.Join(headerNames, ","),
+				"description": response.Description,
+			})
+		}
+		blocks = append(blocks, tableBlock("responses", []string{"code", "type", "headers", "description"}, rows))
 	}
 	return blocks
 }
@@ -788,28 +863,108 @@ func aliasBlocks(alias forgejo.Alias) toonBlocks {
 }
 
 func paramsTable(label string, params []forgejo.OperationParam) toonTable {
+	fields := []string{"name", "type", "required", "description"}
+	var hasEnum, hasDefault, hasCollection, hasMinimum bool
+	for _, param := range params {
+		hasEnum = hasEnum || len(param.Enum) != 0
+		hasDefault = hasDefault || param.HasDefault
+		hasCollection = hasCollection || param.CollectionFormat != ""
+		hasMinimum = hasMinimum || param.HasMinimum
+	}
+	if hasEnum {
+		fields = append(fields, "enum")
+	}
+	if hasDefault {
+		fields = append(fields, "default")
+	}
+	if hasCollection {
+		fields = append(fields, "collection")
+	}
+	if hasMinimum {
+		fields = append(fields, "minimum")
+	}
 	rows := make([]map[string]any, 0, len(params))
 	for _, param := range params {
-		rows = append(rows, map[string]any{
+		row := map[string]any{
 			"name":        param.Name,
 			"type":        param.Type,
 			"required":    param.Required,
 			"description": param.Description,
-		})
+		}
+		if hasEnum {
+			row["enum"] = strings.Join(param.Enum, "|")
+		}
+		if hasDefault {
+			row["default"] = param.Default
+		}
+		if hasCollection {
+			row["collection"] = param.CollectionFormat
+		}
+		if hasMinimum && param.HasMinimum {
+			row["minimum"] = param.Minimum
+		}
+		rows = append(rows, row)
 	}
-	return tableBlock(label, []string{"name", "type", "required", "description"}, rows)
+	return tableBlock(label, fields, rows)
 }
 
 func modelFieldsTable(label string, fields []forgejo.ModelField) toonTable {
+	columns := []string{"name", "type", "required"}
+	var hasDescription, hasFormat, hasEnum, hasDefault, hasExample, hasMinimum bool
+	for _, field := range fields {
+		hasDescription = hasDescription || field.Description != ""
+		hasFormat = hasFormat || field.Format != ""
+		hasEnum = hasEnum || len(field.Enum) != 0
+		hasDefault = hasDefault || field.HasDefault
+		hasExample = hasExample || field.HasExample
+		hasMinimum = hasMinimum || field.HasMinimum
+	}
+	if hasDescription {
+		columns = append(columns, "description")
+	}
+	if hasFormat {
+		columns = append(columns, "format")
+	}
+	if hasEnum {
+		columns = append(columns, "enum")
+	}
+	if hasDefault {
+		columns = append(columns, "default")
+	}
+	if hasExample {
+		columns = append(columns, "example")
+	}
+	if hasMinimum {
+		columns = append(columns, "minimum")
+	}
 	rows := make([]map[string]any, 0, len(fields))
 	for _, field := range fields {
-		rows = append(rows, map[string]any{
+		row := map[string]any{
 			"name":     field.Name,
 			"type":     field.Type,
 			"required": field.Required,
-		})
+		}
+		if hasDescription {
+			row["description"] = field.Description
+		}
+		if hasFormat {
+			row["format"] = field.Format
+		}
+		if hasEnum {
+			row["enum"] = strings.Join(field.Enum, "|")
+		}
+		if hasDefault {
+			row["default"] = field.Default
+		}
+		if hasExample && field.HasExample {
+			row["example"] = field.Example
+		}
+		if hasMinimum && field.HasMinimum {
+			row["minimum"] = field.Minimum
+		}
+		rows = append(rows, row)
 	}
-	return tableBlock(label, []string{"name", "type", "required"}, rows)
+	return tableBlock(label, columns, rows)
 }
 
 func writeAliasList(stdout io.Writer, aliases []forgejo.Alias, fields []string) error {

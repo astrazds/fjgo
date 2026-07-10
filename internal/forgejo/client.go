@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -21,15 +22,36 @@ const maxResponseBodyBytes int64 = 32 << 20
 var errResponseBodyTooLarge = errors.New("response body too large")
 
 type Client struct {
-	baseURL *url.URL
-	token   string
-	http    *http.Client
+	baseURL  *url.URL
+	token    string
+	username string
+	password string
+	otp      string
+	sudo     string
+	http     *http.Client
 }
 
 type RequestOptions struct {
-	Query url.Values
-	Body  any
-	Out   any
+	Query       url.Values
+	Body        any
+	RawBody     []byte
+	ContentType string
+	Accept      string
+	Out         any
+	Response    *ResponseMetadata
+}
+
+type ResponseMetadata struct {
+	StatusCode int         `json:"status"`
+	Header     http.Header `json:"headers,omitempty"`
+}
+
+type AuthConfig struct {
+	Token    string
+	Username string
+	Password string
+	OTP      string
+	Sudo     string
 }
 
 type RawResponse struct {
@@ -38,24 +60,51 @@ type RawResponse struct {
 	Header     http.Header
 }
 
+type StreamResponse struct {
+	StatusCode   int
+	Header       http.Header
+	BytesWritten int64
+}
+
 type OperationParam struct {
-	Name        string `json:"name"`
-	Type        string `json:"type,omitempty"`
-	Required    bool   `json:"required,omitempty"`
-	Description string `json:"description,omitempty"`
+	Name             string   `json:"name"`
+	Type             string   `json:"type,omitempty"`
+	Required         bool     `json:"required,omitempty"`
+	Description      string   `json:"description,omitempty"`
+	Enum             []string `json:"enum,omitempty"`
+	Default          any      `json:"default,omitempty"`
+	HasDefault       bool     `json:"has_default,omitempty"`
+	CollectionFormat string   `json:"collection_format,omitempty"`
+	Minimum          float64  `json:"minimum,omitempty"`
+	HasMinimum       bool     `json:"has_minimum,omitempty"`
 }
 
 type Operation struct {
-	ID          string           `json:"id"`
-	Method      string           `json:"method"`
-	Path        string           `json:"path"`
-	Summary     string           `json:"summary,omitempty"`
-	BodyType    string           `json:"body,omitempty"`
-	ReturnType  string           `json:"returns,omitempty"`
-	Upload      bool             `json:"upload,omitempty"`
-	PathParams  []string         `json:"path_params,omitempty"`
-	QueryParams []OperationParam `json:"query_params,omitempty"`
-	FormParams  []OperationParam `json:"form_params,omitempty"`
+	ID            string              `json:"id"`
+	Method        string              `json:"method"`
+	Path          string              `json:"path"`
+	Summary       string              `json:"summary,omitempty"`
+	Description   string              `json:"description,omitempty"`
+	BodyType      string              `json:"body,omitempty"`
+	BodyParam     *OperationParam     `json:"body_param,omitempty"`
+	ReturnType    string              `json:"returns,omitempty"`
+	Upload        bool                `json:"upload,omitempty"`
+	Consumes      []string            `json:"consumes,omitempty"`
+	Produces      []string            `json:"produces,omitempty"`
+	PathParams    []string            `json:"path_params,omitempty"`
+	PathParamInfo []OperationParam    `json:"path_param_info,omitempty"`
+	QueryParams   []OperationParam    `json:"query_params,omitempty"`
+	FormParams    []OperationParam    `json:"form_params,omitempty"`
+	Responses     []OperationResponse `json:"responses,omitempty"`
+	Tags          []string            `json:"tags,omitempty"`
+	Deprecated    bool                `json:"deprecated,omitempty"`
+}
+
+type OperationResponse struct {
+	Code        string           `json:"code"`
+	Type        string           `json:"type,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Headers     []OperationParam `json:"headers,omitempty"`
 }
 
 type Alias struct {
@@ -72,15 +121,33 @@ type AliasCollision struct {
 	Reason  string   `json:"reason"`
 }
 
+type AliasOmission struct {
+	Operation string `json:"operation"`
+	Reason    string `json:"reason"`
+	Use       string `json:"use"`
+}
+
 type Model struct {
-	Name   string       `json:"name"`
-	Fields []ModelField `json:"fields,omitempty"`
+	Name                 string       `json:"name"`
+	Title                string       `json:"title,omitempty"`
+	Description          string       `json:"description,omitempty"`
+	Fields               []ModelField `json:"fields,omitempty"`
+	AdditionalProperties bool         `json:"additional_properties,omitempty"`
 }
 
 type ModelField struct {
-	Name     string `json:"name"`
-	Type     string `json:"type"`
-	Required bool   `json:"required,omitempty"`
+	Name        string   `json:"name"`
+	Type        string   `json:"type"`
+	Format      string   `json:"format,omitempty"`
+	Required    bool     `json:"required,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Enum        []string `json:"enum,omitempty"`
+	Default     any      `json:"default,omitempty"`
+	HasDefault  bool     `json:"has_default,omitempty"`
+	Example     any      `json:"example,omitempty"`
+	HasExample  bool     `json:"has_example,omitempty"`
+	Minimum     float64  `json:"minimum,omitempty"`
+	HasMinimum  bool     `json:"has_minimum,omitempty"`
 }
 
 type UploadPart struct {
@@ -99,6 +166,10 @@ func (e HTTPError) Error() string {
 }
 
 func NewClient(baseURL, token string, httpClient *http.Client) (*Client, error) {
+	return NewClientWithAuth(baseURL, AuthConfig{Token: token}, httpClient)
+}
+
+func NewClientWithAuth(baseURL string, auth AuthConfig, httpClient *http.Client) (*Client, error) {
 	u, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse base url: %w", err)
@@ -109,11 +180,21 @@ func NewClient(baseURL, token string, httpClient *http.Client) (*Client, error) 
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
-	return &Client{baseURL: u, token: token, http: httpClient}, nil
+	if (auth.Username == "") != (auth.Password == "") {
+		return nil, errors.New("basic authentication requires both username and password")
+	}
+	if auth.OTP != "" && auth.Username == "" {
+		return nil, errors.New("TOTP authentication requires basic username and password")
+	}
+	return &Client{baseURL: u, token: auth.Token, username: auth.Username, password: auth.Password, otp: auth.OTP, sudo: auth.Sudo, http: httpClient}, nil
 }
 
 func (c *Client) HasToken() bool {
 	return c.token != ""
+}
+
+func (c *Client) HasAuth() bool {
+	return c.token != "" || c.username != ""
 }
 
 func (c *Client) Me(ctx context.Context) (User, error) {
@@ -150,15 +231,18 @@ func (c *Client) GetExternalRawResponse(ctx context.Context, rawURL string) (Raw
 		return RawResponse{}, err
 	}
 	req.Header.Set("Accept", "application/octet-stream, text/plain, application/json")
-	if c.token != "" && strings.EqualFold(u.Host, c.baseURL.Host) {
-		req.Header.Set("Authorization", "token "+c.token)
+	if strings.EqualFold(u.Host, c.baseURL.Host) {
+		c.applyAuth(req)
 	}
 	return c.doResponse(req)
 }
 
 func (c *Client) Do(ctx context.Context, method, apiPath string, opts RequestOptions) error {
-	apiPath = withQuery(apiPath, opts.Query)
-	return c.doJSON(ctx, method, apiPath, opts.Body, opts.Out)
+	resp, err := c.DoRawResponse(ctx, method, apiPath, opts)
+	if err != nil {
+		return err
+	}
+	return decodeResponseBody(resp, opts.Out)
 }
 
 func (c *Client) DoRaw(ctx context.Context, method, apiPath string, opts RequestOptions) ([]byte, error) {
@@ -171,7 +255,12 @@ func (c *Client) DoRaw(ctx context.Context, method, apiPath string, opts Request
 
 func (c *Client) DoRawResponse(ctx context.Context, method, apiPath string, opts RequestOptions) (RawResponse, error) {
 	var body io.Reader
-	if opts.Body != nil {
+	if opts.Body != nil && opts.RawBody != nil {
+		return RawResponse{}, errors.New("request cannot use both JSON and raw bodies")
+	}
+	if opts.RawBody != nil {
+		body = bytes.NewReader(opts.RawBody)
+	} else if opts.Body != nil {
 		b, err := json.Marshal(opts.Body)
 		if err != nil {
 			return RawResponse{}, err
@@ -182,18 +271,73 @@ func (c *Client) DoRawResponse(ctx context.Context, method, apiPath string, opts
 	if err != nil {
 		return RawResponse{}, err
 	}
-	if opts.Body != nil {
+	if opts.ContentType != "" {
+		req.Header.Set("Content-Type", opts.ContentType)
+	} else if opts.Body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	return c.doResponse(req)
+	if opts.Accept != "" {
+		req.Header.Set("Accept", opts.Accept)
+	}
+	resp, err := c.doResponse(req)
+	if err == nil {
+		captureResponseMetadata(opts.Response, resp.StatusCode, resp.Header)
+	}
+	return resp, err
 }
 
 func (c *Client) DoMultipart(ctx context.Context, method, apiPath string, query url.Values, fields map[string]string, files []UploadPart, out any) ([]byte, error) {
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
+	return c.DoMultipartWithOptions(ctx, method, apiPath, fields, files, RequestOptions{Query: query}, out)
+}
+
+func (c *Client) DoMultipartWithOptions(ctx context.Context, method, apiPath string, fields map[string]string, files []UploadPart, opts RequestOptions, out any) ([]byte, error) {
+	resp, err := c.DoMultipartResponseWithOptions(ctx, method, apiPath, fields, files, opts)
+	if err != nil {
+		return nil, err
+	}
+	if out != nil && len(resp.Body) != 0 {
+		if err := decodeResponseBody(resp, out); err != nil {
+			return nil, err
+		}
+	}
+	return resp.Body, nil
+}
+
+func (c *Client) DoMultipartResponse(ctx context.Context, method, apiPath string, query url.Values, fields map[string]string, files []UploadPart) (RawResponse, error) {
+	return c.DoMultipartResponseWithOptions(ctx, method, apiPath, fields, files, RequestOptions{Query: query})
+}
+
+func (c *Client) DoMultipartResponseWithOptions(ctx context.Context, method, apiPath string, fields map[string]string, files []UploadPart, opts RequestOptions) (RawResponse, error) {
+	reader, pipeWriter := io.Pipe()
+	writer := multipart.NewWriter(pipeWriter)
+	contentType := writer.FormDataContentType()
+	go func() {
+		err := writeMultipartBody(writer, fields, files)
+		if closeErr := writer.Close(); err == nil {
+			err = closeErr
+		}
+		_ = pipeWriter.CloseWithError(err)
+	}()
+	req, err := c.newRequest(ctx, method, withQuery(apiPath, opts.Query), reader)
+	if err != nil {
+		_ = reader.CloseWithError(err)
+		return RawResponse{}, err
+	}
+	req.Header.Set("Content-Type", contentType)
+	if opts.Accept != "" {
+		req.Header.Set("Accept", opts.Accept)
+	}
+	resp, err := c.doResponse(req)
+	if err == nil {
+		captureResponseMetadata(opts.Response, resp.StatusCode, resp.Header)
+	}
+	return resp, err
+}
+
+func writeMultipartBody(writer *multipart.Writer, fields map[string]string, files []UploadPart) error {
 	for name, value := range fields {
 		if err := writer.WriteField(name, value); err != nil {
-			return nil, err
+			return err
 		}
 	}
 	for _, part := range files {
@@ -205,53 +349,59 @@ func (c *Client) DoMultipart(ctx context.Context, method, apiPath string, query 
 		if fileName == "" {
 			fileName = filepath.Base(part.FilePath)
 		}
-		f, err := os.Open(part.FilePath)
+		file, err := os.Open(part.FilePath)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		w, err := writer.CreateFormFile(fieldName, fileName)
+		destination, err := writer.CreateFormFile(fieldName, fileName)
 		if err != nil {
-			f.Close()
-			return nil, err
+			_ = file.Close()
+			return err
 		}
-		if _, err := io.Copy(w, f); err != nil {
-			f.Close()
-			return nil, err
+		_, copyErr := io.Copy(destination, file)
+		closeErr := file.Close()
+		if copyErr != nil {
+			return copyErr
 		}
-		if err := f.Close(); err != nil {
-			return nil, err
-		}
-	}
-	if err := writer.Close(); err != nil {
-		return nil, err
-	}
-	req, err := c.newRequest(ctx, method, withQuery(apiPath, query), &body)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	b, err := c.do(req)
-	if err != nil {
-		return nil, err
-	}
-	if out != nil && len(b) != 0 {
-		if err := json.Unmarshal(b, out); err != nil {
-			return nil, err
+		if closeErr != nil {
+			return closeErr
 		}
 	}
-	return b, nil
+	return nil
 }
 
 func (c *Client) DoOperationMultipart(ctx context.Context, op Operation, pathValues map[string]string, query url.Values, fields map[string]string, files []UploadPart, out any) ([]byte, error) {
+	return c.DoOperationMultipartWithOptions(ctx, op, pathValues, fields, files, RequestOptions{Query: query}, out)
+}
+
+func (c *Client) DoOperationMultipartWithOptions(ctx context.Context, op Operation, pathValues map[string]string, fields map[string]string, files []UploadPart, opts RequestOptions, out any) ([]byte, error) {
+	resp, err := c.DoOperationMultipartResponseWithOptions(ctx, op, pathValues, fields, files, opts)
+	if err != nil {
+		return nil, err
+	}
+	if out != nil && len(resp.Body) != 0 {
+		if err := decodeResponseBody(resp, out); err != nil {
+			return nil, err
+		}
+	}
+	return resp.Body, nil
+}
+
+func (c *Client) DoOperationMultipartResponse(ctx context.Context, op Operation, pathValues map[string]string, query url.Values, fields map[string]string, files []UploadPart) (RawResponse, error) {
+	return c.DoOperationMultipartResponseWithOptions(ctx, op, pathValues, fields, files, RequestOptions{Query: query})
+}
+
+func (c *Client) DoOperationMultipartResponseWithOptions(ctx context.Context, op Operation, pathValues map[string]string, fields map[string]string, files []UploadPart, opts RequestOptions) (RawResponse, error) {
 	apiPath := op.Path
 	for _, name := range op.PathParams {
 		value, ok := pathValues[name]
 		if !ok {
-			return nil, fmt.Errorf("missing path parameter %q", name)
+			return RawResponse{}, fmt.Errorf("missing path parameter %q", name)
 		}
 		apiPath = strings.ReplaceAll(apiPath, "{"+name+"}", url.PathEscape(value))
 	}
-	return c.DoMultipart(ctx, op.Method, apiPath, query, fields, files, out)
+	applyOperationMediaTypes(op, &opts)
+	return c.DoMultipartResponseWithOptions(ctx, op.Method, apiPath, fields, files, opts)
 }
 
 func (c *Client) DoOperation(ctx context.Context, op Operation, pathValues map[string]string, opts RequestOptions) error {
@@ -263,6 +413,7 @@ func (c *Client) DoOperation(ctx context.Context, op Operation, pathValues map[s
 		}
 		apiPath = strings.ReplaceAll(apiPath, "{"+name+"}", url.PathEscape(value))
 	}
+	applyOperationMediaTypes(op, &opts)
 	return c.Do(ctx, op.Method, apiPath, opts)
 }
 
@@ -283,7 +434,122 @@ func (c *Client) DoOperationRawResponse(ctx context.Context, op Operation, pathV
 		}
 		apiPath = strings.ReplaceAll(apiPath, "{"+name+"}", url.PathEscape(value))
 	}
+	applyOperationMediaTypes(op, &opts)
 	return c.DoRawResponse(ctx, op.Method, apiPath, opts)
+}
+
+func (c *Client) DoOperationStream(ctx context.Context, op Operation, pathValues map[string]string, opts RequestOptions, dst io.Writer) (StreamResponse, error) {
+	apiPath := op.Path
+	for _, name := range op.PathParams {
+		value, ok := pathValues[name]
+		if !ok {
+			return StreamResponse{}, fmt.Errorf("missing path parameter %q", name)
+		}
+		apiPath = strings.ReplaceAll(apiPath, "{"+name+"}", url.PathEscape(value))
+	}
+	applyOperationMediaTypes(op, &opts)
+	return c.DoRawStream(ctx, op.Method, apiPath, opts, dst)
+}
+
+func (c *Client) DoRawStream(ctx context.Context, method, apiPath string, opts RequestOptions, dst io.Writer) (StreamResponse, error) {
+	if dst == nil {
+		return StreamResponse{}, errors.New("stream destination is required")
+	}
+	var body io.Reader
+	if opts.Body != nil && opts.RawBody != nil {
+		return StreamResponse{}, errors.New("request cannot use both JSON and raw bodies")
+	}
+	if opts.RawBody != nil {
+		body = bytes.NewReader(opts.RawBody)
+	} else if opts.Body != nil {
+		encoded, err := json.Marshal(opts.Body)
+		if err != nil {
+			return StreamResponse{}, err
+		}
+		body = bytes.NewReader(encoded)
+	}
+	req, err := c.newRequest(ctx, method, withQuery(apiPath, opts.Query), body)
+	if err != nil {
+		return StreamResponse{}, err
+	}
+	if opts.ContentType != "" {
+		req.Header.Set("Content-Type", opts.ContentType)
+	} else if opts.Body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if opts.Accept != "" {
+		req.Header.Set("Accept", opts.Accept)
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return StreamResponse{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		b, readErr := readLimitedBody(resp.Body, maxResponseBodyBytes)
+		if readErr != nil {
+			return StreamResponse{}, readErr
+		}
+		return StreamResponse{}, HTTPError{StatusCode: resp.StatusCode, Body: c.redactSecrets(strings.TrimSpace(string(b)))}
+	}
+	n, err := io.Copy(dst, resp.Body)
+	if err != nil {
+		return StreamResponse{}, err
+	}
+	header := resp.Header.Clone()
+	captureResponseMetadata(opts.Response, resp.StatusCode, header)
+	return StreamResponse{StatusCode: resp.StatusCode, Header: header, BytesWritten: n}, nil
+}
+
+func captureResponseMetadata(dst *ResponseMetadata, status int, header http.Header) {
+	if dst == nil {
+		return
+	}
+	dst.StatusCode = status
+	dst.Header = header.Clone()
+}
+
+func decodeResponseBody(resp RawResponse, out any) error {
+	if out == nil || len(resp.Body) == 0 {
+		return nil
+	}
+	mediaType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	jsonResponse := mediaType == "application/json" || strings.HasSuffix(mediaType, "+json")
+	if jsonResponse {
+		return json.Unmarshal(resp.Body, out)
+	}
+	if !jsonResponse {
+		if mediaType == "" && json.Valid(resp.Body) {
+			return json.Unmarshal(resp.Body, out)
+		}
+		switch dst := out.(type) {
+		case *string:
+			*dst = string(resp.Body)
+			return nil
+		case *[]byte:
+			*dst = append((*dst)[:0], resp.Body...)
+			return nil
+		case *any:
+			*dst = append([]byte(nil), resp.Body...)
+			return nil
+		}
+		if json.Valid(resp.Body) {
+			return json.Unmarshal(resp.Body, out)
+		}
+		if mediaType != "" {
+			return fmt.Errorf("decode %s response into %T: use a string or []byte result", mediaType, out)
+		}
+	}
+	return json.Unmarshal(resp.Body, out)
+}
+
+func applyOperationMediaTypes(op Operation, opts *RequestOptions) {
+	if opts.Accept == "" && len(op.Produces) != 0 {
+		opts.Accept = strings.Join(op.Produces, ", ")
+	}
+	if opts.ContentType == "" && opts.RawBody != nil && len(op.Consumes) != 0 {
+		opts.ContentType = op.Consumes[0]
+	}
 }
 
 func withQuery(apiPath string, query url.Values) string {
@@ -340,10 +606,22 @@ func (c *Client) newRequest(ctx context.Context, method, apiPath string, body io
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
+	c.applyAuth(req)
+	return req, nil
+}
+
+func (c *Client) applyAuth(req *http.Request) {
 	if c.token != "" {
 		req.Header.Set("Authorization", "token "+c.token)
+	} else if c.username != "" {
+		req.SetBasicAuth(c.username, c.password)
 	}
-	return req, nil
+	if c.otp != "" {
+		req.Header.Set("X-FORGEJO-OTP", c.otp)
+	}
+	if c.sudo != "" {
+		req.Header.Set("Sudo", c.sudo)
+	}
 }
 
 func (c *Client) do(req *http.Request) ([]byte, error) {
@@ -369,9 +647,16 @@ func (c *Client) doResponse(req *http.Request) (RawResponse, error) {
 		return RawResponse{}, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return RawResponse{}, HTTPError{StatusCode: resp.StatusCode, Body: redactSecret(strings.TrimSpace(string(b)), c.token)}
+		return RawResponse{}, HTTPError{StatusCode: resp.StatusCode, Body: c.redactSecrets(strings.TrimSpace(string(b)))}
 	}
 	return RawResponse{Body: b, StatusCode: resp.StatusCode, Header: resp.Header.Clone()}, nil
+}
+
+func (c *Client) redactSecrets(s string) string {
+	for _, secret := range []string{c.token, c.password, c.otp} {
+		s = redactSecret(s, secret)
+	}
+	return s
 }
 
 func readLimitedBody(r io.Reader, max int64) ([]byte, error) {

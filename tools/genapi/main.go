@@ -11,7 +11,9 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -29,25 +31,35 @@ type spec struct {
 	Paths       map[string]map[string]operation `json:"paths"`
 	Definitions map[string]schema               `json:"definitions"`
 	Responses   map[string]response             `json:"responses"`
+	Consumes    []string                        `json:"consumes"`
+	Produces    []string                        `json:"produces"`
 }
 
 type operation struct {
 	OperationID string              `json:"operationId"`
 	Summary     string              `json:"summary"`
+	Description string              `json:"description"`
 	Consumes    []string            `json:"consumes"`
 	Parameters  []parameter         `json:"parameters"`
 	Responses   map[string]response `json:"responses"`
+	Produces    []string            `json:"produces"`
+	Tags        []string            `json:"tags"`
+	Deprecated  bool                `json:"deprecated"`
 }
 
 type parameter struct {
-	Name        string  `json:"name"`
-	In          string  `json:"in"`
-	Type        string  `json:"type"`
-	Format      string  `json:"format"`
-	Required    bool    `json:"required"`
-	Description string  `json:"description"`
-	Items       *schema `json:"items"`
-	Schema      schema  `json:"schema"`
+	Name             string          `json:"name"`
+	In               string          `json:"in"`
+	Type             string          `json:"type"`
+	Format           string          `json:"format"`
+	Required         bool            `json:"required"`
+	Description      string          `json:"description"`
+	Items            *schema         `json:"items"`
+	Schema           schema          `json:"schema"`
+	Enum             []any           `json:"enum"`
+	Default          json.RawMessage `json:"default"`
+	CollectionFormat string          `json:"collectionFormat"`
+	Minimum          *float64        `json:"minimum"`
 }
 
 type schema struct {
@@ -55,37 +67,71 @@ type schema struct {
 	Type                 string            `json:"type"`
 	Format               string            `json:"format"`
 	Description          string            `json:"description"`
+	Title                string            `json:"title"`
 	Required             []string          `json:"required"`
 	Properties           map[string]schema `json:"properties"`
 	Items                *schema           `json:"items"`
 	AdditionalProperties *schema           `json:"additionalProperties"`
 	XGoName              string            `json:"x-go-name"`
+	Enum                 []any             `json:"enum"`
+	Default              json.RawMessage   `json:"default"`
+	Example              json.RawMessage   `json:"example"`
+	Minimum              *float64          `json:"minimum"`
 }
 
 type response struct {
-	Ref    string `json:"$ref"`
-	Schema schema `json:"schema"`
+	Ref         string                    `json:"$ref"`
+	Description string                    `json:"description"`
+	Schema      schema                    `json:"schema"`
+	Headers     map[string]responseHeader `json:"headers"`
+}
+
+type responseHeader struct {
+	Type        string  `json:"type"`
+	Format      string  `json:"format"`
+	Description string  `json:"description"`
+	Items       *schema `json:"items"`
 }
 
 type endpoint struct {
-	Method      string
-	Path        string
-	Operation   string
-	FuncName    string
-	Summary     string
-	ReturnType  string
-	BodyType    string
-	Upload      bool
-	PathParams  []pathParam
-	QueryParams []operationParam
-	FormParams  []operationParam
+	Method        string
+	Path          string
+	Operation     string
+	FuncName      string
+	Summary       string
+	Description   string
+	ReturnType    string
+	BodyType      string
+	BodyParam     *operationParam
+	Upload        bool
+	PathParams    []pathParam
+	PathParamInfo []operationParam
+	QueryParams   []operationParam
+	FormParams    []operationParam
+	Consumes      []string
+	Produces      []string
+	Responses     []operationResponse
+	Tags          []string
+	Deprecated    bool
+}
+
+type operationResponse struct {
+	Code        string
+	Type        string
+	Description string
+	Headers     []operationParam
 }
 
 type operationParam struct {
-	Name        string
-	Type        string
-	Required    bool
-	Description string
+	Name             string
+	Type             string
+	Required         bool
+	Description      string
+	Enum             []string
+	Default          any
+	HasDefault       bool
+	CollectionFormat string
+	Minimum          *float64
 }
 
 type alias struct {
@@ -102,6 +148,12 @@ type aliasCollision struct {
 	Reason  string
 }
 
+type aliasOmission struct {
+	Operation string
+	Reason    string
+	Use       string
+}
+
 type pathParam struct {
 	Name  string
 	Ident string
@@ -115,9 +167,11 @@ func main() {
 
 	data, err := readSpec(*specPath)
 	check(err)
+	check(validateSpecDocument(data))
 
 	var s spec
 	check(json.Unmarshal(data, &s))
+	check(validateParsedSpec(s))
 
 	endpoints := endpointsFromSpec(s)
 	var buf bytes.Buffer
@@ -132,6 +186,73 @@ func main() {
 	formatted, err = format.Source(buf.Bytes())
 	check(err)
 	check(os.WriteFile(*modelsOut, formatted, 0o644))
+}
+
+func validateParsedSpec(s spec) error {
+	seen := map[string]string{}
+	for path, methods := range s.Paths {
+		for method, op := range methods {
+			if !isHTTPMethod(method) {
+				if method != "parameters" && !strings.HasPrefix(strings.ToLower(method), "x-") {
+					return fmt.Errorf("unsupported HTTP method %q for %s", method, path)
+				}
+				continue
+			}
+			if op.OperationID == "" {
+				return fmt.Errorf("missing operationId for %s %s", strings.ToUpper(method), path)
+			}
+			if previous := seen[op.OperationID]; previous != "" {
+				return fmt.Errorf("duplicate operationId %q for %s and %s %s", op.OperationID, previous, strings.ToUpper(method), path)
+			}
+			seen[op.OperationID] = strings.ToUpper(method) + " " + path
+			for _, parameter := range op.Parameters {
+				switch parameter.In {
+				case "path", "query", "body", "formData":
+				default:
+					return fmt.Errorf("unsupported parameter location %q for %s", parameter.In, op.OperationID)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func validateSpecDocument(data []byte) error {
+	var document any
+	if err := json.Unmarshal(data, &document); err != nil {
+		return err
+	}
+	unsupported := map[string]bool{
+		"allOf": true, "anyOf": true, "oneOf": true, "not": true,
+		"maximum": true, "exclusiveMinimum": true, "exclusiveMaximum": true,
+		"minLength": true, "maxLength": true, "pattern": true,
+		"minItems": true, "maxItems": true, "multipleOf": true,
+	}
+	var walk func(any, string) error
+	walk = func(value any, path string) error {
+		switch value := value.(type) {
+		case map[string]any:
+			for key, child := range value {
+				if unsupported[key] {
+					return fmt.Errorf("unsupported Swagger keyword %q at %s; extend the generator before updating the pinned spec", key, path)
+				}
+				if key == "uniqueItems" && child == true && value["type"] == "array" {
+					return fmt.Errorf("unsupported array uniqueness constraint at %s; extend the generator before updating the pinned spec", path)
+				}
+				if err := walk(child, path+"/"+key); err != nil {
+					return err
+				}
+			}
+		case []any:
+			for i, child := range value {
+				if err := walk(child, fmt.Sprintf("%s/%d", path, i)); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	return walk(document, "#")
 }
 
 func readSpec(path string) ([]byte, error) {
@@ -172,18 +293,27 @@ func endpointsFromSpec(s spec) []endpoint {
 			if name == "" {
 				name = exportedName(method + " " + p)
 			}
+			produces := effectiveMediaTypes(op.Produces, s.Produces)
 			endpoints = append(endpoints, endpoint{
-				Method:      strings.ToUpper(method),
-				Path:        p,
-				Operation:   op.OperationID,
-				FuncName:    name,
-				Summary:     strings.TrimSpace(op.Summary),
-				ReturnType:  successType(op, s.Responses),
-				BodyType:    bodyType(op.Parameters),
-				Upload:      hasUpload(op),
-				PathParams:  pathParams(op.Parameters),
-				QueryParams: operationParams(op.Parameters, "query"),
-				FormParams:  operationParams(op.Parameters, "formData"),
+				Method:        strings.ToUpper(method),
+				Path:          p,
+				Operation:     op.OperationID,
+				FuncName:      name,
+				Summary:       strings.TrimSpace(op.Summary),
+				Description:   strings.TrimSpace(op.Description),
+				ReturnType:    successType(op, s.Responses, produces),
+				BodyType:      bodyType(op.Parameters),
+				BodyParam:     operationBodyParam(op.Parameters),
+				Upload:        hasUpload(op),
+				PathParams:    pathParams(op.Parameters),
+				PathParamInfo: operationParams(op.Parameters, "path"),
+				QueryParams:   operationParams(op.Parameters, "query"),
+				FormParams:    operationParams(op.Parameters, "formData"),
+				Consumes:      effectiveMediaTypes(op.Consumes, s.Consumes),
+				Produces:      produces,
+				Responses:     operationResponses(op, s.Responses),
+				Tags:          slices.Clone(op.Tags),
+				Deprecated:    op.Deprecated,
 			})
 		}
 	}
@@ -194,6 +324,50 @@ func endpointsFromSpec(s spec) []endpoint {
 	return endpoints
 }
 
+func operationResponses(op operation, responses map[string]response) []operationResponse {
+	codes := make([]string, 0, len(op.Responses))
+	for code := range op.Responses {
+		codes = append(codes, code)
+	}
+	sort.Strings(codes)
+	out := make([]operationResponse, 0, len(codes))
+	for _, code := range codes {
+		value := op.Responses[code]
+		if value.Ref != "" {
+			value = responses[strings.TrimPrefix(value.Ref, "#/responses/")]
+		}
+		headers := make([]operationParam, 0, len(value.Headers))
+		for name, header := range value.Headers {
+			typeName := header.Type
+			if header.Type == "array" && header.Items != nil {
+				typeName = cleanType(goType(schema{Type: "array", Items: header.Items}))
+			} else if header.Format != "" {
+				typeName += ":" + header.Format
+			}
+			headers = append(headers, operationParam{Name: name, Type: typeName, Description: strings.TrimSpace(header.Description)})
+		}
+		sort.Slice(headers, func(i, j int) bool { return headers[i].Name < headers[j].Name })
+		responseType := ""
+		if value.Schema.Ref != "" || value.Schema.Type != "" || len(value.Schema.Properties) != 0 {
+			responseType = cleanType(goType(value.Schema))
+		}
+		out = append(out, operationResponse{
+			Code:        code,
+			Type:        responseType,
+			Description: strings.TrimSpace(value.Description),
+			Headers:     headers,
+		})
+	}
+	return out
+}
+
+func effectiveMediaTypes(operation, global []string) []string {
+	if len(operation) != 0 {
+		return slices.Clone(operation)
+	}
+	return slices.Clone(global)
+}
+
 func bodyType(params []parameter) string {
 	for _, p := range params {
 		if p.In == "body" {
@@ -201,6 +375,14 @@ func bodyType(params []parameter) string {
 		}
 	}
 	return ""
+}
+
+func operationBodyParam(params []parameter) *operationParam {
+	values := operationParams(params, "body")
+	if len(values) == 0 {
+		return nil
+	}
+	return &values[0]
 }
 
 func hasUpload(op operation) bool {
@@ -217,7 +399,7 @@ func hasUpload(op operation) bool {
 	return false
 }
 
-func successType(op operation, responses map[string]response) string {
+func successType(op operation, responses map[string]response, produces []string) string {
 	codes := make([]string, 0, len(op.Responses))
 	for code := range op.Responses {
 		if strings.HasPrefix(code, "2") {
@@ -233,6 +415,20 @@ func successType(op operation, responses map[string]response) string {
 		}
 		if resp.Schema.Ref != "" || resp.Schema.Type != "" || len(resp.Schema.Properties) > 0 {
 			return goType(resp.Schema)
+		}
+	}
+	for _, mediaType := range produces {
+		if strings.Contains(strings.ToLower(mediaType), "json") {
+			return ""
+		}
+	}
+	for _, mediaType := range produces {
+		mediaType = strings.ToLower(mediaType)
+		if strings.HasPrefix(mediaType, "text/") {
+			return "string"
+		}
+		if strings.Contains(mediaType, "octet-stream") || strings.Contains(mediaType, "zip") || strings.Contains(mediaType, "gzip") {
+			return "[]byte"
 		}
 	}
 	return ""
@@ -264,16 +460,106 @@ func operationParams(params []parameter, in string) []operationParam {
 			continue
 		}
 		out = append(out, operationParam{
-			Name:        p.Name,
-			Type:        paramType(p),
-			Required:    p.Required,
-			Description: strings.TrimSpace(p.Description),
+			Name:             p.Name,
+			Type:             paramType(p),
+			Required:         p.Required,
+			Description:      strings.TrimSpace(p.Description),
+			Enum:             parameterEnum(p),
+			Default:          specValue(p.Default),
+			HasDefault:       len(p.Default) != 0,
+			CollectionFormat: parameterCollectionFormat(p),
+			Minimum:          p.Minimum,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].Name < out[j].Name
 	})
 	return out
+}
+
+func parameterEnum(p parameter) []string {
+	if len(p.Enum) != 0 {
+		return specValues(p.Enum)
+	}
+	if p.Type == "array" && p.Items != nil {
+		return specValues(p.Items.Enum)
+	}
+	return nil
+}
+
+func parameterCollectionFormat(p parameter) string {
+	if p.Type != "array" {
+		return ""
+	}
+	if p.CollectionFormat != "" {
+		return p.CollectionFormat
+	}
+	return "csv"
+}
+
+func specValues(values []any) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		switch x := value.(type) {
+		case string:
+			out = append(out, x)
+		default:
+			b, _ := json.Marshal(x)
+			out = append(out, string(b))
+		}
+	}
+	return out
+}
+
+func specValue(value json.RawMessage) any {
+	if len(value) == 0 {
+		return nil
+	}
+	var decoded any
+	if json.Unmarshal(value, &decoded) != nil {
+		return nil
+	}
+	return decoded
+}
+
+func specGoLiteral(raw json.RawMessage) string {
+	var value any
+	if json.Unmarshal(raw, &value) != nil {
+		return "nil"
+	}
+	return goValueLiteral(value)
+}
+
+func goValueLiteral(value any) string {
+	switch value := value.(type) {
+	case nil:
+		return "nil"
+	case bool:
+		return strconv.FormatBool(value)
+	case float64:
+		return strconv.FormatFloat(value, 'g', -1, 64)
+	case string:
+		return fmt.Sprintf("%q", value)
+	case []any:
+		parts := make([]string, len(value))
+		for i, item := range value {
+			parts[i] = goValueLiteral(item)
+		}
+		return "[]any{" + strings.Join(parts, ", ") + "}"
+	case map[string]any:
+		keys := make([]string, 0, len(value))
+		for key := range value {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		parts := make([]string, 0, len(keys))
+		for _, key := range keys {
+			parts = append(parts, fmt.Sprintf("%q: %s", key, goValueLiteral(value[key])))
+		}
+		return "map[string]any{" + strings.Join(parts, ", ") + "}"
+	default:
+		return "nil"
+	}
 }
 
 func paramType(p parameter) string {
@@ -323,7 +609,12 @@ func writeEndpointsFile(w io.Writer, endpoints []endpoint) {
 		if operationID == "" {
 			operationID = e.FuncName
 		}
-		fmt.Fprintf(w, "\t{ID: %q, Method: http.Method%s, Path: %q, Summary: %q, BodyType: %q, ReturnType: %q, Upload: %t, PathParams: []string{", operationID, methodConstSuffix(e.Method), e.Path, sanitizeComment(e.Summary), cleanType(e.BodyType), cleanType(e.ReturnType), e.Upload)
+		fmt.Fprintf(w, "\t{ID: %q, Method: http.Method%s, Path: %q, Summary: %q, Description: %q, BodyType: %q, ReturnType: %q, Upload: %t, Deprecated: %t", operationID, methodConstSuffix(e.Method), e.Path, sanitizeComment(e.Summary), sanitizeComment(e.Description), cleanType(e.BodyType), cleanType(e.ReturnType), e.Upload, e.Deprecated)
+		writeStringSliceLiteral(w, "Tags", e.Tags)
+		writeStringSliceLiteral(w, "Consumes", e.Consumes)
+		writeStringSliceLiteral(w, "Produces", e.Produces)
+		writeOperationParamPointerLiteral(w, "BodyParam", e.BodyParam)
+		fmt.Fprint(w, ", PathParams: []string{")
 		for i, p := range e.PathParams {
 			if i > 0 {
 				fmt.Fprint(w, ", ")
@@ -333,6 +624,8 @@ func writeEndpointsFile(w io.Writer, endpoints []endpoint) {
 		fmt.Fprint(w, "}")
 		writeOperationParamLiteral(w, "QueryParams", e.QueryParams)
 		writeOperationParamLiteral(w, "FormParams", e.FormParams)
+		writeOperationParamLiteral(w, "PathParamInfo", e.PathParamInfo)
+		writeOperationResponseLiteral(w, e.Responses)
 		fmt.Fprintln(w, "},")
 	}
 	fmt.Fprintln(w, "}")
@@ -353,9 +646,13 @@ func writeEndpointsFile(w io.Writer, endpoints []endpoint) {
 	fmt.Fprintln(w, "}")
 	fmt.Fprintln(w)
 	aliases, collisions := aliasesFromEndpoints(endpoints)
-	writeAliases(w, aliases, collisions)
+	writeAliases(w, aliases, collisions, aliasOmissions(endpoints, aliases, collisions))
 	fmt.Fprintln(w)
 	for _, e := range endpoints {
+		if e.Upload {
+			writeUploadMethod(w, e)
+			continue
+		}
 		if e.Summary != "" {
 			fmt.Fprintf(w, "// %s %s.\n", e.FuncName, sanitizeComment(e.Summary))
 		}
@@ -374,8 +671,17 @@ func writeEndpointsFile(w io.Writer, endpoints []endpoint) {
 			fmt.Fprintln(w, "\topts.Out = &out")
 		}
 		if e.BodyType != "" {
-			fmt.Fprintln(w, "\topts.Body = body")
+			fmt.Fprintln(w, "\tif opts.Body == nil && opts.RawBody == nil {")
+			if cleanType(e.BodyType) == "string" && firstNonJSONMediaType(e.Consumes) != "" {
+				fmt.Fprintln(w, "\t\topts.RawBody = []byte(body)")
+			} else if strings.HasPrefix(e.BodyType, "*") {
+				fmt.Fprintln(w, "\t\tif body != nil { opts.Body = body }")
+			} else {
+				fmt.Fprintln(w, "\t\topts.Body = body")
+			}
+			fmt.Fprintln(w, "\t}")
 		}
+		writeGeneratedMediaTypes(w, e)
 		fmt.Fprintf(w, "\tapiPath := %q\n", e.Path)
 		for _, p := range e.PathParams {
 			fmt.Fprintf(w, "\tapiPath = strings.ReplaceAll(apiPath, %q, pathEscape(%s))\n", "{"+p.Name+"}", p.Ident)
@@ -391,13 +697,171 @@ func writeEndpointsFile(w io.Writer, endpoints []endpoint) {
 	}
 }
 
+func writeOperationResponseLiteral(w io.Writer, responses []operationResponse) {
+	if len(responses) == 0 {
+		return
+	}
+	fmt.Fprint(w, ", Responses: []OperationResponse{")
+	for _, response := range responses {
+		fmt.Fprintf(w, "{Code: %q, Type: %q, Description: %q", response.Code, response.Type, sanitizeComment(response.Description))
+		writeOperationParamLiteral(w, "Headers", response.Headers)
+		fmt.Fprint(w, "}, ")
+	}
+	fmt.Fprint(w, "}")
+}
+
+func firstNonJSONMediaType(mediaTypes []string) string {
+	for _, mediaType := range mediaTypes {
+		if !strings.Contains(strings.ToLower(mediaType), "json") {
+			return mediaType
+		}
+	}
+	return ""
+}
+
+func writeGeneratedMediaTypes(w io.Writer, e endpoint) {
+	if len(e.Consumes) != 0 {
+		fmt.Fprintf(w, "\tif opts.ContentType == \"\" && (opts.Body != nil || opts.RawBody != nil) { opts.ContentType = %q }\n", e.Consumes[0])
+	}
+	if len(e.Produces) != 0 {
+		fmt.Fprintf(w, "\tif opts.Accept == \"\" { opts.Accept = %q }\n", strings.Join(e.Produces, ", "))
+	}
+}
+
+func writeUploadMethod(w io.Writer, e endpoint) {
+	if e.Summary != "" {
+		fmt.Fprintf(w, "// %s %s.\n", e.FuncName, sanitizeComment(e.Summary))
+	}
+	fmt.Fprintf(w, "func (c *Client) %s(ctx context.Context", e.FuncName)
+	for _, p := range e.PathParams {
+		fmt.Fprintf(w, ", %s string", p.Ident)
+	}
+	used := map[string]int{}
+	for _, p := range e.FormParams {
+		ident := safeIdent(p.Name)
+		used[ident]++
+		if used[ident] > 1 {
+			ident = fmt.Sprintf("%s%d", ident, used[ident])
+		}
+		paramType := "string"
+		if p.Type == "file" {
+			paramType = "UploadPart"
+		}
+		fmt.Fprintf(w, ", %s %s", ident, paramType)
+	}
+	if e.ReturnType == "" {
+		fmt.Fprintln(w, ", opts RequestOptions) error {")
+	} else {
+		fmt.Fprintf(w, ", opts RequestOptions) (%s, error) {\n", e.ReturnType)
+		fmt.Fprintf(w, "\tvar out %s\n", e.ReturnType)
+	}
+	fmt.Fprintln(w, "\tfields := map[string]string{}")
+	fmt.Fprintln(w, "\tvar files []UploadPart")
+	used = map[string]int{}
+	for _, p := range e.FormParams {
+		ident := safeIdent(p.Name)
+		used[ident]++
+		if used[ident] > 1 {
+			ident = fmt.Sprintf("%s%d", ident, used[ident])
+		}
+		if p.Type == "file" {
+			if p.Required {
+				fmt.Fprintf(w, "\t%s.FieldName = %q\n", ident, p.Name)
+				fmt.Fprintf(w, "\tfiles = append(files, %s)\n", ident)
+			} else {
+				fmt.Fprintf(w, "\tif %s.FilePath != \"\" {\n", ident)
+				fmt.Fprintf(w, "\t\t%s.FieldName = %q\n", ident, p.Name)
+				fmt.Fprintf(w, "\t\tfiles = append(files, %s)\n", ident)
+				fmt.Fprintln(w, "\t}")
+			}
+			continue
+		}
+		if p.Required {
+			fmt.Fprintf(w, "\tfields[%q] = %s\n", p.Name, ident)
+		} else {
+			fmt.Fprintf(w, "\tif %s != \"\" { fields[%q] = %s }\n", ident, p.Name, ident)
+		}
+	}
+	writeGeneratedMediaTypes(w, e)
+	fmt.Fprintf(w, "\tapiPath := %q\n", e.Path)
+	for _, p := range e.PathParams {
+		fmt.Fprintf(w, "\tapiPath = strings.ReplaceAll(apiPath, %q, pathEscape(%s))\n", "{"+p.Name+"}", p.Ident)
+	}
+	if e.ReturnType == "" {
+		fmt.Fprintln(w, "\t_, err := c.DoMultipartWithOptions(ctx, http.Method"+methodConstSuffix(e.Method)+", apiPath, fields, files, opts, nil)")
+		fmt.Fprintln(w, "\treturn err")
+	} else {
+		fmt.Fprintln(w, "\t_, err := c.DoMultipartWithOptions(ctx, http.Method"+methodConstSuffix(e.Method)+", apiPath, fields, files, opts, &out)")
+		fmt.Fprintln(w, "\treturn out, err")
+	}
+	fmt.Fprintln(w, "}")
+	fmt.Fprintln(w)
+}
+
 func writeOperationParamLiteral(w io.Writer, field string, params []operationParam) {
 	if len(params) == 0 {
 		return
 	}
 	fmt.Fprintf(w, ", %s: []OperationParam{", field)
 	for _, p := range params {
-		fmt.Fprintf(w, "{Name: %q, Type: %q, Required: %t, Description: %q}, ", p.Name, p.Type, p.Required, sanitizeComment(p.Description))
+		fmt.Fprintf(w, "{Name: %q, Type: %q, Required: %t, Description: %q", p.Name, p.Type, p.Required, sanitizeComment(p.Description))
+		if len(p.Enum) != 0 {
+			fmt.Fprint(w, ", Enum: []string{")
+			for _, value := range p.Enum {
+				fmt.Fprintf(w, "%q, ", value)
+			}
+			fmt.Fprint(w, "}")
+		}
+		if p.HasDefault {
+			fmt.Fprintf(w, ", Default: %s, HasDefault: true", goValueLiteral(p.Default))
+		}
+		if p.CollectionFormat != "" {
+			fmt.Fprintf(w, ", CollectionFormat: %q", p.CollectionFormat)
+		}
+		if p.Minimum != nil {
+			fmt.Fprintf(w, ", Minimum: %s, HasMinimum: true", strconv.FormatFloat(*p.Minimum, 'g', -1, 64))
+		}
+		fmt.Fprint(w, "}, ")
+	}
+	fmt.Fprint(w, "}")
+}
+
+func writeOperationParamPointerLiteral(w io.Writer, field string, param *operationParam) {
+	if param == nil {
+		return
+	}
+	fmt.Fprintf(w, ", %s: &OperationParam{", field)
+	writeOperationParamFields(w, *param)
+	fmt.Fprint(w, "}")
+}
+
+func writeOperationParamFields(w io.Writer, p operationParam) {
+	fmt.Fprintf(w, "Name: %q, Type: %q, Required: %t, Description: %q", p.Name, p.Type, p.Required, sanitizeComment(p.Description))
+	if len(p.Enum) != 0 {
+		fmt.Fprint(w, ", Enum: []string{")
+		for _, value := range p.Enum {
+			fmt.Fprintf(w, "%q, ", value)
+		}
+		fmt.Fprint(w, "}")
+	}
+	if p.HasDefault {
+		fmt.Fprintf(w, ", Default: %s, HasDefault: true", goValueLiteral(p.Default))
+	}
+	if p.CollectionFormat != "" {
+		fmt.Fprintf(w, ", CollectionFormat: %q", p.CollectionFormat)
+	}
+	if p.Minimum != nil {
+		fmt.Fprintf(w, ", Minimum: %s, HasMinimum: true", strconv.FormatFloat(*p.Minimum, 'g', -1, 64))
+	}
+}
+
+func writeStringSliceLiteral(w io.Writer, field string, values []string) {
+	if len(values) == 0 {
+		return
+	}
+	fmt.Fprintf(w, ", %s: []string{", field)
+	for _, value := range values {
+		fmt.Fprintf(w, "%q, ", value)
 	}
 	fmt.Fprint(w, "}")
 }
@@ -407,7 +871,7 @@ func aliasesFromEndpoints(endpoints []endpoint) ([]alias, []aliasCollision) {
 	var collisions []aliasCollision
 	seen := map[string]int{}
 	for _, e := range endpoints {
-		if e.Upload || strings.Contains(strings.ToLower(e.Operation), "deprecated") || strings.HasPrefix(strings.ToLower(e.Operation), "activitypub") {
+		if e.Upload || e.Deprecated || strings.HasPrefix(strings.ToLower(e.Operation), "activitypub") {
 			continue
 		}
 		command, args, ok := aliasCommand(e)
@@ -446,6 +910,41 @@ func aliasesFromEndpoints(endpoints []endpoint) ([]alias, []aliasCollision) {
 		return strings.Join(collisions[i].Command, " ") < strings.Join(collisions[j].Command, " ")
 	})
 	return aliases, collisions
+}
+
+func aliasOmissions(endpoints []endpoint, aliases []alias, collisions []aliasCollision) []aliasOmission {
+	covered := make(map[string]bool, len(aliases))
+	for _, item := range aliases {
+		covered[item.Operation] = true
+	}
+	collided := make(map[string]bool, len(collisions))
+	for _, collision := range collisions {
+		collided[collision.Skipped] = true
+	}
+	omissions := make([]aliasOmission, 0, len(endpoints)-len(aliases))
+	for _, e := range endpoints {
+		operation := operationID(e)
+		if covered[operation] {
+			continue
+		}
+		item := aliasOmission{Operation: operation, Use: "fjgo api call " + operation}
+		switch {
+		case e.Upload:
+			item.Reason = "multipart operation uses the explicit upload surface"
+			item.Use = "fjgo api upload " + operation
+		case e.Deprecated:
+			item.Reason = "deprecated operation is intentionally not promoted"
+		case strings.HasPrefix(strings.ToLower(operation), "activitypub"):
+			item.Reason = "ActivityPub operation is intentionally kept on the generic surface"
+		case collided[operation]:
+			item.Reason = "generated command collides with a higher-priority operation"
+		default:
+			item.Reason = "path shape has no unambiguous generated command"
+		}
+		omissions = append(omissions, item)
+	}
+	sort.Slice(omissions, func(i, j int) bool { return omissions[i].Operation < omissions[j].Operation })
+	return omissions
 }
 
 func endpointByOperation(endpoints []endpoint, operation string) endpoint {
@@ -628,7 +1127,7 @@ func operationID(e endpoint) string {
 	return e.FuncName
 }
 
-func writeAliases(w io.Writer, aliases []alias, collisions []aliasCollision) {
+func writeAliases(w io.Writer, aliases []alias, collisions []aliasCollision, omissions []aliasOmission) {
 	fmt.Fprintln(w, "var aliases = []Alias{")
 	for _, a := range aliases {
 		fmt.Fprint(w, "\t{Command: []string{")
@@ -673,6 +1172,18 @@ func writeAliases(w io.Writer, aliases []alias, collisions []aliasCollision) {
 	fmt.Fprintln(w, "\tcopy(out, aliasCollisions)")
 	fmt.Fprintln(w, "\treturn out")
 	fmt.Fprintln(w, "}")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "var aliasOmissions = []AliasOmission{")
+	for _, omission := range omissions {
+		fmt.Fprintf(w, "\t{Operation: %q, Reason: %q, Use: %q},\n", omission.Operation, omission.Reason, omission.Use)
+	}
+	fmt.Fprintln(w, "}")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "func AliasOmissions() []AliasOmission {")
+	fmt.Fprintln(w, "\tout := make([]AliasOmission, len(aliasOmissions))")
+	fmt.Fprintln(w, "\tcopy(out, aliasOmissions)")
+	fmt.Fprintln(w, "\treturn out")
+	fmt.Fprintln(w, "}")
 }
 
 func writeModelsFile(w io.Writer, definitions map[string]schema) {
@@ -687,8 +1198,12 @@ func writeModelsFile(w io.Writer, definitions map[string]schema) {
 	for _, name := range names {
 		def := definitions[name]
 		typeName := exportedName(name)
-		if def.Description != "" {
-			fmt.Fprintf(w, "// %s %s.\n", typeName, sanitizeComment(def.Description))
+		typeDescription := def.Description
+		if typeDescription == "" {
+			typeDescription = def.Title
+		}
+		if typeDescription != "" {
+			fmt.Fprintf(w, "// %s %s.\n", typeName, sanitizeComment(typeDescription))
 		}
 		switch {
 		case def.Type == "object" || len(def.Properties) > 0:
@@ -705,7 +1220,7 @@ func writeModelIndex(w io.Writer, definitions map[string]schema, names []string)
 	for _, name := range names {
 		def := definitions[name]
 		typeName := exportedName(name)
-		fmt.Fprintf(w, "\t{Name: %q, Fields: []ModelField{", typeName)
+		fmt.Fprintf(w, "\t{Name: %q, Title: %q, Description: %q, AdditionalProperties: %t, Fields: []ModelField{", typeName, sanitizeComment(def.Title), sanitizeComment(def.Description), def.AdditionalProperties != nil || (def.Type == "object" && len(def.Properties) == 0))
 		if len(def.Properties) != 0 {
 			required := map[string]bool{}
 			for _, name := range def.Required {
@@ -718,7 +1233,25 @@ func writeModelIndex(w io.Writer, definitions map[string]schema, names []string)
 			sort.Strings(propNames)
 			for _, propName := range propNames {
 				prop := def.Properties[propName]
-				fmt.Fprintf(w, "{Name: %q, Type: %q, Required: %t}, ", propName, cleanType(goType(prop)), required[propName])
+				fmt.Fprintf(w, "{Name: %q, Type: %q, Format: %q, Required: %t, Description: %q", propName, cleanType(goType(prop)), prop.Format, required[propName], sanitizeComment(prop.Description))
+				enum := schemaEnum(prop)
+				if len(enum) != 0 {
+					fmt.Fprint(w, ", Enum: []string{")
+					for _, value := range enum {
+						fmt.Fprintf(w, "%q, ", value)
+					}
+					fmt.Fprint(w, "}")
+				}
+				if len(prop.Default) != 0 {
+					fmt.Fprintf(w, ", Default: %s, HasDefault: true", specGoLiteral(prop.Default))
+				}
+				if len(prop.Example) != 0 {
+					fmt.Fprintf(w, ", Example: %s, HasExample: true", specGoLiteral(prop.Example))
+				}
+				if prop.Minimum != nil {
+					fmt.Fprintf(w, ", Minimum: %s, HasMinimum: true", strconv.FormatFloat(*prop.Minimum, 'g', -1, 64))
+				}
+				fmt.Fprint(w, "}, ")
 			}
 		}
 		fmt.Fprintln(w, "}},")
@@ -740,6 +1273,16 @@ func writeModelIndex(w io.Writer, definitions map[string]schema, names []string)
 	fmt.Fprintln(w, "\treturn Model{}, false")
 	fmt.Fprintln(w, "}")
 	fmt.Fprintln(w)
+}
+
+func schemaEnum(value schema) []string {
+	if len(value.Enum) != 0 {
+		return specValues(value.Enum)
+	}
+	if value.Type == "array" && value.Items != nil {
+		return specValues(value.Items.Enum)
+	}
+	return nil
 }
 
 func writeStruct(w io.Writer, typeName string, def schema) {
@@ -796,6 +1339,9 @@ func goType(s schema) string {
 		if s.Format == "int64" {
 			return "int64"
 		}
+		if s.Format == "uint64" {
+			return "uint64"
+		}
 		return "int"
 	case "number":
 		return "float64"
@@ -804,6 +1350,8 @@ func goType(s schema) string {
 			return "map[string]" + goType(*s.AdditionalProperties)
 		}
 		return "map[string]any"
+	case "file":
+		return "[]byte"
 	case "string":
 		return "string"
 	default:

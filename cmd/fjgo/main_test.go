@@ -22,6 +22,10 @@ func TestMain(m *testing.M) {
 	_ = os.Unsetenv("FJGO_HOST")
 	_ = os.Unsetenv("FJGO_BASE_URL")
 	_ = os.Unsetenv("FJGO_TOKEN")
+	_ = os.Unsetenv("FJGO_USERNAME")
+	_ = os.Unsetenv("FJGO_PASSWORD")
+	_ = os.Unsetenv("FJGO_OTP")
+	_ = os.Unsetenv("FJGO_SUDO")
 	_ = os.Unsetenv("FJGO_REPO")
 	os.Exit(m.Run())
 }
@@ -40,7 +44,7 @@ func TestAPICallRunsGeneratedOperation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); got != "version: test\n" {
+	if got := stdout.String(); got != "version: test" {
 		t.Fatalf("stdout = %q", got)
 	}
 }
@@ -59,7 +63,7 @@ func TestVersionCommandUsesGeneratedOperation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); got != "version: test\n" {
+	if got := stdout.String(); got != "version: test" {
 		t.Fatalf("stdout = %q", got)
 	}
 }
@@ -70,8 +74,11 @@ func TestVersionFlagPrintsBinaryVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); got != "fjgo v0.16.0 none unknown\n" {
-		t.Fatalf("stdout = %q", got)
+	got := stdout.String()
+	for _, want := range []string{"version: v1.0.0", "commit: none", "date: unknown"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("stdout missing %q: %q", want, got)
+		}
 	}
 }
 
@@ -172,12 +179,16 @@ func TestAXIRootUnknownFlagIsStructuredWithoutHelpDump(t *testing.T) {
 func TestAXIUnknownFlagsFailLoud(t *testing.T) {
 	cases := [][]string{
 		{"hook", "capture", "--bogus"},
+		{"get", "/version", "--bogus"},
+		{"doctor", "--bogus"},
 		{"alias", "list", "--bogus"},
 		{"alias", "collisions", "--bogus"},
 		{"skill", "status", "--bogus"},
 		{"install", "--skills", "--bogus"},
 		{"model", "inspect", "CreateIssueOption", "--bogus"},
 		{"auth", "status", "--bogus"},
+		{"version", "--bogus"},
+		{"me", "--bogus"},
 	}
 	for _, args := range cases {
 		t.Run(strings.Join(args, "_"), func(t *testing.T) {
@@ -207,6 +218,12 @@ func TestAXIFocusedSubcommandHelp(t *testing.T) {
 		{"release list", []string{"release", "list", "--help"}, "usage: fjgo release list"},
 		{"run list", []string{"run", "list", "--help"}, "usage: fjgo run list"},
 		{"repo get", []string{"repo", "get", "--help"}, "usage: fjgo repo get"},
+		{"issue dependencies list", []string{"issue", "dependencies", "list", "--help"}, "usage: fjgo issue dependencies list"},
+		{"pr review requests add", []string{"pr", "review-requests", "add", "--help"}, "usage: fjgo pr review-requests add"},
+		{"repo branches create", []string{"repo", "branches", "create", "--help"}, "usage: fjgo repo branches create"},
+		{"repo branch protection edit", []string{"repo", "branch-protection", "edit", "--help"}, "usage: fjgo repo branch-protection edit"},
+		{"release assets delete", []string{"release", "assets", "delete", "--help"}, "usage: fjgo release assets delete"},
+		{"generated alias", []string{"repo", "issues", "list", "--help"}, "usage: fjgo repo issues list"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -223,6 +240,40 @@ func TestAXIFocusedSubcommandHelp(t *testing.T) {
 				t.Fatalf("focused help included group subcommands:\n%s", got)
 			}
 		})
+	}
+}
+
+func TestAXICommandHelpSpecsAreComplete(t *testing.T) {
+	groups := map[string]map[string]commandHelpSpec{
+		"api":      apiCommandHelps(),
+		"alias":    aliasCommandHelps(),
+		"issue":    issueCommandHelps(),
+		"label":    labelCommandHelps(),
+		"pr":       prCommandHelps(),
+		"release":  releaseCommandHelps(),
+		"repo":     repoCommandHelps(),
+		"run":      runCommandHelps(),
+		"search":   searchCommandHelps(),
+		"secret":   secretCommandHelps(),
+		"skill":    skillCommandHelps(),
+		"variable": variableCommandHelps(),
+		"workflow": workflowCommandHelps(),
+	}
+	for group, specs := range groups {
+		for command, spec := range specs {
+			name := group + " " + command
+			if spec.Usage == "" {
+				t.Errorf("%s help has no usage", name)
+			}
+			if len(spec.Examples) < 2 || len(spec.Examples) > 3 {
+				t.Errorf("%s help has %d examples, want 2-3", name, len(spec.Examples))
+			}
+			for _, flags := range spec.Flags {
+				if strings.Contains(flags, "--limit") && !strings.Contains(flags, "default") {
+					t.Errorf("%s help omits the --limit default: %s", name, flags)
+				}
+			}
+		}
 	}
 }
 
@@ -305,6 +356,105 @@ func TestAPICallTruncatesLongStringsByDefault(t *testing.T) {
 	got := stdout.String()
 	if !strings.Contains(got, "truncated") || !strings.Contains(got, "help[") || strings.Contains(got, longBody) {
 		t.Fatalf("stdout = %s", got)
+	}
+}
+
+func TestAPICallSupportsRawTextRequestAndResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/markdown/raw" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		if got := r.Header.Get("Content-Type"); got != "text/plain" {
+			t.Fatalf("Content-Type = %q", got)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(body) != "# Title" {
+			t.Fatalf("body = %q", body)
+		}
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte("<h1>Title</h1>"))
+	}))
+	defer server.Close()
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "api", "call", "renderMarkdownRaw", "-body-raw", "# Title", "--yes", "--raw"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if got := stdout.String(); got != "<h1>Title</h1>" {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestAPICallStreamsRawResponseAtomicallyToFile(t *testing.T) {
+	payload := []byte{0, 1, 2, 255}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(payload)
+	}))
+	defer server.Close()
+	output := filepath.Join(t.TempDir(), "asset.bin")
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "api", "call", "repoGetRawFile", "owner=astra", "repo=fjgo", "filepath=asset.bin", "--output", output}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	got, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, payload) {
+		t.Fatalf("output = %v", got)
+	}
+	if !strings.Contains(stdout.String(), "bytes: 4") || !strings.Contains(stdout.String(), "status: 200") {
+		t.Fatalf("stdout = %s", stdout.String())
+	}
+}
+
+func TestGenericAPIFailsLoudOnInvalidParametersAndBodies(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		http.Error(w, "request should not run", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"unknown query", []string{"api", "call", "repoSearch", "typo=value"}, `unknown parameter "typo"`},
+		{"required query", []string{"api", "call", "topicSearch"}, `missing required query parameter "q"`},
+		{"path enum", []string{"api", "call", "repoDownloadCommitDiffOrPatch", "owner=astra", "repo=fjgo", "sha=abc", "diffType=bad"}, "expected one of diff, patch"},
+		{"required body field", []string{"api", "call", "createCurrentUserRepo", "-body", `{}`, "--yes"}, "body.name is required"},
+		{"unknown body field", []string{"api", "call", "createCurrentUserRepo", "-body", `{"name":"fjgo","typo":true}`, "--yes"}, "body.typo is not declared"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			err := run(t.Context(), append([]string{"-base-url", server.URL + "/api/v1"}, tc.args...), &stdout, &stderr)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+	if requests != 0 {
+		t.Fatalf("server received %d requests", requests)
+	}
+}
+
+func TestAPIInspectExposesConstraintAndMediaMetadata(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"api", "inspect", "repoDownloadCommitDiffOrPatch"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	got := stdout.String()
+	for _, want := range []string{"produces", "text/plain", "enum", "diff|patch"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("inspect missing %q:\n%s", want, got)
+		}
 	}
 }
 
@@ -422,6 +572,43 @@ func TestAPIInspectJSON(t *testing.T) {
 	}
 }
 
+func TestGenericDiscoveryRejectsInvalidLeafFlagsAndFields(t *testing.T) {
+	tests := [][]string{
+		{"api", "list", "--fields", "id,typo"},
+		{"alias", "list", "--fields", "command,typo"},
+		{"api", "list", "--full"},
+		{"api", "inspect", "repoSearch", "--fields", "id"},
+		{"alias", "inspect", "repo", "pulls", "get", "--fields", "command"},
+	}
+	for _, args := range tests {
+		var stdout, stderr bytes.Buffer
+		err := run(t.Context(), args, &stdout, &stderr)
+		if err == nil {
+			t.Fatalf("%v: expected error", args)
+		}
+		if _, ok := err.(usageError); !ok {
+			t.Fatalf("%v: error type = %T, error = %v", args, err, err)
+		}
+	}
+}
+
+func TestAliasCoverageListsSupportFiltersAndDefinitiveEmptyStates(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if err := run(t.Context(), []string{"alias", "omissions", "release"}, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), "repoCreateReleaseAttachment") || strings.Contains(stdout.String(), "activitypubPerson") {
+		t.Fatalf("filtered omissions = %s", stdout.String())
+	}
+	stdout.Reset()
+	if err := run(t.Context(), []string{"alias", "collisions", "definitely-no-match"}, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), "0 alias collisions found") {
+		t.Fatalf("empty collisions = %s", stdout.String())
+	}
+}
+
 func TestAPICallMissingPathParamHintsInspect(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	err := run(t.Context(), []string{"api", "call", "repoGet", "owner=astra"}, &stdout, &stderr)
@@ -484,8 +671,34 @@ func TestAPIUploadReleaseAttachment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); got != "name: asset.txt\n" {
+	if got := stdout.String(); got != "name: asset.txt" {
 		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestAPICallSupportsDocumentedOctetStreamUploadMode(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/repos/astra/fjgo/releases/42/assets" || r.URL.Query().Get("name") != "asset.bin" {
+			t.Fatalf("request = %s %s", r.Method, r.URL.String())
+		}
+		if got := r.Header.Get("Content-Type"); got != "application/octet-stream" {
+			t.Fatalf("Content-Type = %q", got)
+		}
+		body, _ := io.ReadAll(r.Body)
+		if string(body) != "binary-data" {
+			t.Fatalf("body = %q", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"id":7,"name":"asset.bin"}`)
+	}))
+	defer server.Close()
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "api", "call", "repoCreateReleaseAttachment", "owner=astra", "repo=fjgo", "id=42", "name=asset.bin", "-body-raw", "binary-data", "--yes"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), "name: asset.bin") {
+		t.Fatalf("response = %s", stdout.String())
 	}
 }
 
@@ -510,7 +723,7 @@ func TestAPIDryRunDoesNotCallServer(t *testing.T) {
 	}
 }
 
-func TestAPICallMissingBodyFailsBeforeRequest(t *testing.T) {
+func TestAPICallOptionalBodyMayBeOmitted(t *testing.T) {
 	called := false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
@@ -519,14 +732,143 @@ func TestAPICallMissingBodyFailsBeforeRequest(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "api", "call", "createCurrentUserRepo", "--yes"}, &stdout, &stderr)
-	if err == nil {
-		t.Fatal("expected error")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if got := err.Error(); !strings.Contains(got, "requires -body CreateRepoOption") || !strings.Contains(got, "fjgo api inspect createCurrentUserRepo") {
-		t.Fatalf("error = %q", got)
+	if !called {
+		t.Fatal("server was not called")
+	}
+}
+
+func TestAPICallRequiredBodyFailsBeforeRequest(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { called = true }))
+	defer server.Close()
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "api", "call", "renderMarkdownRaw", "--yes"}, &stdout, &stderr)
+	if err == nil || !strings.Contains(err.Error(), "requires -body string") {
+		t.Fatalf("error = %v", err)
 	}
 	if called {
 		t.Fatal("server was called")
+	}
+}
+
+func TestAPICallValidatesSwaggerMinimum(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { called = true }))
+	defer server.Close()
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "api", "call", "issueSearchIssues", "page=0"}, &stdout, &stderr)
+	if err == nil || !strings.Contains(err.Error(), "expected at least 1") {
+		t.Fatalf("error = %v", err)
+	}
+	if called {
+		t.Fatal("server was called")
+	}
+}
+
+func TestAPICallIncludeResponseReturnsSafeMetadata(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Request-ID", "request-7")
+		w.Header().Set("Set-Cookie", "session=secret")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = io.WriteString(w, `{"version":"test"}`)
+	}))
+	defer server.Close()
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "api", "call", "getVersion", "--include-response", "--json"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("invalid JSON %q: %v", stdout.String(), err)
+	}
+	if got["status"] != float64(http.StatusCreated) || strings.Contains(stdout.String(), "session=secret") || !strings.Contains(stdout.String(), "request-7") {
+		t.Fatalf("response = %s", stdout.String())
+	}
+}
+
+func TestAPICallJSONWrapsTextResponses(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = io.WriteString(w, "<h1>ok</h1>")
+	}))
+	defer server.Close()
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "api", "call", "renderMarkdownRaw", "-body-raw", "# ok", "--yes", "--json"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil || got["result"] != "<h1>ok</h1>" || got["encoding"] != "utf-8" {
+		t.Fatalf("response = %s, err = %v", stdout.String(), err)
+	}
+}
+
+func TestAPICallNormalizesDeclaredTextBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if string(body) != "hello" || r.Header.Get("Content-Type") != "text/plain" {
+			t.Fatalf("body = %q, Content-Type = %q", body, r.Header.Get("Content-Type"))
+		}
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = io.WriteString(w, "<p>hello</p>")
+	}))
+	defer server.Close()
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "api", "call", "renderMarkdownRaw", "-body", `"hello"`, "--yes"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), "<p>hello</p>") {
+		t.Fatalf("response = %s", stdout.String())
+	}
+}
+
+func TestAPICallJSONPreservesBinaryMediaEvenWhenBytesLookLikeJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/octet-stream")
+		_, _ = io.WriteString(w, "{}")
+	}))
+	defer server.Close()
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "api", "call", "repoGetArchive", "owner=astra", "repo=fjgo", "archive=main.zip", "--json"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil || got["encoding"] != "base64" || got["result"] != "e30=" {
+		t.Fatalf("response = %s, err = %v", stdout.String(), err)
+	}
+}
+
+func TestAPICallJSONEmptySuccessIsParseable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "api", "call", "getVersion", "--json"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil || got["result"] != "ok" {
+		t.Fatalf("response = %s, err = %v", stdout.String(), err)
+	}
+}
+
+func TestSharedJSONBoundaryMakesEmptyCuratedResponsesParseable(t *testing.T) {
+	var stdout bytes.Buffer
+	if err := writeAPIBody(&stdout, nil, "application/json", true, true); err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil || got["result"] != "ok" {
+		t.Fatalf("response = %s, err = %v", stdout.String(), err)
 	}
 }
 
@@ -567,7 +909,7 @@ func TestAPICallAllowsMutationWithYes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); got != "full_name: astra/demo\n" {
+	if got := stdout.String(); got != "full_name: astra/demo" {
 		t.Fatalf("stdout = %q", got)
 	}
 }
@@ -589,7 +931,7 @@ func TestAPIRawGetAndMutationDryRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); got != "version: test\n" {
+	if got := stdout.String(); got != "version: test" {
 		t.Fatalf("stdout = %q", got)
 	}
 
@@ -1129,7 +1471,7 @@ func TestReleaseCreateAlias(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); got != "tag_name: v1.2.3\n" {
+	if got := stdout.String(); got != "tag_name: v1.2.3" {
 		t.Fatalf("stdout = %q", got)
 	}
 }
@@ -1160,7 +1502,7 @@ func TestGeneratedAliasDispatchesGETOperation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); got != "result[1]{number}:\n  1\n" {
+	if got := stdout.String(); got != "result[1]{number}:\n  1" {
 		t.Fatalf("stdout = %q", got)
 	}
 }
@@ -1189,7 +1531,7 @@ func TestGeneratedAliasDispatchesBodyOperation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); got != "number: 2\n" {
+	if got := stdout.String(); got != "number: 2" {
 		t.Fatalf("stdout = %q", got)
 	}
 }
@@ -1214,7 +1556,7 @@ func TestGeneratedAliasRequiresYesForPost(t *testing.T) {
 	}
 }
 
-func TestGeneratedAliasMissingBodyFailsBeforeRequest(t *testing.T) {
+func TestGeneratedAliasRequiredBodyFailsBeforeRequest(t *testing.T) {
 	called := false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
@@ -1222,11 +1564,11 @@ func TestGeneratedAliasMissingBodyFailsBeforeRequest(t *testing.T) {
 	defer server.Close()
 
 	var stdout, stderr bytes.Buffer
-	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "repo", "issues", "create", "astra/fjgo", "--yes"}, &stdout, &stderr)
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "repo", "contents", "create", "astra/fjgo", "README.md", "--yes"}, &stdout, &stderr)
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if got := err.Error(); !strings.Contains(got, "requires -body CreateIssueOption") || !strings.Contains(got, "fjgo api inspect issueCreateIssue") {
+	if got := err.Error(); !strings.Contains(got, "requires -body CreateFileOptions") || !strings.Contains(got, "fjgo api inspect repoCreateFile") {
 		t.Fatalf("error = %q", got)
 	}
 	if called {
@@ -1312,7 +1654,7 @@ func TestAliasInspectShowsBodyFieldsAndQueryParams(t *testing.T) {
 		"body_fields[",
 		"title,string,true",
 		"returns: Issue",
-		"requires: --yes",
+		`requires: "--yes"`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("alias inspect missing %q:\n%s", want, got)
@@ -1371,7 +1713,7 @@ func TestReleaseUploadAlias(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); got != "name: asset.txt\n" {
+	if got := stdout.String(); got != "name: asset.txt" {
 		t.Fatalf("stdout = %q", got)
 	}
 }
@@ -1513,7 +1855,7 @@ func TestExplicitBaseURLOverridesAmbientHost(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
-	if got := stdout.String(); got != "version: explicit\n" {
+	if got := stdout.String(); got != "version: explicit" {
 		t.Fatalf("stdout = %q", got)
 	}
 }
@@ -1810,6 +2152,67 @@ func TestAuthStatusDoesNotLeakToken(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "token_present: true") || !strings.Contains(stdout.String(), "authenticated: true") || !strings.Contains(stdout.String(), "login: astra") {
 		t.Fatalf("auth status = %s", stdout.String())
+	}
+}
+
+func TestAuthStatusSupportsBasicTOTPAndSudoWithoutLeakingCredentials(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		username, password, ok := r.BasicAuth()
+		if !ok || username != "alice" || password != "secret-password" {
+			t.Fatalf("basic auth = %q %q %t", username, password, ok)
+		}
+		if got := r.Header.Get("X-FORGEJO-OTP"); got != "123456" {
+			t.Fatalf("OTP = %q", got)
+		}
+		if got := r.Header.Get("Sudo"); got != "bob" {
+			t.Fatalf("Sudo = %q", got)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": 1, "login": "alice"})
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{
+		"-base-url", server.URL + "/api/v1",
+		"--username", "alice",
+		"--password", "secret-password",
+		"--otp", "123456",
+		"--sudo", "bob",
+		"auth", "status",
+	}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	got := stdout.String()
+	if strings.Contains(got, "secret-password") || strings.Contains(got, "123456") {
+		t.Fatalf("auth status leaked credentials: %s", got)
+	}
+	for _, want := range []string{"basic_auth_present: true", "otp_present: true", "sudo_present: true", "authenticated: true", "login: alice"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("auth status missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestAmbientBasicAuthIgnoredForUnconfiguredDemoBase(t *testing.T) {
+	t.Setenv("FJGO_USERNAME", "alice")
+	t.Setenv("FJGO_PASSWORD", "secret-password")
+	t.Setenv("FJGO_OTP", "123456")
+	t.Setenv("FJGO_SUDO", "bob")
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"auth", "status"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	got := stdout.String()
+	if strings.Contains(got, "alice") || strings.Contains(got, "secret-password") || strings.Contains(got, "123456") || strings.Contains(got, "bob") {
+		t.Fatalf("auth status leaked ambient credentials: %s", got)
+	}
+	for _, want := range []string{"basic_auth_present: false", "otp_present: false", "sudo_present: false", "authenticated: false"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("auth status missing %q:\n%s", want, got)
+		}
 	}
 }
 

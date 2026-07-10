@@ -76,8 +76,7 @@ func runRepoList(ctx context.Context, client *forgejo.Client, args []string, std
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(resp.Body)
-		return err
+		return writeAPIBody(stdout, resp.Body, "application/json", true, true)
 	}
 	var repos []*forgejo.Repository
 	if q != "" {
@@ -170,8 +169,7 @@ func runRepoCreate(ctx context.Context, client *forgejo.Client, args []string, s
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(out)
-		return err
+		return writeAPIBody(stdout, out, "application/json", true, true)
 	}
 	return writeJSONAsTOON(stdout, out, "repository", full)
 }
@@ -227,8 +225,7 @@ func runRepoEdit(ctx context.Context, client *forgejo.Client, cfg runConfig, arg
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(out)
-		return err
+		return writeAPIBody(stdout, out, "application/json", true, true)
 	}
 	return writeJSONAsTOON(stdout, out, "repository", full)
 }
@@ -278,8 +275,7 @@ func runRepoFork(ctx context.Context, client *forgejo.Client, cfg runConfig, arg
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(out)
-		return err
+		return writeAPIBody(stdout, out, "application/json", true, true)
 	}
 	return writeJSONAsTOON(stdout, out, "repository", full)
 }
@@ -333,8 +329,7 @@ func runRepoBranchesList(ctx context.Context, client *forgejo.Client, cfg runCon
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(resp.Body)
-		return err
+		return writeAPIBody(stdout, resp.Body, "application/json", true, true)
 	}
 	branches, err := decodeBody[[]*forgejo.Branch](resp.Body)
 	if err != nil {
@@ -410,8 +405,7 @@ func runRepoBranchCreate(ctx context.Context, client *forgejo.Client, cfg runCon
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(out)
-		return err
+		return writeAPIBody(stdout, out, "application/json", true, true)
 	}
 	return writeJSONAsTOON(stdout, out, "branch", false)
 }
@@ -492,8 +486,7 @@ func runRepoCollaboratorsList(ctx context.Context, client *forgejo.Client, cfg r
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(resp.Body)
-		return err
+		return writeAPIBody(stdout, resp.Body, "application/json", true, true)
 	}
 	users, err := decodeBody[[]*forgejo.User](resp.Body)
 	if err != nil {
@@ -652,8 +645,7 @@ func runRepoBranchProtectionList(ctx context.Context, client *forgejo.Client, cf
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(resp.Body)
-		return err
+		return writeAPIBody(stdout, resp.Body, "application/json", true, true)
 	}
 	protections, err := decodeBody[[]*forgejo.BranchProtection](resp.Body)
 	if err != nil {
@@ -764,8 +756,7 @@ func runRepoBranchProtectionMutate(ctx context.Context, client *forgejo.Client, 
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(out)
-		return err
+		return writeAPIBody(stdout, out, "application/json", true, true)
 	}
 	return writeJSONAsTOON(stdout, out, "branch_protection", full)
 }

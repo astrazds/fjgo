@@ -1,4 +1,4 @@
-# fjgo Alpha Field Test
+# fjgo v1.0 Field Validation
 
 Use this packet to test `fjgo` as an AXI-style Forgejo CLI with TOON stdout,
 managed agent session hooks, and an installable skill.
@@ -9,9 +9,9 @@ inside a Forgejo-backed checkout.
 ## Install
 
 ```sh
-curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v0.16.0/fjgo_v0.16.0_linux_amd64.tar.gz
-tar -xzf fjgo_v0.16.0_linux_amd64.tar.gz
-install -Dm755 fjgo_v0.16.0_linux_amd64/fjgo ~/.local/bin/fjgo
+curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v1.0.0/fjgo_v1.0.0_linux_amd64.tar.gz
+tar -xzf fjgo_v1.0.0_linux_amd64.tar.gz
+install -Dm755 fjgo_v1.0.0_linux_amd64/fjgo ~/.local/bin/fjgo
 fjgo setup hooks --check
 fjgo setup hooks
 fjgo skill install --force
@@ -66,10 +66,10 @@ fjgo -R origin run list
 2. Create, comment on, and close a disposable issue:
 
 ```sh
-fjgo -R origin issue create --title "fjgo alpha test" --body "Created during fjgo alpha testing." --dry-run --yes
-fjgo -R origin issue create --title "fjgo alpha test" --body "Created during fjgo alpha testing." --yes
-fjgo -R origin issue comment ISSUE_NUMBER --body "Alpha test comment." --dry-run --yes
-fjgo -R origin issue comment ISSUE_NUMBER --body "Alpha test comment." --yes
+fjgo -R origin issue create --title "fjgo v1 field test" --body "Created during fjgo v1 validation." --dry-run --yes
+fjgo -R origin issue create --title "fjgo v1 field test" --body "Created during fjgo v1 validation." --yes
+fjgo -R origin issue comment ISSUE_NUMBER --body "v1 validation comment." --dry-run --yes
+fjgo -R origin issue comment ISSUE_NUMBER --body "v1 validation comment." --yes
 fjgo -R origin issue close ISSUE_NUMBER --dry-run --yes
 fjgo -R origin issue close ISSUE_NUMBER --yes
 ```
@@ -81,7 +81,7 @@ fjgo -R origin pr list --state open
 fjgo -R origin pr view PR_NUMBER --reviews
 fjgo -R origin pr edit PR_NUMBER --title "Updated title" --dry-run --yes
 fjgo -R origin pr close PR_NUMBER --dry-run --yes
-fjgo -R origin pr comment PR_NUMBER --body "Alpha PR note." --dry-run --yes
+fjgo -R origin pr comment PR_NUMBER --body "v1 validation PR note." --dry-run --yes
 fjgo -R origin pr files PR_NUMBER
 fjgo -R origin pr checks PR_NUMBER
 ```
@@ -95,8 +95,8 @@ fjgo -R origin repo avatar assets/icon.png --dry-run --yes
 fjgo -R origin repo branches list
 fjgo -R origin repo collaborators list
 fjgo -R origin repo branch-protection list
-fjgo -R origin repo edit --description "fjgo alpha preview" --dry-run --yes
-fjgo repo create fjgo-alpha-preview --private --dry-run --yes
+fjgo -R origin repo edit --description "fjgo v1 validation preview" --dry-run --yes
+fjgo repo create fjgo-v1-preview --private --dry-run --yes
 ```
 
 5. Validate release workflows:
@@ -104,8 +104,8 @@ fjgo repo create fjgo-alpha-preview --private --dry-run --yes
 ```sh
 fjgo -R origin release list
 fjgo -R origin release latest
-fjgo -R origin release create v0.0.0-alpha-test --body "Alpha test release preview." --dry-run --yes
-fjgo -R origin release create v0.0.0-alpha-test --notes-file notes.md --dry-run --yes
+fjgo -R origin release create v0.0.0-field-test --body "v1 field-test release preview." --dry-run --yes
+fjgo -R origin release create v0.0.0-field-test --notes-file notes.md --dry-run --yes
 fjgo -R origin release edit RELEASE_ID --body-file notes.md --dry-run --yes
 fjgo -R origin release assets list RELEASE_ID
 fjgo -R origin release assets delete RELEASE_ID ASSET_ID --dry-run --yes
@@ -145,6 +145,10 @@ fits:
 ```sh
 fjgo api raw GET /repos/OWNER/REPO
 fjgo api raw PATCH /repos/OWNER/REPO --dry-run --yes -body '{"description":"updated"}'
+fjgo api call renderMarkdownRaw --yes -body-raw @README.md --content-type text/plain
+fjgo api call repoGetArchive owner=OWNER repo=REPO archive=main.zip --output repo.zip
+fjgo api call getVersion --include-response
+fjgo alias omissions
 ```
 
 ## Optional Write Smoke

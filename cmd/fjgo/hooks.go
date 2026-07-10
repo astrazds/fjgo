@@ -449,7 +449,7 @@ export const AxiFjgoAmbientContextPlugin = async ({ directory }) => {
 
 func runHook(args []string, stdout io.Writer) error {
 	if hasHelp(args) {
-		return writeHelp(stdout, "usage: fjgo hook capture\nCapture lightweight session-end context for future fjgo diagnostics.")
+		return writeHelp(stdout, "usage: fjgo hook capture\nCapture lightweight session-end context for future fjgo diagnostics.\n\nexamples:\n  fjgo hook capture\n  cd /path/to/repository && fjgo hook capture")
 	}
 	if len(args) == 0 || args[0] != "capture" {
 		return newUsageError("usage: fjgo hook capture")

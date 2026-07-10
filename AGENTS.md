@@ -193,7 +193,7 @@ The v1 surface is:
 - `-R` / `--repo-from-remote` for owner/repo resolution from git remotes
 - generated typed client methods and model types for the full Swagger surface
 - optional authenticated smoke via `scripts/smoke-auth.sh`
-- alpha field packet via `docs/alpha.md`
+- v1 field-validation packet via `docs/alpha.md`
 - agent setup prompt via `docs/agent-setup-prompt.md`
 - release archives via `scripts/release.sh`
 - repeatable verification via `scripts/verify.sh`

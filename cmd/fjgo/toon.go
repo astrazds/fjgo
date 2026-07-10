@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"reflect"
 	"sort"
 	"strconv"
@@ -21,6 +22,13 @@ type toonTable struct {
 }
 
 type toonBlocks []any
+
+type toonField struct {
+	Key   string
+	Value any
+}
+
+type toonObject []toonField
 
 type truncateReport struct {
 	Paths []string
@@ -52,7 +60,6 @@ func marshalTOON(v any) (string, error) {
 	if err := writeTOONValue(&b, normalized, 0, "result"); err != nil {
 		return "", err
 	}
-	b.WriteByte('\n')
 	return b.String(), nil
 }
 
@@ -61,17 +68,56 @@ func normalizeTOONValue(v any) (any, error) {
 	case toonTable, toonBlocks:
 		return canonicalTOONValue(x), nil
 	}
+	v = normalizeNonFinite(v)
 	b, err := json.Marshal(v)
 	if err != nil {
 		return nil, err
 	}
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.UseNumber()
-	var out any
-	if err := dec.Decode(&out); err != nil {
-		return nil, err
+	return decodeOrderedJSON(dec)
+}
+
+func normalizeNonFinite(v any) any {
+	if v == nil {
+		return nil
 	}
-	return out, nil
+	rv := reflect.ValueOf(v)
+	for rv.Kind() == reflect.Interface || rv.Kind() == reflect.Pointer {
+		if rv.IsNil() {
+			return nil
+		}
+		rv = rv.Elem()
+	}
+	switch rv.Kind() {
+	case reflect.Float32, reflect.Float64:
+		value := rv.Float()
+		if math.IsNaN(value) || math.IsInf(value, 0) {
+			return nil
+		}
+		return rv.Interface()
+	case reflect.Map:
+		if rv.Type().Key().Kind() != reflect.String {
+			return v
+		}
+		out := make(map[string]any, rv.Len())
+		iter := rv.MapRange()
+		for iter.Next() {
+			out[iter.Key().String()] = normalizeNonFinite(iter.Value().Interface())
+		}
+		return out
+	case reflect.Slice, reflect.Array:
+		if rv.Type().Elem().Kind() == reflect.Uint8 {
+			return v
+		}
+		out := make([]any, rv.Len())
+		for i := 0; i < rv.Len(); i++ {
+			out[i] = normalizeNonFinite(rv.Index(i).Interface())
+		}
+		return out
+	default:
+		return v
+	}
 }
 
 func canonicalTOONValue(v any) any {
@@ -93,10 +139,17 @@ func canonicalTOONValue(v any) any {
 		}
 		x.Rows = rows
 		return x
+	case toonObject:
+		out := make(toonObject, len(x))
+		for i, field := range x {
+			out[i] = toonField{Key: field.Key, Value: canonicalTOONValue(field.Value)}
+		}
+		return out
 	case map[string]any:
-		out := make(map[string]any, len(x))
-		for key, value := range x {
-			out[key] = canonicalTOONValue(value)
+		keys := sortedKeys(x)
+		out := make(toonObject, 0, len(keys))
+		for _, key := range keys {
+			out = append(out, toonField{Key: key, Value: canonicalTOONValue(x[key])})
 		}
 		return out
 	case []any:
@@ -117,14 +170,59 @@ func canonicalTOONValue(v any) any {
 	return v
 }
 
+func decodeOrderedJSON(dec *json.Decoder) (any, error) {
+	token, err := dec.Token()
+	if err != nil {
+		return nil, err
+	}
+	delim, ok := token.(json.Delim)
+	if !ok {
+		return token, nil
+	}
+	switch delim {
+	case '{':
+		object := toonObject{}
+		for dec.More() {
+			keyToken, err := dec.Token()
+			if err != nil {
+				return nil, err
+			}
+			key, ok := keyToken.(string)
+			if !ok {
+				return nil, fmt.Errorf("TOON object key is not a string")
+			}
+			value, err := decodeOrderedJSON(dec)
+			if err != nil {
+				return nil, err
+			}
+			object = append(object, toonField{Key: key, Value: value})
+		}
+		_, err = dec.Token()
+		return object, err
+	case '[':
+		array := []any{}
+		for dec.More() {
+			value, err := decodeOrderedJSON(dec)
+			if err != nil {
+				return nil, err
+			}
+			array = append(array, value)
+		}
+		_, err = dec.Token()
+		return array, err
+	default:
+		return nil, fmt.Errorf("unsupported JSON delimiter %q", delim)
+	}
+}
+
 func writeJSONAsTOON(w io.Writer, raw []byte, fallbackLabel string, full bool) error {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return writeTOON(w, map[string]any{"result": "ok"})
 	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.UseNumber()
-	var value any
-	if err := dec.Decode(&value); err != nil {
+	value, err := decodeOrderedJSON(dec)
+	if err != nil {
 		text := strings.TrimSpace(string(raw))
 		if !full {
 			var report truncateReport
@@ -157,20 +255,27 @@ func labeledRoot(label string, value any) any {
 func writeTOONValue(b *strings.Builder, v any, depth int, fallbackLabel string) error {
 	switch x := v.(type) {
 	case toonBlocks:
-		for i, block := range x {
-			if i > 0 {
-				b.WriteByte('\n')
-			}
-			if err := writeTOONValue(b, block, depth, fallbackLabel); err != nil {
+		wrote := false
+		for _, block := range x {
+			var part strings.Builder
+			if err := writeTOONValue(&part, block, depth, fallbackLabel); err != nil {
 				return err
 			}
+			if part.Len() == 0 {
+				continue
+			}
+			if wrote {
+				b.WriteByte('\n')
+			}
+			b.WriteString(part.String())
+			wrote = true
 		}
 	case toonTable:
 		writeTOONTable(b, x, depth)
+	case toonObject:
+		writeTOONObject(b, x, depth)
 	case map[string]any:
 		if len(x) == 0 {
-			writeIndent(b, depth)
-			b.WriteString("{}")
 			return nil
 		}
 		keys := sortedKeys(x)
@@ -189,26 +294,43 @@ func writeTOONValue(b *strings.Builder, v any, depth int, fallbackLabel string) 
 	return nil
 }
 
+func writeTOONObject(b *strings.Builder, object toonObject, depth int) {
+	for i, field := range object {
+		if i != 0 {
+			b.WriteByte('\n')
+		}
+		writeKeyedValue(b, field.Key, field.Value, depth)
+	}
+}
+
 func writeKeyedValue(b *strings.Builder, key string, value any, depth int) {
+	encodedKey := formatKey(key)
 	switch x := value.(type) {
+	case toonObject:
+		writeIndent(b, depth)
+		b.WriteString(encodedKey)
+		b.WriteByte(':')
+		if len(x) != 0 {
+			b.WriteByte('\n')
+			writeTOONObject(b, x, depth+1)
+		}
 	case map[string]any:
 		writeIndent(b, depth)
-		b.WriteString(key)
-		if len(x) == 0 {
-			b.WriteString(": {}")
-			return
+		b.WriteString(encodedKey)
+		b.WriteByte(':')
+		if len(x) != 0 {
+			b.WriteByte('\n')
+			_ = writeTOONValue(b, x, depth+1, "items")
 		}
-		b.WriteString(":\n")
-		_ = writeTOONValue(b, x, depth+1, "items")
 	case []any:
 		writeArray(b, key, x, depth)
 	case nil:
 		writeIndent(b, depth)
-		b.WriteString(key)
+		b.WriteString(encodedKey)
 		b.WriteString(": null")
 	default:
 		writeIndent(b, depth)
-		b.WriteString(key)
+		b.WriteString(encodedKey)
 		b.WriteString(": ")
 		b.WriteString(formatScalar(x, ','))
 	}
@@ -217,7 +339,7 @@ func writeKeyedValue(b *strings.Builder, key string, value any, depth int) {
 func writeArray(b *strings.Builder, key string, values []any, depth int) {
 	if len(values) == 0 {
 		writeIndent(b, depth)
-		fmt.Fprintf(b, "%s[0]:", key)
+		fmt.Fprintf(b, "%s: []", formatKey(key))
 		return
 	}
 	if fields, ok := tabularFields(values); ok {
@@ -226,7 +348,7 @@ func writeArray(b *strings.Builder, key string, values []any, depth int) {
 	}
 	if primitiveArray(values) {
 		writeIndent(b, depth)
-		fmt.Fprintf(b, "%s[%d]: ", key, len(values))
+		fmt.Fprintf(b, "%s[%d]: ", formatKey(key), len(values))
 		for i, value := range values {
 			if i > 0 {
 				b.WriteByte(',')
@@ -236,35 +358,133 @@ func writeArray(b *strings.Builder, key string, values []any, depth int) {
 		return
 	}
 	writeIndent(b, depth)
-	fmt.Fprintf(b, "%s[%d]:", key, len(values))
+	fmt.Fprintf(b, "%s[%d]:", formatKey(key), len(values))
 	for _, value := range values {
 		b.WriteByte('\n')
-		writeIndent(b, depth+1)
+		writeListItem(b, value, depth+1)
+	}
+}
+
+func writeListItem(b *strings.Builder, value any, depth int) {
+	writeIndent(b, depth)
+	switch x := value.(type) {
+	case toonObject:
+		writeObjectFieldsListItem(b, x, depth)
+	case map[string]any:
+		writeObjectListItem(b, x, depth)
+	case []any:
 		b.WriteString("- ")
-		switch x := value.(type) {
-		case map[string]any:
-			if len(x) == 0 {
-				b.WriteString("{}")
-				continue
+		writeArrayListItem(b, x, depth)
+	default:
+		b.WriteString("- ")
+		b.WriteString(formatScalar(x, ','))
+	}
+}
+
+func writeArrayListItem(b *strings.Builder, values []any, depth int) {
+	if len(values) == 0 {
+		b.WriteString("[0]:")
+		return
+	}
+	if primitiveArray(values) {
+		fmt.Fprintf(b, "[%d]: ", len(values))
+		for i, value := range values {
+			if i != 0 {
+				b.WriteByte(',')
 			}
-			keys := sortedKeys(x)
-			first := keys[0]
-			b.WriteString(first)
-			b.WriteString(": ")
-			b.WriteString(formatScalar(x[first], ','))
-			for _, key := range keys[1:] {
-				b.WriteByte('\n')
-				writeKeyedValue(b, key, x[key], depth+2)
-			}
-		default:
-			b.WriteString(formatScalar(x, ','))
+			b.WriteString(formatScalar(value, ','))
 		}
+		return
+	}
+	fmt.Fprintf(b, "[%d]:", len(values))
+	for _, value := range values {
+		b.WriteByte('\n')
+		writeListItem(b, value, depth+1)
+	}
+}
+
+func writeObjectListItem(b *strings.Builder, object map[string]any, depth int) {
+	keys := sortedKeys(object)
+	fields := make(toonObject, 0, len(keys))
+	for _, key := range keys {
+		fields = append(fields, toonField{Key: key, Value: object[key]})
+	}
+	writeObjectFieldsListItem(b, fields, depth)
+}
+
+func writeObjectFieldsListItem(b *strings.Builder, fields toonObject, depth int) {
+	if len(fields) == 0 {
+		b.WriteByte('-')
+		return
+	}
+	b.WriteString("- ")
+	writeFirstListField(b, fields[0].Key, fields[0].Value, depth)
+	for _, field := range fields[1:] {
+		b.WriteByte('\n')
+		writeKeyedValue(b, field.Key, field.Value, depth+1)
+	}
+}
+
+func writeFirstListField(b *strings.Builder, key string, value any, depth int) {
+	b.WriteString(formatKey(key))
+	switch x := value.(type) {
+	case toonObject:
+		b.WriteByte(':')
+		if len(x) == 0 {
+			return
+		}
+		b.WriteByte('\n')
+		writeTOONObject(b, x, depth+2)
+	case map[string]any:
+		b.WriteByte(':')
+		if len(x) == 0 {
+			return
+		}
+		b.WriteByte('\n')
+		_ = writeTOONValue(b, x, depth+2, "items")
+	case []any:
+		if len(x) == 0 {
+			b.WriteString(": []")
+			return
+		}
+		if fields, ok := tabularFields(x); ok {
+			fmt.Fprintf(b, "[%d]{%s}:", len(x), formatKeys(fields, ','))
+			for _, row := range rowsFromValues(x) {
+				b.WriteByte('\n')
+				writeIndent(b, depth+2)
+				for i, field := range fields {
+					if i != 0 {
+						b.WriteByte(',')
+					}
+					b.WriteString(formatScalar(row[field], ','))
+				}
+			}
+			return
+		}
+		if primitiveArray(x) {
+			fmt.Fprintf(b, "[%d]: ", len(x))
+			for i, item := range x {
+				if i != 0 {
+					b.WriteByte(',')
+				}
+				b.WriteString(formatScalar(item, ','))
+			}
+			return
+		}
+		fmt.Fprintf(b, "[%d]:", len(x))
+		for _, item := range x {
+			b.WriteByte('\n')
+			writeListItem(b, item, depth+2)
+		}
+	default:
+		b.WriteString(": ")
+		b.WriteString(formatScalar(x, ','))
 	}
 }
 
 func writeTOONTable(b *strings.Builder, table toonTable, depth int) {
 	writeIndent(b, depth)
-	fmt.Fprintf(b, "%s[%d]{%s}:", table.Label, len(table.Rows), strings.Join(table.Fields, ","))
+	fmt.Fprintf(b, "%s[%d]{%s}:", formatKey(table.Label), len(table.Rows), formatKeys(table.Fields, ','))
 	for _, row := range table.Rows {
 		b.WriteByte('\n')
 		writeIndent(b, depth+1)
@@ -280,13 +500,14 @@ func writeTOONTable(b *strings.Builder, table toonTable, depth int) {
 func tabularFields(values []any) ([]string, bool) {
 	var fields []string
 	for i, value := range values {
-		row, ok := value.(map[string]any)
-		if !ok || len(row) == 0 {
+		entries, ok := objectFields(value)
+		if !ok || len(entries) == 0 {
 			return nil, false
 		}
-		keys := sortedKeys(row)
-		for _, key := range keys {
-			if !isPrimitive(row[key]) {
+		keys := make([]string, 0, len(entries))
+		for _, field := range entries {
+			keys = append(keys, field.Key)
+			if !isPrimitive(field.Value) {
 				return nil, false
 			}
 		}
@@ -294,7 +515,7 @@ func tabularFields(values []any) ([]string, bool) {
 			fields = keys
 			continue
 		}
-		if !reflect.DeepEqual(fields, keys) {
+		if !sameStringSet(fields, keys) {
 			return nil, false
 		}
 	}
@@ -304,9 +525,46 @@ func tabularFields(values []any) ([]string, bool) {
 func rowsFromValues(values []any) []map[string]any {
 	rows := make([]map[string]any, 0, len(values))
 	for _, value := range values {
-		rows = append(rows, value.(map[string]any))
+		entries, _ := objectFields(value)
+		row := make(map[string]any, len(entries))
+		for _, field := range entries {
+			row[field.Key] = field.Value
+		}
+		rows = append(rows, row)
 	}
 	return rows
+}
+
+func objectFields(value any) (toonObject, bool) {
+	switch x := value.(type) {
+	case toonObject:
+		return x, true
+	case map[string]any:
+		keys := sortedKeys(x)
+		fields := make(toonObject, 0, len(keys))
+		for _, key := range keys {
+			fields = append(fields, toonField{Key: key, Value: x[key]})
+		}
+		return fields, true
+	default:
+		return nil, false
+	}
+}
+
+func sameStringSet(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	seen := make(map[string]bool, len(a))
+	for _, value := range a {
+		seen[value] = true
+	}
+	for _, value := range b {
+		if !seen[value] {
+			return false
+		}
+	}
+	return true
 }
 
 func primitiveArray(values []any) bool {
@@ -320,7 +578,9 @@ func primitiveArray(values []any) bool {
 
 func isPrimitive(value any) bool {
 	switch value.(type) {
-	case nil, string, bool, json.Number, float64, float32, int, int64, int32, uint, uint64, uint32:
+	case nil, string, bool, json.Number, float64, float32,
+		int, int64, int32, int16, int8,
+		uint, uint64, uint32, uint16, uint8, uintptr:
 		return true
 	default:
 		return false
@@ -347,21 +607,31 @@ func formatScalar(value any, delimiter rune) string {
 	case nil:
 		return "null"
 	case json.Number:
-		return x.String()
+		return canonicalNumber(x.String())
 	case bool:
 		if x {
 			return "true"
 		}
 		return "false"
 	case float64:
-		return strconv.FormatFloat(x, 'f', -1, 64)
+		if math.IsNaN(x) || math.IsInf(x, 0) {
+			return "null"
+		}
+		return canonicalNumber(strconv.FormatFloat(x, 'g', -1, 64))
 	case float32:
-		return strconv.FormatFloat(float64(x), 'f', -1, 32)
+		if math.IsNaN(float64(x)) || math.IsInf(float64(x), 0) {
+			return "null"
+		}
+		return canonicalNumber(strconv.FormatFloat(float64(x), 'g', -1, 32))
 	case int:
 		return strconv.Itoa(x)
 	case int64:
 		return strconv.FormatInt(x, 10)
 	case int32:
+		return strconv.FormatInt(int64(x), 10)
+	case int16:
+		return strconv.FormatInt(int64(x), 10)
+	case int8:
 		return strconv.FormatInt(int64(x), 10)
 	case uint:
 		return strconv.FormatUint(uint64(x), 10)
@@ -369,17 +639,48 @@ func formatScalar(value any, delimiter rune) string {
 		return strconv.FormatUint(x, 10)
 	case uint32:
 		return strconv.FormatUint(uint64(x), 10)
+	case uint16:
+		return strconv.FormatUint(uint64(x), 10)
+	case uint8:
+		return strconv.FormatUint(uint64(x), 10)
+	case uintptr:
+		return strconv.FormatUint(uint64(x), 10)
 	case string:
 		if shouldQuoteString(x, delimiter) {
-			return strconv.Quote(x)
+			return quoteTOONString(x)
 		}
 		return x
+	case toonObject:
+		b, err := json.Marshal(toonJSONValue(x))
+		if err != nil {
+			return quoteTOONString(fmt.Sprint(x))
+		}
+		return quoteTOONString(string(b))
 	default:
 		b, err := json.Marshal(x)
 		if err != nil {
-			return strconv.Quote(fmt.Sprint(x))
+			return quoteTOONString(fmt.Sprint(x))
 		}
-		return strconv.Quote(string(b))
+		return quoteTOONString(string(b))
+	}
+}
+
+func toonJSONValue(value any) any {
+	switch value := value.(type) {
+	case toonObject:
+		object := make(map[string]any, len(value))
+		for _, field := range value {
+			object[field.Key] = toonJSONValue(field.Value)
+		}
+		return object
+	case []any:
+		items := make([]any, len(value))
+		for i, item := range value {
+			items[i] = toonJSONValue(item)
+		}
+		return items
+	default:
+		return value
 	}
 }
 
@@ -390,17 +691,20 @@ func shouldQuoteString(s string, delimiter rune) bool {
 	if s != strings.TrimSpace(s) {
 		return true
 	}
-	if strings.ContainsRune(s, delimiter) || strings.ContainsAny(s, "\n\r\t") {
+	if strings.ContainsRune(s, delimiter) || strings.ContainsAny(s, "\n\r\t\\") {
 		return true
 	}
-	if strings.ContainsAny(s, ":[]{}#\"") {
+	if strings.ContainsAny(s, ":[]{}\"") {
 		return true
 	}
-	switch strings.ToLower(s) {
-	case "true", "false", "null", "nan", "inf", "-inf":
+	switch s {
+	case "true", "false", "null":
 		return true
 	}
-	if _, err := strconv.ParseFloat(s, 64); err == nil {
+	if numericLike(s) {
+		return true
+	}
+	if strings.HasPrefix(s, "-") || strings.HasPrefix(s, "+") {
 		return true
 	}
 	for _, r := range s {
@@ -411,8 +715,182 @@ func shouldQuoteString(s string, delimiter rune) bool {
 	return false
 }
 
+func formatKey(key string) string {
+	if validUnquotedKey(key) {
+		return key
+	}
+	return quoteTOONString(key)
+}
+
+func formatKeys(keys []string, delimiter rune) string {
+	encoded := make([]string, len(keys))
+	for i, key := range keys {
+		encoded[i] = formatKey(key)
+	}
+	return strings.Join(encoded, string(delimiter))
+}
+
+func validUnquotedKey(key string) bool {
+	if key == "" || !asciiLetter(key[0]) && key[0] != '_' {
+		return false
+	}
+	for i := 1; i < len(key); i++ {
+		if !asciiLetter(key[i]) && (key[i] < '0' || key[i] > '9') && key[i] != '_' && key[i] != '.' {
+			return false
+		}
+	}
+	return true
+}
+
+func asciiLetter(b byte) bool {
+	return b >= 'A' && b <= 'Z' || b >= 'a' && b <= 'z'
+}
+
+func numericLike(s string) bool {
+	if s == "" {
+		return false
+	}
+	i := 0
+	if s[0] == '-' {
+		i++
+	}
+	start := i
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		i++
+	}
+	if i == start {
+		return false
+	}
+	if i < len(s) && s[i] == '.' {
+		i++
+		start = i
+		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+			i++
+		}
+		if i == start {
+			return false
+		}
+	}
+	if i < len(s) && (s[i] == 'e' || s[i] == 'E') {
+		i++
+		if i < len(s) && (s[i] == '+' || s[i] == '-') {
+			i++
+		}
+		start = i
+		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+			i++
+		}
+		if i == start {
+			return false
+		}
+	}
+	return i == len(s)
+}
+
+func quoteTOONString(s string) string {
+	var b strings.Builder
+	b.WriteByte('"')
+	for _, r := range s {
+		switch r {
+		case '\\':
+			b.WriteString(`\\`)
+		case '"':
+			b.WriteString(`\"`)
+		case '\n':
+			b.WriteString(`\n`)
+		case '\r':
+			b.WriteString(`\r`)
+		case '\t':
+			b.WriteString(`\t`)
+		default:
+			if r < 0x20 {
+				fmt.Fprintf(&b, `\u%04x`, r)
+			} else {
+				b.WriteRune(r)
+			}
+		}
+	}
+	b.WriteByte('"')
+	return b.String()
+}
+
+func canonicalNumber(raw string) string {
+	if !numericLike(raw) {
+		return "null"
+	}
+	negative := raw[0] == '-'
+	if negative {
+		raw = raw[1:]
+	}
+	mantissa := raw
+	exponent := 0
+	if i := strings.IndexAny(raw, "eE"); i >= 0 {
+		mantissa = raw[:i]
+		parsed, err := strconv.Atoi(raw[i+1:])
+		if err != nil {
+			return "null"
+		}
+		exponent = parsed
+	}
+	integer := mantissa
+	fraction := ""
+	if i := strings.IndexByte(mantissa, '.'); i >= 0 {
+		integer, fraction = mantissa[:i], mantissa[i+1:]
+	}
+	digits := integer + fraction
+	first := 0
+	for first < len(digits) && digits[first] == '0' {
+		first++
+	}
+	if first == len(digits) {
+		return "0"
+	}
+	last := len(digits)
+	for last > first && digits[last-1] == '0' {
+		last--
+	}
+	significant := digits[first:last]
+	decimalPosition := len(integer) + exponent - first
+	power := decimalPosition - 1
+	var out string
+	if power >= -6 && power < 21 {
+		switch {
+		case decimalPosition <= 0:
+			out = "0." + strings.Repeat("0", -decimalPosition) + significant
+		case decimalPosition >= len(significant):
+			out = significant + strings.Repeat("0", decimalPosition-len(significant))
+		default:
+			out = significant[:decimalPosition] + "." + significant[decimalPosition:]
+		}
+	} else {
+		out = significant[:1]
+		if len(significant) > 1 {
+			out += "." + significant[1:]
+		}
+		out += "e"
+		if power >= 0 {
+			out += "+"
+		}
+		out += strconv.Itoa(power)
+	}
+	if negative {
+		return "-" + out
+	}
+	return out
+}
+
 func truncateLargeStrings(value any, limit int, path string, report *truncateReport) any {
 	switch x := value.(type) {
+	case toonObject:
+		out := make(toonObject, len(x))
+		for i, field := range x {
+			childPath := field.Key
+			if path != "" {
+				childPath = path + "." + field.Key
+			}
+			out[i] = toonField{Key: field.Key, Value: truncateLargeStrings(field.Value, limit, childPath, report)}
+		}
+		return out
 	case map[string]any:
 		out := make(map[string]any, len(x))
 		for key, v := range x {

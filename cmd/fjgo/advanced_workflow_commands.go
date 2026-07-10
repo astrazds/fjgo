@@ -139,8 +139,7 @@ func runIssueDependencyList(ctx context.Context, client *forgejo.Client, cfg run
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(resp.Body)
-		return err
+		return writeAPIBody(stdout, resp.Body, "application/json", true, true)
 	}
 	issues, err := decodeBody[[]*forgejo.Issue](resp.Body)
 	if err != nil {
@@ -198,8 +197,7 @@ func runIssueDependencyMutate(ctx context.Context, client *forgejo.Client, cfg r
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(out)
-		return err
+		return writeAPIBody(stdout, out, "application/json", true, true)
 	}
 	return writeJSONAsTOON(stdout, out, "issue", false)
 }
@@ -245,8 +243,7 @@ func runIssueReactionList(ctx context.Context, client *forgejo.Client, cfg runCo
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(resp.Body)
-		return err
+		return writeAPIBody(stdout, resp.Body, "application/json", true, true)
 	}
 	reactions, err := decodeBody[[]*forgejo.Reaction](resp.Body)
 	if err != nil {
@@ -292,8 +289,7 @@ func runIssueReactionMutate(ctx context.Context, client *forgejo.Client, cfg run
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(out)
-		return err
+		return writeAPIBody(stdout, out, "application/json", true, true)
 	}
 	if len(out) == 0 {
 		return writeTOON(stdout, map[string]any{"reaction": fmt.Sprintf("%s %s issue %s", rest[1], action, rest[0])})
@@ -337,8 +333,7 @@ func runIssueDeadline(ctx context.Context, client *forgejo.Client, cfg runConfig
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(out)
-		return err
+		return writeAPIBody(stdout, out, "application/json", true, true)
 	}
 	return writeJSONAsTOON(stdout, out, "deadline", false)
 }
@@ -386,8 +381,7 @@ func runIssueTimeList(ctx context.Context, client *forgejo.Client, cfg runConfig
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(resp.Body)
-		return err
+		return writeAPIBody(stdout, resp.Body, "application/json", true, true)
 	}
 	times, err := decodeBody[[]*forgejo.TrackedTime](resp.Body)
 	if err != nil {
@@ -447,8 +441,7 @@ func runIssueTimeAdd(ctx context.Context, client *forgejo.Client, cfg runConfig,
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(out)
-		return err
+		return writeAPIBody(stdout, out, "application/json", true, true)
 	}
 	return writeJSONAsTOON(stdout, out, "tracked_time", false)
 }
@@ -521,8 +514,7 @@ func runPRReviews(ctx context.Context, client *forgejo.Client, cfg runConfig, ar
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(resp.Body)
-		return err
+		return writeAPIBody(stdout, resp.Body, "application/json", true, true)
 	}
 	reviews, err := decodeBody[[]*forgejo.PullReview](resp.Body)
 	if err != nil {
@@ -615,8 +607,7 @@ func runPRReviewRequests(ctx context.Context, client *forgejo.Client, cfg runCon
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(out)
-		return err
+		return writeAPIBody(stdout, out, "application/json", true, true)
 	}
 	if len(out) == 0 {
 		return writeTOON(stdout, map[string]any{"review_requests": action + " ok"})
@@ -668,8 +659,7 @@ func runPRReviewComment(ctx context.Context, client *forgejo.Client, cfg runConf
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(out)
-		return err
+		return writeAPIBody(stdout, out, "application/json", true, true)
 	}
 	return writeJSONAsTOON(stdout, out, "review_comment", false)
 }
@@ -707,8 +697,7 @@ func runPRUpdate(ctx context.Context, client *forgejo.Client, cfg runConfig, arg
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(resp.Body)
-		return err
+		return writeAPIBody(stdout, resp.Body, "application/json", true, true)
 	}
 	if len(resp.Body) == 0 {
 		return writeTOON(stdout, map[string]any{"pull": fmt.Sprintf("#%s updated", rest[0])})

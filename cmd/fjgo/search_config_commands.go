@@ -28,10 +28,10 @@ examples:
 
 func searchCommandHelps() map[string]commandHelpSpec {
 	return map[string]commandHelpSpec{
-		"issues": {Usage: "fjgo search issues <query> [flags]", Flags: []string{"--repo <owner/repo>, --owner <owner>", "--state <open|closed|all>, --labels <a,b>", "--sort <key>, --limit <n>, --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin search issues \"login\" --state open", "fjgo search issues \"bug\" --repo OWNER/REPO"}},
-		"prs":    {Usage: "fjgo search prs <query> [flags]", Flags: []string{"--repo <owner/repo>, --owner <owner>", "--state <open|closed|all>, --labels <a,b>", "--sort <key>, --limit <n>, --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin search prs \"fix\" --state open", "fjgo search prs \"fix\" --repo OWNER/REPO"}},
-		"pulls":  {Usage: "fjgo search pulls <query> [flags]", Flags: []string{"--repo <owner/repo>, --owner <owner>", "--state <open|closed|all>, --labels <a,b>", "--sort <key>, --limit <n>, --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin search pulls \"fix\" --state open", "fjgo search pulls \"fix\" --repo OWNER/REPO"}},
-		"repos":  {Usage: "fjgo search repos <query> [flags]", Flags: []string{"--sort <key>, --limit <n>, --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo search repos \"forgejo cli\" --limit 20", "fjgo search repos fjgo --fields name,private,archived"}},
+		"issues": {Usage: "fjgo search issues <query> [flags]", Flags: []string{"--repo <owner/repo>, --owner <owner>", "--state <open|closed|all>, --labels <a,b>", "--sort <key>, --limit <n> (default " + defaultListLimit + "), --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin search issues \"login\" --state open", "fjgo search issues \"bug\" --repo OWNER/REPO"}},
+		"prs":    {Usage: "fjgo search prs <query> [flags]", Flags: []string{"--repo <owner/repo>, --owner <owner>", "--state <open|closed|all>, --labels <a,b>", "--sort <key>, --limit <n> (default " + defaultListLimit + "), --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin search prs \"fix\" --state open", "fjgo search prs \"fix\" --repo OWNER/REPO"}},
+		"pulls":  {Usage: "fjgo search pulls <query> [flags]", Flags: []string{"--repo <owner/repo>, --owner <owner>", "--state <open|closed|all>, --labels <a,b>", "--sort <key>, --limit <n> (default " + defaultListLimit + "), --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin search pulls \"fix\" --state open", "fjgo search pulls \"fix\" --repo OWNER/REPO"}},
+		"repos":  {Usage: "fjgo search repos <query> [flags]", Flags: []string{"--sort <key>, --limit <n> (default " + defaultListLimit + "), --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo search repos \"forgejo cli\" --limit 20", "fjgo search repos fjgo --fields name,private,archived"}},
 		"topics": {Usage: "fjgo search topics <query> [--json]", Examples: []string{"fjgo search topics \"actions\"", "fjgo search topics forgejo --json"}},
 	}
 }
@@ -262,8 +262,7 @@ func runSearchTopics(ctx context.Context, client *forgejo.Client, args []string,
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(resp.Body)
-		return err
+		return writeAPIBody(stdout, resp.Body, "application/json", true, true)
 	}
 	return writeJSONAsTOON(stdout, resp.Body, "topics", false)
 }
@@ -440,8 +439,7 @@ func runLabelMutate(ctx context.Context, client *forgejo.Client, cfg runConfig, 
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(out)
-		return err
+		return writeAPIBody(stdout, out, "application/json", true, true)
 	}
 	return writeJSONAsTOON(stdout, out, "label", false)
 }

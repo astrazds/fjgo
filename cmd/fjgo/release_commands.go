@@ -103,8 +103,7 @@ func runReleaseView(ctx context.Context, client *forgejo.Client, cfg runConfig, 
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(resp.Body)
-		return err
+		return writeAPIBody(stdout, resp.Body, "application/json", true, true)
 	}
 	release, err := decodeBody[*forgejo.Release](resp.Body)
 	if err != nil {
@@ -134,8 +133,7 @@ func runReleaseLatest(ctx context.Context, client *forgejo.Client, cfg runConfig
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(resp.Body)
-		return err
+		return writeAPIBody(stdout, resp.Body, "application/json", true, true)
 	}
 	release, err := decodeBody[*forgejo.Release](resp.Body)
 	if err != nil {
@@ -203,8 +201,7 @@ func runReleaseEdit(ctx context.Context, client *forgejo.Client, cfg runConfig, 
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(out)
-		return err
+		return writeAPIBody(stdout, out, "application/json", true, true)
 	}
 	return writeJSONAsTOON(stdout, out, "release", full)
 }
@@ -285,8 +282,7 @@ func runReleaseAssetsList(ctx context.Context, client *forgejo.Client, cfg runCo
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(resp.Body)
-		return err
+		return writeAPIBody(stdout, resp.Body, "application/json", true, true)
 	}
 	assets, err := decodeBody[[]*forgejo.Attachment](resp.Body)
 	if err != nil {

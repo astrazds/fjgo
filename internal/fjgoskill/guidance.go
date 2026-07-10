@@ -117,8 +117,12 @@ the secondary on-demand path and can be installed with:
 - Use workflow/run commands for workflow list/view/run and run list/view/watch.
 - Use `+"`alias inspect`"+` and `+"`api inspect`"+` before guessing generated arguments or
   bodies.
+- Use `+"`alias omissions`"+` to see why an operation has no generated alias and the
+  exact generic command that replaces it.
 - Fall back to generated aliases, `+"`api call`"+`, `+"`api upload`"+`, or `+"`api raw`"+` when no curated
   command exists.
+- Use `+"`--include-response`"+` on buffered generic calls when status or response
+  headers are needed; use `+"`--raw`"+` or `+"`--output`"+` for binary payloads.
 - Use `+"`model inspect <Model>`"+` to build JSON bodies from required fields.
 - Use `+"`--full`"+` when TOON output reports truncated long text.
 - Use `+"`--fields`"+` on list/detail workflow commands to request only needed

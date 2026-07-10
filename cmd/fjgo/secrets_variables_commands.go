@@ -23,7 +23,7 @@ examples:
 
 func secretCommandHelps() map[string]commandHelpSpec {
 	return map[string]commandHelpSpec{
-		"list":   {Usage: "fjgo secret list [owner/repo] [flags]", Flags: []string{"--limit <n>, --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin secret list", "fjgo secret list OWNER/REPO --fields name,created"}},
+		"list":   {Usage: "fjgo secret list [owner/repo] [flags]", Flags: []string{"--limit <n> (default 100), --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin secret list", "fjgo secret list OWNER/REPO --fields name,created"}},
 		"set":    {Usage: "fjgo secret set [owner/repo] <name> --yes", Flags: []string{"secret value is read from stdin", "--dry-run, --print-request, --json"}, Examples: []string{"printf secret | fjgo -R origin secret set DEPLOY_TOKEN --dry-run --yes", "printf secret | fjgo secret set OWNER/REPO DEPLOY_TOKEN --yes"}},
 		"delete": {Usage: "fjgo secret delete [owner/repo] <name> --yes", Flags: []string{"--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin secret delete DEPLOY_TOKEN --dry-run --yes", "fjgo secret delete OWNER/REPO DEPLOY_TOKEN --yes"}},
 	}
@@ -170,7 +170,7 @@ examples:
 
 func variableCommandHelps() map[string]commandHelpSpec {
 	return map[string]commandHelpSpec{
-		"list":   {Usage: "fjgo variable list [owner/repo] [flags]", Flags: []string{"--limit <n>, --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin variable list", "fjgo variable list OWNER/REPO --fields name,value"}},
+		"list":   {Usage: "fjgo variable list [owner/repo] [flags]", Flags: []string{"--limit <n> (default 100), --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin variable list", "fjgo variable list OWNER/REPO --fields name,value"}},
 		"get":    {Usage: "fjgo variable get [owner/repo] <name> [--json]", Examples: []string{"fjgo -R origin variable get BUILD_MODE", "fjgo variable get OWNER/REPO BUILD_MODE --json"}},
 		"set":    {Usage: "fjgo variable set [owner/repo] <name> [--body <value>] --yes", Flags: []string{"--body <value>; otherwise value is read from stdin", "--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin variable set BUILD_MODE --body release --dry-run --yes", "printf release | fjgo variable set OWNER/REPO BUILD_MODE --yes"}},
 		"delete": {Usage: "fjgo variable delete [owner/repo] <name> --yes", Flags: []string{"--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin variable delete BUILD_MODE --dry-run --yes", "fjgo variable delete OWNER/REPO BUILD_MODE --yes"}},

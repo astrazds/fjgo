@@ -1,5 +1,37 @@
 # Changelog
 
+## v1.0.0 - 2026-07-10
+
+- Promoted `fjgo` to its feature-complete v1 contract: curated AXI workflows
+  backed by an exact, audited generic surface for every pinned/live Forgejo v15
+  Swagger operation.
+- Completed TOON specification v3.3 output behavior, compact schemas, bounded
+  truncation, contextual help, definitive empty states, and parseable
+  structured errors for coding agents.
+- Added token or Basic authentication, optional TOTP and sudo impersonation,
+  with credential-safe status, request previews, and API diagnostics.
+- Made generated typed methods faithfully handle JSON, text, and binary/file
+  request and response bodies, preserve Swagger media types, and expose optional
+  response status/header metadata.
+- Added `--include-response` to buffered generic calls with sensitive response
+  header redaction, while keeping `--raw` and `--output` as streaming paths.
+- Made every explicit JSON response boundary parseable for JSON, text, binary,
+  and empty `204` successes across generic and curated commands.
+- Honored Swagger optional body parameters and numeric minimum constraints, and
+  exposed documented response codes and headers through operation inspection.
+- Preserved operation tags, deprecation flags and replacement descriptions,
+  model titles/descriptions/formats/examples, and unsigned 64-bit model fields.
+- Added the release-attachment endpoint's documented raw
+  `application/octet-stream` request mode alongside multipart uploads.
+- Streamed multipart file bodies from disk instead of buffering whole assets in
+  memory.
+- Kept optional nil typed bodies absent and preserved explicit
+  `RequestOptions.Body` overrides for optional scalar zero-value fidelity.
+- Added `alias omissions` so every operation without a convenience alias has an
+  explicit reason and generic escape hatch.
+- Replaced count-only coverage confidence with exact operation/model bijection,
+  alias-partition, and fail-fast unsupported-Swagger-feature checks.
+
 ## v0.16.0 - 2026-07-09
 
 - Hardened AXI error handling so root/global unknown flags and nested unknown

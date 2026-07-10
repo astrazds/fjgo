@@ -32,10 +32,14 @@ fjgo_smoke api raw GET /version >/dev/null
 ./fjgo api inspect createCurrentUserRepo >/dev/null
 ./fjgo api inspect repoCreateReleaseAttachment >/dev/null
 ./fjgo api inspect repoSearch | grep -q 'query_params\['
+./fjgo api inspect issueSearchIssues | grep -q 'minimum'
+./fjgo api inspect userCurrentListRepos | grep -q 'X-Total-Count'
 ./fjgo api --json inspect createCurrentUserRepo >/dev/null
 ./fjgo alias inspect repo pulls get | grep -q 'repoGetPullRequest'
 ./fjgo alias inspect repo pulls download get | grep -q 'repoDownloadPullDiffOrPatch'
 ./fjgo alias --json inspect repo issues create >/dev/null
+./fjgo alias omissions | grep -q '^count: 78$'
+./fjgo alias --json omissions >/dev/null
 json_err="$(mktemp)"
 if ./fjgo --json api call repoGet owner=missing >"$json_err"; then
 	exit 1
@@ -98,7 +102,8 @@ test -f "$skill_tmp/fjgo/SKILL.md"
 rm -rf "$skill_tmp"
 
 ./fjgo api list | grep -q '^count: 491$'
-./fjgo alias list | grep -q '^count: 419$'
+./fjgo alias list | grep -q '^count: 413$'
+./fjgo alias omissions | grep -q '^count: 78$'
 test "$(grep -c '^func (c \*Client)' internal/forgejo/endpoints_gen.go)" = "491"
 test "$(grep -c '^type ' internal/forgejo/models_gen.go)" = "244"
 

@@ -392,8 +392,7 @@ func runWorkflowList(ctx context.Context, client *forgejo.Client, cfg runConfig,
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(resp.Body)
-		return err
+		return writeAPIBody(stdout, resp.Body, "application/json", true, true)
 	}
 	rows, err := workflowRows(resp.Body)
 	if err != nil {
@@ -432,8 +431,7 @@ func runWorkflowView(ctx context.Context, client *forgejo.Client, cfg runConfig,
 		return err
 	}
 	if jsonOut {
-		_, err = stdout.Write(resp.Body)
-		return err
+		return writeAPIBody(stdout, resp.Body, "application/json", true, true)
 	}
 	view, err := workflowFileView(resp.Body, full)
 	if err != nil {
