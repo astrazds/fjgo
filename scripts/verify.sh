@@ -5,6 +5,8 @@ go generate ./internal/forgejo
 gofmt -w cmd/fjgo internal/forgejo tools/genapi
 env -u FJGO_HOST -u FJGO_TOKEN go test ./...
 go build ./cmd/fjgo
+npm test
+npm pack --dry-run >/dev/null
 
 smoke_repo="${FJGO_SMOKE_REPO:-kavemand/.forgejo}"
 smoke_host="${FJGO_SMOKE_HOST:-v15.next.forgejo.org}"

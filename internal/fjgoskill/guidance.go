@@ -141,6 +141,34 @@ For first-time setup of another agent, use the repository prompt at
 `) + "\n"
 }
 
+func GeneratedNpxSkillMarkdown() string {
+	markdown := GeneratedSkillMarkdown("npx -y fjgo")
+	setupStart := strings.Index(markdown, "\n## Setup Paths\n")
+	safeDefaults := strings.Index(markdown, "\n## Safe Defaults\n")
+	if setupStart >= 0 && safeDefaults > setupStart {
+		setup := `
+## Optional Ambient Hooks
+
+The installed skill is the complete on-demand setup. Only when the user asks
+for persistent Forgejo context, offer the optional ambient hooks:
+
+` + "```sh" + `
+npx -y fjgo setup hooks --check
+npx -y fjgo setup hooks
+` + "```" + `
+
+This installs managed SessionStart hooks for Claude Code and Codex plus an
+OpenCode plugin. Restart the agent session after installing hooks.
+`
+		markdown = markdown[:setupStart] + setup + markdown[safeDefaults:]
+	}
+	markdown = strings.ReplaceAll(markdown, "  npx -y fjgo skill install --force\n", "")
+	if index := strings.Index(markdown, "\n## References\n"); index >= 0 {
+		markdown = markdown[:index]
+	}
+	return strings.TrimSpace(markdown) + "\n"
+}
+
 func EmbeddedGuidanceCurrent() (bool, string, error) {
 	b, err := embedded.ReadFile("skill/fjgo/SKILL.md")
 	if err != nil {

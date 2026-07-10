@@ -14,6 +14,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26.x"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24.x"
       - run: ./scripts/verify.sh
 
   release:
@@ -25,6 +28,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26.x"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24.x"
+          registry-url: "https://registry.npmjs.org"
       - name: Build archives
         run: VERSION="${GITHUB_REF_NAME}" ./scripts/release.sh
       - name: Create release and upload assets
@@ -49,3 +56,16 @@ jobs:
               -F "attachment=@$asset" \
               "$API/repos/$REPO/releases/$id/assets?name=$(basename "$asset")" >/dev/null
           done
+      - name: Publish npm launcher
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -eu
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "NPM_TOKEN is not configured; skipping npm publish"
+            exit 0
+          fi
+          package_version="$(node -p "require('./package.json').version")"
+          test "v$package_version" = "$TAG"
+          npm publish

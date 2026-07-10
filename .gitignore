@@ -1,4 +1,5 @@
 /fjgo
-/bin/
+/bin/*
+!/bin/fjgo.js
 /dist/
 skills-lock.json

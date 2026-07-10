@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Added a Forgejo-hosted Agent Skills distribution installable with
+  `npx skills add https://repos.astrazds.net/astrazds/fjgo.git --skill fjgo -g`.
+- Added a zero-dependency npm launcher so the skill can run the matching,
+  checksum-verified native CLI release through `npx -y fjgo` on demand.
+- Extended tag releases to publish the launcher when an `NPM_TOKEN` Actions
+  secret is configured.
+
 ## v1.0.0 - 2026-07-10
 
 - Promoted `fjgo` to its feature-complete v1 contract: curated AXI workflows

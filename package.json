@@ -1,0 +1,33 @@
+{
+  "name": "fjgo",
+  "version": "1.0.0",
+  "description": "Agent-first CLI and API client for Forgejo",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "fjgo": "bin/fjgo.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://repos.astrazds.net/astrazds/fjgo.git"
+  },
+  "homepage": "https://repos.astrazds.net/astrazds/fjgo",
+  "bugs": {
+    "url": "https://repos.astrazds.net/astrazds/fjgo/issues"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "prepack": "npm test"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,620 +1,131 @@
 # fjgo
 
-Agent-first Go CLI, API client, optional session hook, and installable skill for
-Forgejo repos. `fjgo` follows the [AXI](https://axi.md/) pattern: compact TOON
-stdout by default, contextual next-step hints, structured stdout errors, no
-interactive prompts, token-safe dry runs, and explicit opt-in ambient context.
+`fjgo` helps coding agents work with repositories hosted on
+[Forgejo](https://forgejo.org/).
 
-The API root defaults to the public Forgejo demo at
-`https://v15.next.forgejo.org/api/v1`; override it with
-`FJGO_HOST`, `--host`, or explicit `-base-url`. `FJGO_HOST` and `--host`
-derive `https://host/api/v1`.
+It can read and update issues, pull requests, releases, Actions runs,
+repository settings, labels, secrets, and more. It also gives agents a safe
+way to use the full Forgejo API when there is no shorter command.
 
-## Agent Setup
+## Why use it?
 
-Build or install the binary, then choose either ambient hooks, the bundled
-skill, or both:
+An agent can call the Forgejo API with `curl`, but it has to remember URLs,
+JSON shapes, and authentication rules. That creates extra work and makes
+mistakes more likely.
 
-```sh
-go build ./cmd/fjgo
-./fjgo setup hooks --check
-./fjgo setup hooks
-./fjgo skill install --force
-```
+`fjgo` gives the agent:
 
-`fjgo setup hooks` installs or repairs managed SessionStart hooks for Claude
-Code and Codex, enables Codex hooks in `~/.codex/config.toml`, and installs an
-OpenCode ambient-context plugin. The managed hook runs `fjgo -R origin`, so each
-agent session starts with compact Forgejo repo context for the current
-directory. Re-running the setup is idempotent and repairs moved executable
-paths. The installable skill is the lower-overhead on-demand path for agents
-that support skills or for projects where per-session hooks are not wanted.
+- short commands for common Forgejo jobs;
+- compact output that uses fewer tokens;
+- clear errors and help;
+- safe request previews before making changes;
+- automatic protection against printing passwords or API tokens;
+- access to every operation in the bundled Forgejo API specification.
 
-For a fresh coding agent, paste
-[`docs/agent-setup-prompt.md`](docs/agent-setup-prompt.md) into the agent while
-it is inside a Forgejo-backed checkout. The prompt installs `fjgo`, refreshes
-the skill, checks repo/auth context, and prints user-facing next commands.
-
-Inside a Forgejo-backed checkout, start every agent workflow with:
-
-```sh
-export FJGO_HOST=forgejo.example.com
-export FJGO_TOKEN=your_access_token
-./fjgo -R origin
-./fjgo -R origin doctor
-./fjgo -R origin issue list --state open
-./fjgo -R origin pr list
-./fjgo -R origin run list
-./fjgo -R origin issue create --title "Test" --body "Body" --dry-run --yes
-```
-
-When there is no checkout remote, or when the task should target a different
-repo, pass explicit context instead:
-
-```sh
-export FJGO_REPO=owner/repo
-./fjgo repo get
-./fjgo --repo owner/repo issue list --state open
-./fjgo issue list --repo owner/repo --state open
-```
-
-Default stdout is TOON. Use `--json` only on explicit JSON-capable surfaces when
-a script needs raw JSON, for example `fjgo doctor --json` or
-`fjgo api --json call getVersion`. `doctor`, `auth status`, `--dry-run`,
-`--print-request`, and structured errors are token-safe. They report token
-presence and redacted user context, never the token value. API error bodies are
-also scrubbed before they are shown, so a server cannot reflect the configured
-token back into diagnostics.
-
-## Status
-
-Current app version: `v1.0.0`.
-
-`v1.0.0` is the feature-complete Forgejo API fidelity release. It combines the
-AXI-first curated workflows with exact coverage of all 491 pinned/live v15
-Swagger operations, faithful typed/text/binary/multipart transports, complete
-operation/model inspection, deterministic JSON and TOON boundaries, and
-repeatable coverage audits that fail on unexplained drift.
-
-See [`CHANGELOG.md`](CHANGELOG.md) for release notes.
-
-`fjgo` covers the full live Forgejo Swagger surface:
-
-- embedded Codex skill install via `fjgo skill install` or
-  `fjgo install --skills`
-- opt-in AXI session hooks via `fjgo setup hooks`
-- content-first home dashboard via `fjgo` or `fjgo -R origin`
-- TOON stdout by default with `--json` escape hatches on inspect/list/raw
-  surfaces
-- redacted agent diagnostics via `fjgo doctor --json`
-- structured stdout errors with exit code 2 for usage errors
-- `491` generated endpoint methods
-- `244` generated model types
-- `491` CLI operations via `api list`, `api inspect`, and `api call`
-- `413` generated convenience aliases via `alias list` and `alias inspect`
-- explicit repo context through root or command-local `--repo OWNER/REPO`,
-  `FJGO_REPO`, positional repo args, or scoped Forgejo git remote parsing with
-  `-R`
-- host context through `FJGO_HOST` or root/command-local `--host`
-- curated AXI workflow commands for issues, pull requests, Actions runs,
-  workflow dispatch, search, labels, repo lifecycle, releases, repo secrets,
-  and repo variables
-- curated repo lifecycle surfaces for list/create/edit/fork, branches,
-  collaborators, and branch protection
-- expanded releases: view/latest/edit/delete, asset list/delete, uploads, and
-  `--body-file`/`--notes-file` notes
-- advanced issue and PR surfaces for pins, dependencies, reactions, deadlines,
-  tracked time, PR edit/close/reopen/comment, review requests/comments, PR
-  update, diff, and patch
-- workflow/run lifecycle surfaces for workflow view and run watch, backed by
-  repository contents and Actions run operations
-- raw text request bodies plus streamed binary/raw responses via
-  `-body-raw`, `--raw`, and `--output`
-- generated embedded skill check via `fjgo skill generate --check`
-- guarded update check via `fjgo update --check`
-- visible generated alias collisions via `alias collisions`
-- explained non-alias operations via `alias omissions`, each with its generic
-  command escape hatch
-- generated path/query/body/form constraints, response codes/headers, and
-  request/response media type inspection, with local validation before requests
-- typed body parameters for operations with Swagger body schemas
-- generated model field inspection via `model inspect`
-- explicit JSON output for inspect/list/raw surfaces used by scripts
-- multipart release/issue/comment attachment upload support through `api upload`
-  and usable generated typed client methods
-- token or Basic authentication, optional TOTP and sudo impersonation, with
-  credential-safe diagnostics
-- typed return values for operations with documented success response schemas
-- optional authenticated field smoke via `scripts/smoke-auth.sh`
-- v1 field-validation packet in `docs/alpha.md`
-- copy/paste setup prompt in `docs/agent-setup-prompt.md`
-- Forgejo Actions verification and tag-release workflows
-
-The requirement-by-requirement implementation record is in
-[`docs/axi-compliance.md`](docs/axi-compliance.md).
-
-Run the full local gate with:
-
-```sh
-./scripts/verify.sh
-```
-
-The verifier regenerates API code, formats, tests, builds, runs live smoke
-checks, verifies docs and embedded skill surfaces, checks coverage counts,
-builds a release archive, verifies its embedded version metadata, and removes
-`dist/`.
+Use normal `git` commands for commits, branches, and local files. Use `fjgo`
+for tasks that need the Forgejo server.
 
 ## Install
 
-From source:
+Install the Agent Skill globally:
 
 ```sh
-go install repos.astrazds.net/astrazds/fjgo/cmd/fjgo@latest
+npx skills add https://repos.astrazds.net/astrazds/fjgo.git --skill fjgo -g
 ```
 
-From a release archive:
+That is the full setup. You do not need to clone this repository or run
+`npm install`.
 
-```sh
-curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v1.0.0/fjgo_v1.0.0_linux_amd64.tar.gz
-tar -xzf fjgo_v1.0.0_linux_amd64.tar.gz
-install -Dm755 fjgo_v1.0.0_linux_amd64/fjgo ~/.local/bin/fjgo
-```
+The skill teaches your agent to run the CLI through `npx -y fjgo`. The first
+run downloads the matching `fjgo` release and saves it in a local cache. Later
+runs reuse that copy.
 
-Check for a newer release without changing files:
+Requirements: Node.js 20 or newer, on Linux or macOS with an x64 or arm64 CPU.
 
-```sh
-fjgo update --check
-fjgo update --dry-run
-```
+## Connect to Forgejo
 
-`fjgo update --yes` replaces the current executable with the matching release
-archive for the local OS and architecture.
-
-## Quick Start
-
-```sh
-go build ./cmd/fjgo
-
-./fjgo --version
-./fjgo
-./fjgo setup hooks --check
-./fjgo skill install
-./fjgo version
-./fjgo -R origin doctor
-./fjgo get /version
-./fjgo api list repo
-./fjgo api inspect createCurrentUserRepo
-./fjgo api inspect repoSearch
-./fjgo api call repoGet owner=kavemand repo=.forgejo
-./fjgo api raw GET /repos/kavemand/.forgejo
-./fjgo api --json inspect repoSearch
-./fjgo api --json call repoGet owner=kavemand repo=.forgejo
-./fjgo alias list
-./fjgo alias inspect repo issues get
-./fjgo alias collisions
-./fjgo model inspect CreateRepoOption
-./fjgo --repo kavemand/.forgejo repo get
-./fjgo repo get --repo kavemand/.forgejo --fields full_name,default_branch,open_issues
-./fjgo repo get kavemand/.forgejo
-./fjgo repo list --org kavemand --fields name,private,archived
-./fjgo repo create demo --private --dry-run --yes
-./fjgo --repo kavemand/.forgejo repo branches list
-./fjgo --repo kavemand/.forgejo repo collaborators add USER --permission write --dry-run --yes
-./fjgo --repo kavemand/.forgejo repo branch-protection create --name main --required-approvals 1 --dry-run --yes
-./fjgo -R origin repo get
-./fjgo repo topics kavemand/.forgejo
-./fjgo repo avatar kavemand/.forgejo assets/icon.png --dry-run --yes
-./fjgo issue list kavemand/.forgejo --state open
-./fjgo issue view kavemand/.forgejo 1 --full
-./fjgo issue create kavemand/.forgejo --title "Bug" --body-file issue.md --dry-run --yes
-./fjgo --repo kavemand/.forgejo issue dependencies add 42 7 --dry-run --yes
-./fjgo --repo kavemand/.forgejo issue reactions add 42 +1 --dry-run --yes
-./fjgo --repo kavemand/.forgejo issue deadline set 42 2026-08-01 --dry-run --yes
-./fjgo --repo kavemand/.forgejo issue time add 42 --seconds 900 --dry-run --yes
-./fjgo pr list kavemand/.forgejo --state open
-./fjgo pr view kavemand/.forgejo 1 --reviews
-./fjgo pr close kavemand/.forgejo 1 --dry-run --yes
-./fjgo pr checks kavemand/.forgejo 1
-./fjgo --repo kavemand/.forgejo pr review-requests add 1 --reviewer USER --dry-run --yes
-./fjgo --repo kavemand/.forgejo pr diff 1
-./fjgo run list kavemand/.forgejo
-./fjgo run watch kavemand/.forgejo 1 --timeout 2m
-./fjgo workflow list kavemand/.forgejo
-./fjgo workflow view kavemand/.forgejo verify.yml --full
-./fjgo workflow run kavemand/.forgejo verify.yml --ref main --input smoke=true --dry-run --yes
-./fjgo search issues "bug" --repo kavemand/.forgejo
-./fjgo label list kavemand/.forgejo
-echo -n "$DEPLOY_TOKEN" | ./fjgo secret set kavemand/.forgejo DEPLOY_TOKEN --dry-run --yes
-./fjgo variable set kavemand/.forgejo BUILD_MODE --body release --dry-run --yes
-./fjgo release list kavemand/.forgejo
-./fjgo release view kavemand/.forgejo v1.0.0
-./fjgo release latest kavemand/.forgejo
-./fjgo release create kavemand/.forgejo v1.0.0 --body-file notes.md --dry-run --yes
-./fjgo release create kavemand/.forgejo v1.0.0 --notes-file notes.md --dry-run --yes
-./fjgo release edit kavemand/.forgejo 123 --prerelease false --dry-run --yes
-./fjgo release assets list kavemand/.forgejo 123
-./fjgo release upload kavemand/.forgejo 123 dist/fjgo.tar.gz name=fjgo.tar.gz --dry-run --yes
-./fjgo auth status
-./fjgo skill generate --check
-./fjgo update --check
-```
-
-Token authentication uses Forgejo's token auth header:
+Set your Forgejo host and access token:
 
 ```sh
 export FJGO_HOST=forgejo.example.com
 export FJGO_TOKEN=your_access_token
 ```
 
-Set `FJGO_HOST` with `FJGO_TOKEN` for private or non-demo instances. Ambient
-`FJGO_TOKEN` is ignored for the built-in public demo default unless `FJGO_HOST`,
-`--host`, or `-base-url` is explicitly configured, which avoids sending a
-private token to the demo by accident.
+Create the token in your Forgejo account settings. Give it only the permissions
+needed for your task. Do not paste the token into an agent prompt or commit it
+to a file.
 
-Basic authentication, Forgejo TOTP, and sudo impersonation are also available:
+## First use
 
-```sh
-export FJGO_HOST=forgejo.example.com
-export FJGO_USERNAME=alice
-export FJGO_PASSWORD=your_password
-export FJGO_OTP=123456       # only when the account requires TOTP
-export FJGO_SUDO=bob         # optional impersonation, when authorized
-```
-
-The equivalent root flags are `--username`, `--password`, `--otp`, and
-`--sudo`. Ambient Basic/TOTP/sudo values follow the same public-demo safety
-rule as tokens. Passwords and OTP values are redacted from diagnostics and
-server-reflected API errors.
-
-Use a read-only token for authenticated reads such as `fjgo me`. Repo write
-operations, including topic or avatar updates, need repository write access.
-Release creation/upload needs release/package permission for the target repo,
-depending on the Forgejo instance policy.
-
-## CLI
-
-`fjgo` with no arguments prints an AXI home view: executable path, one-line
-description, optional repository context, compact open issue/pull samples when
-`--repo`, `FJGO_REPO`, or `-R origin` supplies context, and next commands.
-
-`fjgo setup hooks [--check]` installs or checks managed ambient context hooks
-for Claude Code, Codex, and OpenCode. It is explicit, idempotent, and
-directory-scoped through the hook command `fjgo -R origin`.
-
-`fjgo doctor [owner/repo] [--json]` prints a redacted field-feedback bundle for
-agents: binary version, runtime, executable path, base URL, token/auth status,
-optional git remote context, repository summary, latest/recent releases, bundled
-skill install status, and useful next commands.
-
-`fjgo skill install [--dir path] [--force]` installs the bundled Codex skill.
-The default target is `.agents/skills/fjgo`. Use `fjgo skill status [--dir path]`
-or `fjgo install --skills --check` to check whether the installed skill matches
-the bundled copy. `fjgo skill generate --check` verifies that the embedded
-`SKILL.md` still matches the generated source of truth.
-`fjgo install --skills` is the same installer for agents that look for an
-install command.
-
-Failures are structured on stdout by default. Use root `--json` before a
-command only when a caller specifically needs JSON errors:
+Run these commands inside a repository that has a Forgejo Git remote named
+`origin`:
 
 ```sh
-fjgo --json api call repoGet owner=missing
+npx -y fjgo -R origin
+npx -y fjgo -R origin doctor
+npx -y fjgo -R origin issue list --state open
+npx -y fjgo -R origin pr list --state open
+npx -y fjgo -R origin run list
 ```
 
-`fjgo version` calls the Forgejo server `/version` endpoint and prints TOON by
-default.
-
-Curated workflow commands are the preferred surface for common agent work:
+`-R origin` reads the repository owner and name from the Git remote. You can
+also choose a repository directly:
 
 ```sh
-fjgo -R origin issue list --state open --fields number,title,state,author
-fjgo -R origin issue view 42 --comments --full
-fjgo -R origin issue create --title "Bug" --body-file issue.md --dry-run --yes
-fjgo -R origin issue close 42 --dry-run --yes
-fjgo -R origin issue pin 42 --dry-run --yes
-fjgo -R origin issue dependencies add 42 7 --dry-run --yes
-fjgo -R origin issue reactions add 42 +1 --dry-run --yes
-fjgo -R origin issue deadline set 42 2026-08-01 --dry-run --yes
-fjgo -R origin issue time add 42 --seconds 900 --dry-run --yes
-
-fjgo -R origin pr list --state open
-fjgo -R origin pr view 12 --full
-fjgo -R origin pr view 12 --reviews
-fjgo -R origin pr edit 12 --title "Updated title" --dry-run --yes
-fjgo -R origin pr close 12 --dry-run --yes
-fjgo -R origin pr comment 12 --body "Review note." --dry-run --yes
-fjgo -R origin pr files 12
-fjgo -R origin pr commits 12
-fjgo -R origin pr checks 12
-fjgo -R origin pr reviews 12
-fjgo -R origin pr review-requests add 12 --reviewer USER --dry-run --yes
-fjgo -R origin pr diff 12
-fjgo -R origin pr update 12 --style rebase --dry-run --yes
-fjgo -R origin pr merge 12 --method squash --dry-run --yes
-
-fjgo -R origin run list --status failure
-fjgo -R origin run view 123 --log-failed
-fjgo -R origin run watch 123 --timeout 2m
-fjgo -R origin workflow list
-fjgo -R origin workflow view verify.yml --full
-fjgo -R origin workflow run verify.yml --ref main --input smoke=true --dry-run --yes
-
-fjgo -R origin search issues "login" --state open
-fjgo search repos "forgejo cli" --limit 20
-fjgo -R origin label list
-fjgo -R origin label create --name bug --color ff0000 --dry-run --yes
-echo -n "$TOKEN" | fjgo -R origin secret set DEPLOY_TOKEN --dry-run --yes
-fjgo -R origin variable set BUILD_MODE --body release --dry-run --yes
+npx -y fjgo --repo OWNER/REPO repo get
+npx -y fjgo issue list OWNER/REPO --state open
 ```
 
-These commands keep default schemas small, validate `--fields`, include count
-metadata when Forgejo exposes it, truncate long text with `--full` escape
-hatches, and keep mutations behind `--yes` plus token-safe dry runs. Use the
-generated `api` and `alias` surfaces when a Forgejo operation has not earned a
-hand-written workflow command.
+## Make a change safely
 
-Curated commands are backed by operations in the pinned Forgejo Swagger. If a
-GitHub-shaped workflow has no documented Forgejo API operation, fjgo leaves it
-out of the command surface.
-
-`fjgo api list [filter]` lists every generated Swagger operation:
+Commands that change Forgejo require `--yes`. Preview the request with
+`--dry-run` first:
 
 ```sh
-fjgo api list release
+npx -y fjgo -R origin issue create \
+  --title "Fix the login page" \
+  --body "The login button is not working." \
+  --dry-run --yes
 ```
 
-`fjgo api inspect <operationId>` shows method, path, summary/description,
-tags/deprecation, request and response media types, documented response
-codes/headers, path/query/body/form constraints (including required, enum,
-default, minimum, and collection format), typed body fields, and return model:
+If the preview is correct, remove `--dry-run`:
 
 ```sh
-fjgo api inspect createCurrentUserRepo
-fjgo api inspect repoSearch
-fjgo api --json inspect repoSearch
+npx -y fjgo -R origin issue create \
+  --title "Fix the login page" \
+  --body "The login button is not working." \
+  --yes
 ```
 
-`fjgo api call <operationId>` executes any operation by Swagger `operationId`.
-Default output is TOON with long string fields truncated and a `--full` hint
-when truncation happens. Use `fjgo api --json call ...` for raw JSON:
+More examples:
 
 ```sh
-fjgo api call getVersion
-fjgo api call repoSearch q=fjgo limit=10
-fjgo api call repoGet owner=kavemand repo=.forgejo
-fjgo api call createCurrentUserRepo --yes --dry-run -body '{"name":"demo","private":true}'
-fjgo api call createCurrentUserRepo --yes -body '{"name":"demo","private":true}'
-fjgo api call renderMarkdownRaw --yes -body-raw @README.md --content-type text/plain
-fjgo api call repoCreateReleaseAttachment owner=OWNER repo=REPO id=123 name=app.tgz -body-raw @app.tgz --yes
-fjgo api call repoGetArchive owner=OWNER repo=REPO archive=main.zip --output repo.zip
-fjgo api raw GET /repos/OWNER/REPO
-fjgo api raw PATCH /repos/OWNER/REPO --dry-run --yes -body '{"description":"updated"}'
+npx -y fjgo -R origin issue view 42 --comments --full
+npx -y fjgo -R origin pr checks 12
+npx -y fjgo -R origin release list
+npx -y fjgo -R origin workflow list
+npx -y fjgo -R origin search issues "login" --state open
 ```
 
-For `api call`, `name=value` arguments matching path parameters fill the path;
-declared query parameters are validated locally for names, required values,
-types, enums, collection formats, and numeric minimums. JSON bodies can be
-inline, `@file`, or `-` for stdin and are validated against generated required
-fields, types, enums, numeric minimums, and closed model fields. A body is
-required locally only when Swagger marks its body parameter required. Use
-`-body-raw` for a
-documented non-JSON body. Use `--raw` to stream response bytes to stdout or
-`--output <path>` for an atomic file write; streamed success responses are not
-subject to the normal buffered response limit. Use `--include-response` on a
-buffered call to include the status and response headers; credential-bearing
-headers such as `Set-Cookie` are redacted. Mutating operations require
-`--yes`. Use `--dry-run` or
-`--print-request` to print the request without performing network I/O.
-For the release attachment endpoint, `api upload` uses multipart while
-`api call ... -body-raw @file` selects its documented
-`application/octet-stream` request mode.
-Use `fjgo api raw <METHOD> <path>` when an API path is easier to express
-directly than by operation ID. Raw mutations still require `--yes`.
-Explicit `--json` output is always parseable: JSON API bodies retain their
-native shape, text responses use a `{result, encoding}` wrapper, binary bodies
-are base64 encoded, and empty successes return `{"result":"ok"}`.
-
-Multipart/form-data operations use `api upload`:
+Every command has focused help:
 
 ```sh
-fjgo api upload repoCreateReleaseAttachment owner=OWNER repo=REPO id=123 name=fjgo.tar.gz attachment=@dist/fjgo.tar.gz --yes
-fjgo api upload issueCreateIssueAttachment owner=OWNER repo=REPO index=7 attachment=@screenshot.png --yes
+npx -y fjgo issue --help
+npx -y fjgo issue create --help
 ```
 
-`fjgo alias list` shows generated convenience commands for clear Swagger path
-shapes. `fjgo alias inspect <command...>` shows the mapped operation, required
-positional args, method, path, query params, body fields, form fields, return
-type, upload status, and whether `--yes` is required. Aliases use positional
-path args plus `name=value` query args, with `-body` matching `api call`.
-Generated aliases for mutating operations require `--yes`.
-`fjgo alias collisions [filter]` lists generated aliases that were skipped because
-another operation already claimed the same command.
-`fjgo alias omissions [filter]` explains every operation without an alias and prints the
-exact `api call` or `api upload` escape hatch. Together, aliases and explained
-omissions form an exact partition of all generated operations.
+## Learn more
 
-Inspect/list commands support `--json` for scripts that need raw JSON:
-
-```sh
-fjgo api --json list repo
-fjgo alias --json inspect repo issues create
-fjgo alias --json collisions
-fjgo alias --json omissions
-fjgo model --json inspect CreateIssueOption
-```
-
-`fjgo model inspect <Model>` prints generated JSON fields, Go types, semantic
-formats, defaults, enums, examples, and model title/description for a Swagger
-model:
-
-```sh
-fjgo model inspect CreateRepoOption
-```
-
-Common aliases:
-
-```sh
-fjgo repo get kavemand/.forgejo
-fjgo --repo kavemand/.forgejo repo get
-fjgo repo list --org kavemand
-fjgo repo create demo --private --dry-run --yes
-fjgo --repo kavemand/.forgejo repo edit --description "Forgejo CLI" --dry-run --yes
-fjgo --repo kavemand/.forgejo repo fork --name fjgo-fork --dry-run --yes
-fjgo --repo kavemand/.forgejo repo branches list
-fjgo --repo kavemand/.forgejo repo collaborators list
-fjgo --repo kavemand/.forgejo repo branch-protection list
-fjgo repo topics kavemand/.forgejo
-fjgo repo topics kavemand/.forgejo --set forgejo,go,cli --dry-run --yes
-fjgo repo avatar kavemand/.forgejo assets/icon.png --dry-run --yes
-fjgo release list kavemand/.forgejo
-fjgo release view kavemand/.forgejo v1.0.0
-fjgo release latest kavemand/.forgejo
-fjgo release create kavemand/.forgejo v1.0.0 --body-file notes.md --dry-run --yes
-fjgo release create kavemand/.forgejo v1.0.0 --notes-file notes.md --dry-run --yes
-fjgo release edit kavemand/.forgejo 123 --prerelease false --dry-run --yes
-fjgo release delete kavemand/.forgejo v1.0.0 --dry-run --yes
-fjgo release assets list kavemand/.forgejo 123
-fjgo release assets delete kavemand/.forgejo 123 456 --dry-run --yes
-fjgo release upload kavemand/.forgejo 123 dist/fjgo.tar.gz name=fjgo.tar.gz --dry-run --yes
-```
-
-When running inside a checkout, `-R <remote>` or `--repo-from-remote <remote>`
-resolves `owner/repo` from common Forgejo HTTPS and SSH git remote forms:
-
-```sh
-fjgo -R origin repo get
-fjgo -R origin repo issues list state=open
-fjgo -R origin release list
-fjgo -R origin release create v1.0.0 --body-file notes.md --dry-run --yes
-fjgo -R origin release upload 123 dist/fjgo.tar.gz --yes
-```
-
-`fjgo auth status` prints the active base URL, which authentication modes are
-present, and the authenticated user when credentials work. It never prints
-token, password, or OTP values.
-HTTP error text from the Forgejo server is still included when useful, but any
-configured credential value is replaced before the error reaches stdout
-diagnostics.
-
-## Go Client
-
-The generated API surface lives in:
-
-- `internal/forgejo/endpoints_gen.go`: operations, paths, and operation lookup
-- `internal/forgejo/models_gen.go`: Swagger `definitions` as Go types
-
-Generated files are reproducible from the pinned `swagger.v1.json` file:
-
-```sh
-go generate ./internal/forgejo
-```
-
-Refresh from live Swagger explicitly:
-
-```sh
-curl -fsSL https://v15.next.forgejo.org/swagger.v1.json -o swagger.v1.json
-go generate ./internal/forgejo
-```
-
-Or generate from another compatible spec:
-
-```sh
-SPEC=/path/to/swagger.v1.json go generate ./internal/forgejo
-```
-
-`SPEC` may also be an `http://` or `https://` URL. Remote spec fetches use a
-30 second timeout and a 32 MiB response limit; normal verification uses the
-pinned local `swagger.v1.json`.
-
-Generated methods accept typed path parameters, typed body parameters when the
-operation has a Swagger body schema, plus `forgejo.RequestOptions` for query
-values. Methods with a documented success response return the generated
-response type, including `string` for text and `[]byte` for binary/file
-responses. Generated calls carry Swagger request and response media types:
-
-```go
-repo, err := client.RepoGet(ctx, "kavemand", ".forgejo", forgejo.RequestOptions{})
-created, err := client.CreateCurrentUserRepo(ctx, &forgejo.CreateRepoOption{
-	Name:    "demo",
-	Private: true,
-}, forgejo.RequestOptions{})
-```
-
-Use `forgejo.RequestOptions.Query` for query parameters. Multipart operations
-can be executed with `DoOperationMultipart`; the CLI uses that path for release,
-issue, and comment attachment uploads. Multipart file bodies stream from disk
-instead of being buffered in memory.
-Set `RequestOptions.Response` to capture the response status and headers from a
-typed call. `DoOperationRawResponse`, `DoOperationMultipartResponse`, and the
-streaming methods provide the equivalent metadata on generic calls.
-Generated methods leave optional nil body pointers absent and respect an
-explicit `RequestOptions.Body`; the latter is the escape hatch for request
-shapes that must distinguish an omitted scalar from an explicit `false` or
-`0` in Swagger's shared value structs.
-Client response bodies are bounded to 32 MiB before decoding or reporting
-errors, which keeps malicious or broken Forgejo-compatible servers from forcing
-unbounded local memory use.
-
-Generation rejects operation IDs, methods, parameter locations, schema
-constraints, and composition features that the generator cannot faithfully
-represent. Verification also compares every generated operation ID/method/path
-and model name with the pinned Swagger, and requires each operation to have
-either an alias or an explained omission.
-
-## Development
-
-```sh
-./scripts/verify.sh
-```
-
-Generated files are committed for consumers, but should only be edited through
-`go generate ./internal/forgejo`.
-
-Forgejo Actions runs the same verifier on pushes and pull requests via
-`.forgejo/workflows/verify.yml`.
-
-Optional authenticated field smoke. This creates a unique private repo, runs the
-write smoke inside it, and deletes the repo on exit or failure:
-
-```sh
-go build ./cmd/fjgo
-FJGO_HOST=forgejo.example.com FJGO_TOKEN=... ./scripts/smoke-auth.sh
-```
-
-Set `FJGO_TEST_ORG=org` to create the temporary repo in an organization, or
-`FJGO_TEST_REPO_NAME=name` to choose the temporary repo name. To include this
-authenticated smoke in `./scripts/verify.sh`, set `FJGO_SMOKE_AUTH=1` along with
-`FJGO_HOST` and `FJGO_TOKEN`.
-
-Release validators should use `docs/alpha.md` for the field-test checklist and
-failure-report format.
-
-## Release
-
-Build release archives into `dist/`:
-
-```sh
-VERSION=v1.0.0 ./scripts/release.sh
-```
-
-Override targets when testing locally:
-
-```sh
-VERSION=0.0.0-test TARGETS=linux/amd64 ./scripts/release.sh
-```
-
-The script embeds `version`, `commit`, and UTC build date into `fjgo --version`
-and writes `dist/checksums.txt`.
-
-Pushing a `v*` tag runs the verify workflow, then the release job builds
-archives and uploads them to a Forgejo release using the Actions token.
-Release notes live in [`CHANGELOG.md`](CHANGELOG.md).
-
-Smoke check a published release archive:
-
-```sh
-VERSION=v1.0.0 ./scripts/smoke-release.sh
-```
+- [CLI reference](docs/cli-reference.md): authentication, repository selection,
+  output, command groups, and the full API escape hatch.
+- [Agent setup prompt](docs/agent-setup-prompt.md): a ready-to-paste setup prompt
+  for another coding agent.
+- [Development guide](docs/development.md): build, test, generate code, and make
+  releases. CI runs through `.forgejo/workflows/verify.yml`.
+- [AXI compliance](docs/axi-compliance.md): the agent-friendly interface rules
+  followed by `fjgo`.
+- [Field validation](docs/alpha.md): the v1 live-testing checklist.
+- [Changelog](CHANGELOG.md): release history.
 
 ## License
 

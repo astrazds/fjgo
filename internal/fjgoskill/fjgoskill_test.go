@@ -65,6 +65,22 @@ func TestEmbeddedSkillDocumentsAxiSetup(t *testing.T) {
 	}
 }
 
+func TestNpxSkillDistributionCurrent(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "skills", "fjgo", "SKILL.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(b), GeneratedNpxSkillMarkdown(); got != want {
+		index := 0
+		for index < len(got) && index < len(want) && got[index] == want[index] {
+			index++
+		}
+		gotEnd := min(index+80, len(got))
+		wantEnd := min(index+80, len(want))
+		t.Fatalf("skills/fjgo/SKILL.md is stale at byte %d\ngot:  %q\nwant: %q", index, got[index:gotEnd], want[index:wantEnd])
+	}
+}
+
 func TestEmbeddedSkillStaticGuidanceCurrent(t *testing.T) {
 	current, want, err := EmbeddedGuidanceCurrent()
 	if err != nil {
