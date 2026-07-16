@@ -24,6 +24,28 @@ Swagger coverage, checks the npm package, and builds a test release archive.
 Forgejo Actions runs the same script on pushes and pull requests through
 `.forgejo/workflows/verify.yml`.
 
+## Agent-job benchmark tracer
+
+Run the deterministic black-box tracer from the repository root:
+
+```sh
+go run ./cmd/fjgo-benchmark
+```
+
+The command builds `fjgo` once, runs the operation-discovery scenario against
+an offline local Forgejo fixture, and writes versioned result JSON to stdout.
+Use `-fjgo ./fjgo` to select an existing binary instead.
+
+To evaluate another safe command sequence against the same outcome oracle, pass
+a bounded JSON array of argument arrays with `-commands-file`. Use
+`{fixture_base_url}` where the sequence needs the local fixture URL:
+
+```json
+[
+  ["-base-url", "{fixture_base_url}/api/v1", "api", "--json", "raw", "GET", "/repos/search", "q=benchmark-target"]
+]
+```
+
 ## Generated Forgejo API client
 
 Generated API code lives in:

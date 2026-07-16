@@ -2,7 +2,7 @@
 set -eu
 
 go generate ./internal/forgejo
-gofmt -w cmd/fjgo internal/forgejo tools/genapi
+gofmt -w cmd/fjgo cmd/fjgo-benchmark internal/benchmark internal/forgejo tools/genapi
 env -u FJGO_HOST -u FJGO_TOKEN go test ./...
 go build ./cmd/fjgo
 npm test
