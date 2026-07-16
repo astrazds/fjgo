@@ -109,7 +109,7 @@ report format.
 Build all default release archives and checksums:
 
 ```sh
-VERSION=v1.0.0 ./scripts/release.sh
+VERSION=v1.1.0 ./scripts/release.sh
 ```
 
 Build one target while testing:
@@ -121,7 +121,7 @@ VERSION=0.0.0-test TARGETS=linux/amd64 ./scripts/release.sh
 Smoke-test a published release:
 
 ```sh
-VERSION=v1.0.0 ./scripts/smoke-release.sh
+VERSION=v1.1.0 ./scripts/smoke-release.sh
 ```
 
 Pushing a `v*` tag runs verification, builds archives, and creates a Forgejo

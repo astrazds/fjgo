@@ -2,12 +2,22 @@
 
 ## Unreleased
 
+## v1.1.0 - 2026-07-16
+
 - Added a Forgejo-hosted Agent Skills distribution installable with
   `npx skills add https://repos.astrazds.net/astrazds/fjgo.git --skill fjgo -g`.
 - Added a zero-dependency npm launcher so the skill can run the matching,
   checksum-verified native CLI release through `npx -y fjgo` on demand.
 - Extended tag releases to publish the launcher when an `NPM_TOKEN` Actions
   secret is configured.
+- Added the first deterministic black-box agent-job benchmark tracer with an
+  external Forgejo fixture oracle, isolated subprocess execution, bounded
+  token-safe evidence, alternative safe command sequences, and versioned JSON
+  results.
+- Fixed curated issue dependency and blocking mutations to send complete
+  same-repository `IssueMeta` bodies in live requests and token-safe previews.
+- Prevented nonexistent issue-label filters from silently broadening curated
+  issue lists, with deterministic structured errors in TOON and JSON modes.
 
 ## v1.0.0 - 2026-07-10
 

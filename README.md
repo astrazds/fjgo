@@ -124,7 +124,7 @@ npx -y fjgo issue create --help
   releases. CI runs through `.forgejo/workflows/verify.yml`.
 - [AXI compliance](docs/axi-compliance.md): the agent-friendly interface rules
   followed by `fjgo`.
-- [Field validation](docs/alpha.md): the v1 live-testing checklist.
+- [Field validation](docs/alpha.md): the v1.1 live-testing checklist.
 - [Changelog](CHANGELOG.md): release history.
 
 ## License
