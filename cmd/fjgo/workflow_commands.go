@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -226,6 +227,7 @@ func runIssueList(ctx context.Context, client *forgejo.Client, cfg runConfig, ar
 		return err
 	}
 	query := url.Values{"state": {"open"}, "type": {"issues"}, "limit": {defaultListLimit}}
+	requestedLabels := ""
 	for _, spec := range []struct {
 		flag string
 		key  string
@@ -246,6 +248,9 @@ func runIssueList(ctx context.Context, client *forgejo.Client, cfg runConfig, ar
 			return err
 		}
 		addQueryFlag(query, value, ok, spec.key)
+		if spec.key == "labels" && ok {
+			requestedLabels = value
+		}
 	}
 	ref, rest, err := repoFromArgs(cfg, args)
 	if err != nil {
@@ -258,6 +263,11 @@ func runIssueList(ctx context.Context, client *forgejo.Client, cfg runConfig, ar
 	for key, values := range extra {
 		for _, value := range values {
 			query.Add(key, value)
+		}
+	}
+	if requestedLabels != "" {
+		if err := validateIssueListLabels(ctx, client, ref, requestedLabels); err != nil {
+			return err
 		}
 	}
 	resp, err := rawOperationResponse(ctx, client, "issueListIssues", repoPath(ref), query, nil)
@@ -283,6 +293,64 @@ func runIssueList(ctx context.Context, client *forgejo.Client, cfg runConfig, ar
 		Empty:  len(rows) == 0,
 		Repo:   refPtr(ref),
 	}))
+}
+
+func validateIssueListLabels(ctx context.Context, client *forgejo.Client, ref repoRef, requested string) error {
+	requestedSet := make(map[string]struct{})
+	for _, name := range splitCSV(requested) {
+		requestedSet[name] = struct{}{}
+	}
+	if len(requestedSet) == 0 {
+		return nil
+	}
+
+	const pageSize = 100
+	existing := make(map[string]struct{})
+	var seen int64
+	for page := 1; ; page++ {
+		query := url.Values{
+			"limit": {strconv.Itoa(pageSize)},
+			"page":  {strconv.Itoa(page)},
+		}
+		resp, err := rawOperationResponse(ctx, client, "issueListLabels", repoPath(ref), query, nil)
+		if err != nil {
+			return err
+		}
+		labels, err := decodeBody[[]*forgejo.Label](resp.Body)
+		if err != nil {
+			return err
+		}
+		seen += int64(len(labels))
+		for _, label := range labels {
+			if label != nil {
+				existing[label.Name] = struct{}{}
+			}
+		}
+		total := responseTotal(resp)
+		if len(labels) == 0 || (total > 0 && seen >= total) {
+			break
+		}
+	}
+
+	missing := make([]string, 0)
+	for name := range requestedSet {
+		if _, ok := existing[name]; !ok {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	sort.Strings(missing)
+	noun := "label"
+	if len(missing) != 1 {
+		noun = "labels"
+	}
+	return newCLIError(
+		"LABEL_NOT_FOUND",
+		fmt.Sprintf("missing repository %s: %s", noun, strings.Join(missing, ", ")),
+		fmt.Sprintf("Run `%s` to inspect available labels", commandForRepo(refPtr(ref), "label list")),
+	)
 }
 
 func runIssueView(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {

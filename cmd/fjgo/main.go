@@ -2349,7 +2349,10 @@ func errorView(args []string, err error) map[string]any {
 		out["code"] = forgejoErrorCode(httpErr)
 	} else {
 		out["kind"] = "cli"
-		if isUsage(err) {
+		var cliErr cliError
+		if errors.As(err, &cliErr) {
+			out["code"] = cliErr.Code
+		} else if isUsage(err) {
 			out["code"] = "USAGE"
 		} else {
 			out["code"] = "ERROR"

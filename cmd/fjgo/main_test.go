@@ -1121,6 +1121,128 @@ func TestIssueListCuratedFieldsAndCounts(t *testing.T) {
 	}
 }
 
+func TestIssueListValidatesRequestedLabels(t *testing.T) {
+	tests := []struct {
+		name       string
+		args       []string
+		wantCode   int
+		want       []string
+		wantIssues bool
+	}{
+		{
+			name:     "all missing",
+			args:     []string{"issue", "list", "astra/fjgo", "--labels", "zeta,alpha,zeta"},
+			wantCode: 1,
+			want:     []string{"code: LABEL_NOT_FOUND", "missing repository labels: alpha, zeta", "fjgo --repo astra/fjgo label list"},
+		},
+		{
+			name:     "mixed valid and missing",
+			args:     []string{"issue", "list", "astra/fjgo", "--labels", "bug,missing"},
+			wantCode: 1,
+			want:     []string{"code: LABEL_NOT_FOUND", "missing repository label: missing"},
+		},
+		{
+			name:     "root json error",
+			args:     []string{"--json", "issue", "list", "astra/fjgo", "--labels", "missing"},
+			wantCode: 1,
+			want:     []string{`"code": "LABEL_NOT_FOUND"`, `"kind": "cli"`, `"error": "missing repository label: missing"`},
+		},
+		{
+			name:       "valid",
+			args:       []string{"issue", "list", "astra/fjgo", "--labels", "bug"},
+			wantCode:   0,
+			want:       []string{"issues[1]", "Bug"},
+			wantIssues: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			issuesCalled := false
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/api/v1/repos/astra/fjgo/labels":
+					w.Header().Set("X-Total-Count", "2")
+					_, _ = w.Write([]byte(`[{"name":"bug"},{"name":"docs"}]`))
+				case "/api/v1/repos/astra/fjgo/issues":
+					issuesCalled = true
+					if got := r.URL.Query().Get("labels"); got != "bug" {
+						t.Fatalf("labels query = %q", got)
+					}
+					_, _ = w.Write([]byte(`[{"number":1,"title":"Bug","state":"open"}]`))
+				default:
+					t.Fatalf("path = %q", r.URL.Path)
+				}
+			}))
+			defer server.Close()
+
+			args := append([]string{"-base-url", server.URL + "/api/v1"}, tc.args...)
+			var stdout, stderr bytes.Buffer
+			code := runCLI(t.Context(), args, &stdout, &stderr)
+			if code != tc.wantCode {
+				t.Fatalf("code = %d, want %d; stdout = %s", code, tc.wantCode, stdout.String())
+			}
+			if stderr.Len() != 0 {
+				t.Fatalf("stderr = %s", stderr.String())
+			}
+			for _, want := range tc.want {
+				if !strings.Contains(stdout.String(), want) {
+					t.Fatalf("stdout missing %q:\n%s", want, stdout.String())
+				}
+			}
+			if issuesCalled != tc.wantIssues {
+				t.Fatalf("issues called = %v, want %v", issuesCalled, tc.wantIssues)
+			}
+			if tc.name == "root json error" {
+				var view map[string]any
+				if err := json.Unmarshal(stdout.Bytes(), &view); err != nil {
+					t.Fatalf("invalid JSON error: %v\n%s", err, stdout.String())
+				}
+			}
+		})
+	}
+}
+
+func TestIssueListLabelValidationFollowsServerPagination(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/repos/astra/fjgo/labels":
+			w.Header().Set("X-Total-Count", "51")
+			page := r.URL.Query().Get("page")
+			if page == "1" {
+				labels := make([]map[string]string, 50)
+				for i := range labels {
+					labels[i] = map[string]string{"name": fmt.Sprintf("label-%d", i)}
+				}
+				_ = json.NewEncoder(w).Encode(labels)
+				return
+			}
+			if page == "2" {
+				_, _ = w.Write([]byte(`[{"name":"target"}]`))
+				return
+			}
+			t.Fatalf("label page = %q", page)
+		case "/api/v1/repos/astra/fjgo/issues":
+			if got := r.URL.Query().Get("labels"); got != "target" {
+				t.Fatalf("labels query = %q", got)
+			}
+			_, _ = w.Write([]byte(`[{"number":1,"title":"Target issue","state":"open"}]`))
+		default:
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	code := runCLI(t.Context(), []string{"-base-url", server.URL + "/api/v1", "issue", "list", "astra/fjgo", "--labels", "target"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("code = %d; stdout = %s; stderr = %s", code, stdout.String(), stderr.String())
+	}
+	if got := stdout.String(); !strings.Contains(got, "Target issue") {
+		t.Fatalf("stdout = %s", got)
+	}
+}
+
 func TestWorkflowFieldsRejectUnknownField(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := runCLI(t.Context(), []string{"issue", "list", "astra/fjgo", "--fields", "number,nope"}, &stdout, &stderr)

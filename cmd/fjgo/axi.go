@@ -28,7 +28,17 @@ type usageError struct {
 	Help    []string
 }
 
+type cliError struct {
+	Code    string
+	Message string
+	Help    []string
+}
+
 func (e usageError) Error() string {
+	return e.Message
+}
+
+func (e cliError) Error() string {
 	return e.Message
 }
 
@@ -36,10 +46,18 @@ func newUsageError(message string, help ...string) error {
 	return usageError{Message: message, Help: help}
 }
 
+func newCLIError(code, message string, help ...string) error {
+	return cliError{Code: code, Message: message, Help: help}
+}
+
 func isUsage(err error) bool {
 	var u usageError
 	if errors.As(err, &u) {
 		return true
+	}
+	var c cliError
+	if errors.As(err, &c) {
+		return false
 	}
 	msg := err.Error()
 	return strings.HasPrefix(msg, "usage:") ||
@@ -55,6 +73,10 @@ func errorHelp(err error) []string {
 	var u usageError
 	if errors.As(err, &u) {
 		return u.Help
+	}
+	var c cliError
+	if errors.As(err, &c) {
+		return c.Help
 	}
 	msg := err.Error()
 	switch {
