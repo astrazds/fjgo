@@ -2148,7 +2148,7 @@ func TestAdvancedIssuePRDryRunsAndDiff(t *testing.T) {
 		{
 			name: "dependency-add",
 			args: []string{"issue", "dependencies", "add", "astra/fjgo", "42", "7", "--dry-run", "--yes"},
-			want: []string{"operation: issueCreateIssueDependencies", "index: 7"},
+			want: []string{"operation: issueCreateIssueDependencies", "owner: astra", "repo: fjgo", "index: 7"},
 		},
 		{
 			name: "reaction-add",
@@ -2226,6 +2226,106 @@ func TestAdvancedIssuePRDryRunsAndDiff(t *testing.T) {
 	}
 	if got := stdout.String(); !strings.Contains(got, "diff:") || !strings.Contains(got, "diff --git") {
 		t.Fatalf("diff output = %s", got)
+	}
+}
+
+func TestIssueRelationshipMutationPreviewsCompleteIssueMeta(t *testing.T) {
+	tests := []struct {
+		name      string
+		args      []string
+		operation string
+	}{
+		{
+			name:      "dependency remove print request",
+			args:      []string{"issue", "dependencies", "remove", "astra/fjgo", "42", "7", "--print-request", "--yes"},
+			operation: "issueRemoveIssueDependencies",
+		},
+		{
+			name:      "block add dry run",
+			args:      []string{"issue", "blocks", "add", "astra/fjgo", "42", "7", "--dry-run", "--yes"},
+			operation: "issueCreateIssueBlocking",
+		},
+		{
+			name:      "block remove print request",
+			args:      []string{"issue", "blocks", "remove", "astra/fjgo", "42", "7", "--print-request", "--yes"},
+			operation: "issueRemoveIssueBlocking",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			err := run(t.Context(), tc.args, &stdout, &stderr)
+			if err != nil {
+				t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+			}
+			got := stdout.String()
+			for _, want := range []string{
+				"operation: " + tc.operation,
+				"owner: astra",
+				"repo: fjgo",
+				"index: 7",
+			} {
+				if !strings.Contains(got, want) {
+					t.Fatalf("preview missing %q:\n%s", want, got)
+				}
+			}
+		})
+	}
+}
+
+func TestIssueRelationshipMutationsSendCompleteIssueMeta(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		args   []string
+	}{
+		{
+			name:   "dependency add",
+			method: http.MethodPost,
+			path:   "/api/v1/repos/astra/fjgo/issues/42/dependencies",
+			args:   []string{"issue", "dependencies", "add", "astra/fjgo", "42", "7", "--yes"},
+		},
+		{
+			name:   "block remove",
+			method: http.MethodDelete,
+			path:   "/api/v1/repos/astra/fjgo/issues/42/blocks",
+			args:   []string{"issue", "blocks", "remove", "astra/fjgo", "42", "7", "--yes"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != tc.method {
+					t.Fatalf("method = %s", r.Method)
+				}
+				if r.URL.Path != tc.path {
+					t.Fatalf("path = %q", r.URL.Path)
+				}
+				var body struct {
+					Owner string `json:"owner"`
+					Repo  string `json:"repo"`
+					Index int64  `json:"index"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Fatalf("decode body: %v", err)
+				}
+				if body.Owner != "astra" || body.Repo != "fjgo" || body.Index != 7 {
+					t.Fatalf("body = %+v", body)
+				}
+				_, _ = w.Write([]byte(`{"number":42,"title":"Issue"}`))
+			}))
+			defer server.Close()
+
+			args := append([]string{"-base-url", server.URL + "/api/v1"}, tc.args...)
+			var stdout, stderr bytes.Buffer
+			err := run(t.Context(), args, &stdout, &stderr)
+			if err != nil {
+				t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+			}
+		})
 	}
 }
 

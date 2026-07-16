@@ -177,7 +177,11 @@ func runIssueDependencyMutate(ctx context.Context, client *forgejo.Client, cfg r
 	if err != nil {
 		return err
 	}
-	body := map[string]any{"index": other}
+	body := &forgejo.IssueMeta{
+		Owner: ref.Owner,
+		Name:  ref.Repo,
+		Index: other,
+	}
 	operation := "issueCreateIssueDependencies"
 	if !add {
 		operation = "issueRemoveIssueDependencies"
