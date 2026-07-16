@@ -200,3 +200,25 @@ The v1 surface is:
 
 Prefer the generic API surface unless a named alias clearly reduces repeated
 real-world usage.
+
+## Agent skills
+
+### Self-improvement
+
+When the `fjgo` CLI itself fails unexpectedly during repository work, do not
+silently work around it. Capture a minimal reproducible command, diagnose far
+enough to provide useful evidence, and create a Forgejo issue labelled
+`needs-triage`. Continue the original task through a safe escape hatch when one
+exists, and keep the bug fix separate unless the user asks to implement it.
+
+### Issue tracker
+
+Issues are tracked in this repository's Forgejo Issues using `fjgo`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The tracker uses the five default canonical triage labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Domain documentation uses a single-context layout. See `docs/agents/domain.md`.
