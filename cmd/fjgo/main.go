@@ -96,7 +96,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	password := fs.String("password", os.Getenv("FJGO_PASSWORD"), "Basic Auth password (or FJGO_PASSWORD)")
 	otp := fs.String("otp", os.Getenv("FJGO_OTP"), "Basic Auth TOTP code (or FJGO_OTP)")
 	sudo := fs.String("sudo", os.Getenv("FJGO_SUDO"), "act as another user (or FJGO_SUDO)")
-	timeout := fs.Duration("timeout", 15*time.Second, "HTTP timeout")
+	timeout := fs.Duration("timeout", 15*time.Second, "per-request HTTP timeout")
 	showVersion := fs.Bool("version", false, "print fjgo version")
 	repoContext := fs.String("repo", getenv("FJGO_REPO", ""), "explicit Forgejo owner/repo context (or FJGO_REPO)")
 	remote := fs.String("R", "", "resolve owner/repo from git remote")

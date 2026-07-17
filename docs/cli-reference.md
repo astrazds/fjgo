@@ -95,6 +95,23 @@ npx -y fjgo -R origin repo edit \
 Errors are structured on standard output. Exit code `2` means the command was
 used incorrectly; exit code `1` means another error occurred.
 
+## Timeouts
+
+The root `-timeout DURATION` flag bounds each HTTP request and defaults to 15
+seconds. It does not limit the total lifetime of a command that makes multiple
+requests.
+
+Long-running commands can have a separate operation timeout. For example,
+`run watch` polls for up to 10 minutes by default, while every poll remains
+bounded by the root HTTP timeout:
+
+```sh
+npx -y fjgo -timeout 15s -R origin run watch 123 --timeout 2m
+```
+
+Use the root flag for slow individual requests and the command-local flag for
+the overall polling window.
+
 ## Main command groups
 
 Common work is organized by topic:

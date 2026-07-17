@@ -145,6 +145,10 @@ fjgo -R origin workflow view verify.yml --full
 fjgo -R origin workflow run verify.yml --ref main --dry-run --yes
 ```
 
+The root `-timeout` bounds each HTTP request (15 seconds by default), while
+`run watch --timeout` controls the overall polling window. A watch can therefore
+run longer than the HTTP timeout without leaving any individual poll unbounded.
+
 ## Read And Write Repo Contents
 
 Read contents through generated content aliases:

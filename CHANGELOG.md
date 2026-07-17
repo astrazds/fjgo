@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fixed `run watch` so its polling timeout is independent from the root HTTP
+  timeout; `-timeout` now bounds each request without capping long-running
+  commands, including self-update requests.
+
 ## v1.2.0 - 2026-07-17
 
 - Expanded the deterministic black-box benchmark from one tracer into a

@@ -481,7 +481,7 @@ global flags:
   --password <password>       Basic Auth password; prefer FJGO_PASSWORD
   --otp <code>                Basic Auth TOTP; prefer FJGO_OTP
   --sudo <user>               act as another user when authorized; prefer FJGO_SUDO
-  -timeout <duration>         HTTP timeout (default 15s)
+  -timeout <duration>         per-request HTTP timeout (default 15s)
   --repo <owner/repo>         explicit repo context; also supported via FJGO_REPO
   -R, --repo-from-remote <n>  resolve owner/repo from a Forgejo git remote
   --version                   show fjgo binary version
