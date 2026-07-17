@@ -28,6 +28,9 @@ func run(ctx context.Context, args []string) error {
 	timeout := flags.Duration("timeout", 5*time.Second, "timeout for each scenario CLI invocation")
 	commandsFile := flags.String("commands-file", "", "JSON command sequence; use {fixture_base_url} for the local fixture")
 	scenarioRunsFile := flags.String("scenario-runs-file", "", "JSON scenario run records keyed by scenario ID")
+	importHostRun := flags.String("import-host-run", "", "import a bounded portable agent-host run record")
+	credentialCanaryFile := flags.String("credential-canary-file", "", "bounded file containing a credential canary to reject during host-run import")
+	agentPacket := flags.Bool("agent-packet", false, "emit the portable agent-host scenario packet without running fjgo")
 	writeBaseline := flags.String("write-baseline", "", "write normalized baseline JSON and a sibling Markdown summary")
 	checkBaseline := flags.String("check-baseline", "", "check normalized baseline JSON and its sibling Markdown summary")
 	compareBaseline := flags.String("compare-baseline", "", "compare the current normalized result with a baseline and emit JSON deltas")
@@ -49,6 +52,43 @@ func run(ctx context.Context, args []string) error {
 	}
 	if modes > 1 {
 		return fmt.Errorf("-write-baseline, -check-baseline, and -compare-baseline are mutually exclusive")
+	}
+	if *importHostRun != "" {
+		if *agentPacket || modes > 0 || *commandsFile != "" || *scenarioRunsFile != "" || len(scenarioIDs) > 0 || len(categories) > 0 {
+			return fmt.Errorf("-import-host-run cannot be combined with benchmark execution, selection, or baseline modes")
+		}
+		data, err := readBoundedFile(*importHostRun, "host run")
+		if err != nil {
+			return err
+		}
+		canaries := []string(nil)
+		if *credentialCanaryFile != "" {
+			canary, err := readCredentialCanary(*credentialCanaryFile)
+			if err != nil {
+				return err
+			}
+			canaries = append(canaries, canary)
+		}
+		result, err := benchmark.ImportHostRun(data, canaries)
+		if err != nil {
+			return err
+		}
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		encoder.SetEscapeHTML(false)
+		return encoder.Encode(result)
+	}
+	if *credentialCanaryFile != "" {
+		return fmt.Errorf("-credential-canary-file requires -import-host-run")
+	}
+	if *agentPacket {
+		if modes > 0 || *commandsFile != "" || *scenarioRunsFile != "" || len(scenarioIDs) > 0 || len(categories) > 0 {
+			return fmt.Errorf("-agent-packet cannot be combined with benchmark execution, selection, or baseline modes")
+		}
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		encoder.SetEscapeHTML(false)
+		return encoder.Encode(benchmark.PortableAgentPacket())
 	}
 
 	binary, cleanup, err := benchmark.ResolveFJGO(ctx, *repoRoot, *selected)
@@ -132,6 +172,22 @@ func run(ctx context.Context, args []string) error {
 	encoder.SetIndent("", "  ")
 	encoder.SetEscapeHTML(false)
 	return encoder.Encode(result)
+}
+
+func readCredentialCanary(path string) (string, error) {
+	data, err := readBoundedFile(path, "credential canary")
+	if err != nil {
+		return "", err
+	}
+	const maxCredentialCanarySize = 512
+	if len(data) > maxCredentialCanarySize {
+		return "", fmt.Errorf("credential canary exceeds %d bytes", maxCredentialCanarySize)
+	}
+	canary := strings.TrimSpace(string(data))
+	if canary == "" {
+		return "", fmt.Errorf("credential canary is empty")
+	}
+	return canary, nil
 }
 
 type stringListFlag []string

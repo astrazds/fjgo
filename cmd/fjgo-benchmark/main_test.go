@@ -183,7 +183,7 @@ func TestCommandRunsCompleteCatalogByDefault(t *testing.T) {
 	if err := json.Unmarshal(stdout, &result); err != nil {
 		t.Fatalf("decode result: %v\n%s", err, stdout)
 	}
-	if result.SourceRevision != "command-test" || result.SchemaVersion != "4" || result.CatalogRevision != "5" || len(result.Results) != 46 {
+	if result.SourceRevision != "command-test" || result.SchemaVersion != "5" || result.CatalogRevision != "5" || len(result.Results) != 46 {
 		t.Fatalf("catalog = %+v", result)
 	}
 	statuses := map[string]int{}
@@ -255,6 +255,76 @@ func TestScenarioRunRecordsRejectConflictingOrNegativeStateMarkers(t *testing.T)
 				t.Fatal("expected invalid run-state marker error")
 			}
 		})
+	}
+}
+
+func TestCommandImportsBoundedPortableHostRunWithoutLaunchingFJGO(t *testing.T) {
+	repoRoot, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tempDir := t.TempDir()
+	benchmarkCommand := filepath.Join(tempDir, "fjgo-benchmark")
+	buildCommand(t, repoRoot, benchmarkCommand, "./cmd/fjgo-benchmark")
+
+	recordPath := filepath.Join(tempDir, "host-run.json")
+	record := []byte(`{
+  "schema_version":"1","benchmark_schema_version":"5","catalog_revision":"5",
+  "fjgo":{"version":"1.1.0","source_revision":"host-source"},
+  "host":{"name":"claude_code","version":"1"},
+  "model":{"provider":"anthropic","name":"claude"},
+  "scenario":{"id":"discovery.operation-inspect","status":"passed","completion_satisfied":true},
+  "metrics":{"cli_invocations":1,"api_requests":0,"stdout_bytes":10,"stderr_bytes":0},
+  "safety":{"unexpected_requests":0,"mutating_requests":0,"unsafe_requests":0,"credential_leaks":0,"timed_out":false},
+  "evidence":[{"id":"result.json","kind":"host-artifact"}]
+}`)
+	if err := os.WriteFile(recordPath, record, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, err := exec.Command(benchmarkCommand, "-repo-root", filepath.Join(tempDir, "missing"), "-import-host-run", recordPath).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result benchmark.Result
+	if err := json.Unmarshal(stdout, &result); err != nil {
+		t.Fatalf("decode result: %v\n%s", err, stdout)
+	}
+	if result.Execution.Mode != "agent_host" || result.Execution.Host.Name != "claude_code" || result.SourceRevision != "host-source" {
+		t.Fatalf("result = %+v", result)
+	}
+
+	canaryPath := filepath.Join(tempDir, "canary")
+	if err := os.WriteFile(canaryPath, []byte("host-secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(recordPath, bytes.Replace(record, []byte("claude_code"), []byte("host-secret"), 1), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command(benchmarkCommand, "-import-host-run", recordPath, "-credential-canary-file", canaryPath)
+	if output, err := command.CombinedOutput(); err == nil || !bytes.Contains(output, []byte("credential canary")) || bytes.Contains(output, []byte("host-secret")) {
+		t.Fatalf("canary import = %v\n%s", err, output)
+	}
+}
+
+func TestCommandEmitsPortableScenarioPacketWithoutLaunchingFJGO(t *testing.T) {
+	repoRoot, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	benchmarkCommand := filepath.Join(t.TempDir(), "fjgo-benchmark")
+	buildCommand(t, repoRoot, benchmarkCommand, "./cmd/fjgo-benchmark")
+
+	stdout, err := exec.Command(benchmarkCommand, "-repo-root", filepath.Join(t.TempDir(), "missing"), "-agent-packet").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var packet benchmark.AgentPacket
+	if err := json.Unmarshal(stdout, &packet); err != nil {
+		t.Fatalf("decode packet: %v\n%s", err, stdout)
+	}
+	if packet.SchemaVersion != benchmark.AgentPacketSchemaVersion || len(packet.Scenarios) != 46 {
+		t.Fatalf("packet = %+v", packet)
 	}
 }
 

@@ -1,12 +1,15 @@
 {
-  "schema_version": "4",
+  "schema_version": "5",
   "source_revision": "{source_revision}",
   "catalog_revision": "5",
   "results": [
     {
-      "schema_version": "4",
+      "schema_version": "5",
       "source_revision": "{source_revision}",
       "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
       "scenario": {
         "id": "operation-discovery.repo-search",
         "category": "operation-discovery",

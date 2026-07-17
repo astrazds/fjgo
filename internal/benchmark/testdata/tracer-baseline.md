@@ -1,7 +1,7 @@
 # fjgo benchmark baseline
 
-Schema: `4`  
-Catalog: `5`  
+Schema: `5`\
+Catalog: `5`\
 Scenarios: 1
 
 | Status | Scenario | CLI | API | Unsafe | Leaks |

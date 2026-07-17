@@ -62,6 +62,16 @@ An alternative sequence is scored by the scenario's external completion oracle,
 not by matching the default command. A positive `manual_corrections` count is
 recorded as `manually_corrected` and cannot pass as autonomous completion.
 
+For Codex, Claude Code, OpenCode, or another external host, use the
+[portable agent-job benchmark packet](benchmark-agent-packet.md). The packet
+defines host-neutral outcomes, context, mutation and credential boundaries,
+bounded evidence, and the import record. Importing a record does not launch
+fjgo or an agent runtime:
+
+```sh
+go run ./cmd/fjgo-benchmark -import-host-run host-run.json
+```
+
 To evaluate another safe command sequence against the original tracer outcome
 oracle, pass a bounded JSON array of argument arrays with `-commands-file`. Use
 `{fixture_base_url}` where the sequence needs the local fixture URL:

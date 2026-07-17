@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	SchemaVersion   = "4"
+	SchemaVersion   = "5"
 	CatalogRevision = "5"
 
 	StatusPassed                = "passed"
@@ -131,15 +131,41 @@ var operationDiscoveryScenario = scenarioDefinition{
 }
 
 type Result struct {
-	SchemaVersion   string           `json:"schema_version"`
-	SourceRevision  string           `json:"source_revision"`
-	CatalogRevision string           `json:"catalog_revision"`
-	Scenario        ScenarioResult   `json:"scenario"`
-	Metrics         Metrics          `json:"metrics"`
-	Safety          Safety           `json:"safety"`
-	Commands        []CommandSummary `json:"commands"`
-	Requests        []RequestSummary `json:"requests"`
-	Evidence        []EvidenceRef    `json:"evidence"`
+	SchemaVersion   string            `json:"schema_version"`
+	SourceRevision  string            `json:"source_revision"`
+	CatalogRevision string            `json:"catalog_revision"`
+	Execution       ExecutionMetadata `json:"execution"`
+	Scenario        ScenarioResult    `json:"scenario"`
+	Metrics         Metrics           `json:"metrics"`
+	Safety          Safety            `json:"safety"`
+	Commands        []CommandSummary  `json:"commands"`
+	Requests        []RequestSummary  `json:"requests"`
+	Evidence        []EvidenceRef     `json:"evidence"`
+}
+
+type ExecutionMetadata struct {
+	Mode        ExecutionMode  `json:"mode"`
+	FJGOVersion string         `json:"fjgo_version,omitempty"`
+	Host        *HostMetadata  `json:"host,omitempty"`
+	Model       *ModelMetadata `json:"model,omitempty"`
+}
+
+type ExecutionMode string
+
+const (
+	ExecutionModeDeterministic ExecutionMode = "deterministic"
+	ExecutionModeAgentHost     ExecutionMode = "agent_host"
+)
+
+type HostMetadata struct {
+	Name    string `json:"name,omitempty"`
+	Version string `json:"version,omitempty"`
+}
+
+type ModelMetadata struct {
+	Provider string `json:"provider,omitempty"`
+	Name     string `json:"name,omitempty"`
+	Version  string `json:"version,omitempty"`
 }
 
 type ScenarioResult struct {
@@ -160,12 +186,14 @@ type Completion struct {
 }
 
 type Metrics struct {
-	CLIInvocations    int `json:"cli_invocations"`
-	APIRequests       int `json:"api_requests"`
-	StdoutBytes       int `json:"stdout_bytes"`
-	StderrBytes       int `json:"stderr_bytes"`
-	ManualCorrections int `json:"manual_corrections"`
-	Clarifications    int `json:"clarifications"`
+	CLIInvocations    int  `json:"cli_invocations"`
+	APIRequests       int  `json:"api_requests"`
+	StdoutBytes       int  `json:"stdout_bytes"`
+	StderrBytes       int  `json:"stderr_bytes"`
+	ManualCorrections int  `json:"manual_corrections"`
+	Clarifications    int  `json:"clarifications"`
+	InputTokens       *int `json:"input_tokens,omitempty"`
+	OutputTokens      *int `json:"output_tokens,omitempty"`
 }
 
 type Safety struct {
@@ -850,6 +878,7 @@ func runCatalogScenario(ctx context.Context, cfg Config, scenario catalogScenari
 		SchemaVersion:   SchemaVersion,
 		SourceRevision:  cfg.SourceRevision,
 		CatalogRevision: CatalogRevision,
+		Execution:       ExecutionMetadata{Mode: ExecutionModeDeterministic},
 		Scenario: ScenarioResult{
 			ID:               scenario.definition.ID,
 			Category:         scenario.definition.Category,
@@ -1244,6 +1273,7 @@ func RunTracer(ctx context.Context, cfg Config) (Result, error) {
 		SchemaVersion:   SchemaVersion,
 		SourceRevision:  cfg.SourceRevision,
 		CatalogRevision: CatalogRevision,
+		Execution:       ExecutionMetadata{Mode: ExecutionModeDeterministic},
 		Scenario: ScenarioResult{
 			ID:               operationDiscoveryScenario.ID,
 			Category:         operationDiscoveryScenario.Category,

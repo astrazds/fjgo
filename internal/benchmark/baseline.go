@@ -314,7 +314,7 @@ func SummaryFromBaselineJSON(baselineJSON []byte) ([]byte, error) {
 	}
 
 	var summary strings.Builder
-	fmt.Fprintf(&summary, "# fjgo benchmark baseline\n\nSchema: `%s`  \nCatalog: `%s`  \nScenarios: %d\n\n", result.SchemaVersion, result.CatalogRevision, len(result.Results))
+	fmt.Fprintf(&summary, "# fjgo benchmark baseline\n\nSchema: `%s`\\\nCatalog: `%s`\\\nScenarios: %d\n\n", result.SchemaVersion, result.CatalogRevision, len(result.Results))
 	summary.WriteString("| Status | Scenario | CLI | API | Unsafe | Leaks |\n")
 	summary.WriteString("| --- | --- | ---: | ---: | ---: | ---: |\n")
 	for _, scenario := range result.Results {

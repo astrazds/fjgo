@@ -46,7 +46,7 @@ func TestTracerProducesDeterministicBlackBoxResult(t *testing.T) {
 		}
 	}
 
-	if first.SchemaVersion != "4" || first.CatalogRevision != "5" {
+	if first.SchemaVersion != "5" || first.CatalogRevision != "5" {
 		t.Fatalf("versions = schema %q catalog %q", first.SchemaVersion, first.CatalogRevision)
 	}
 	if first.SourceRevision != "test-revision" {
