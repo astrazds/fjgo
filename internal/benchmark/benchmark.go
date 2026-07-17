@@ -5,6 +5,7 @@ package benchmark
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,11 +18,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 const (
-	SchemaVersion   = "1"
-	CatalogRevision = "2"
+	SchemaVersion   = "2"
+	CatalogRevision = "3"
 
 	StatusPassed   = "passed"
 	StatusFailed   = "failed"
@@ -62,8 +64,9 @@ type scenarioDefinition struct {
 	Repository       string
 	Method           string
 	Path             string
-	QueryKey         string
-	QueryValue       string
+	QueryValues      map[string]string
+	ResponseJSON     string
+	ResponseStatus   int
 }
 
 var operationDiscoveryScenario = scenarioDefinition{
@@ -74,8 +77,8 @@ var operationDiscoveryScenario = scenarioDefinition{
 	Repository:       "benchmark/target",
 	Method:           http.MethodGet,
 	Path:             "/api/v1/repos/search",
-	QueryKey:         "q",
-	QueryValue:       "benchmark-target",
+	QueryValues:      map[string]string{"q": "benchmark-target"},
+	ResponseJSON:     `{"ok":true,"data":[{"id":1,"name":"target","full_name":"benchmark/target","html_url":"https://forgejo.invalid/benchmark/target"}]}`,
 }
 
 type Result struct {
@@ -127,6 +130,7 @@ type CommandSummary struct {
 	ExitCode        int                     `json:"exit_code"`
 	StdoutBytes     int                     `json:"stdout_bytes"`
 	StderrBytes     int                     `json:"stderr_bytes"`
+	StdoutSHA256    string                  `json:"stdout_sha256"`
 	StructuredError *StructuredErrorSummary `json:"structured_error,omitempty"`
 }
 
@@ -149,11 +153,6 @@ type RequestSummary struct {
 type EvidenceRef struct {
 	ID   string `json:"id"`
 	Kind string `json:"kind"`
-}
-
-type fixtureSearchResponse struct {
-	OK   bool                `json:"ok"`
-	Data []fixtureRepository `json:"data"`
 }
 
 type fixtureRepository struct {
@@ -194,8 +193,24 @@ type catalogScenario struct {
 	environment       map[string]string
 	expectedExit      int
 	expectedOutput    []string
+	outputOracles     []outputOracle
 	setupGitRemote    string
 	manualCorrections int
+}
+
+type outputFormat string
+
+const (
+	outputFormatJSON      outputFormat = "json"
+	outputFormatTOONShape outputFormat = "toon"
+)
+
+type outputOracle struct {
+	format   outputFormat
+	contains []string
+	excludes []string
+	maxBytes int
+	exitCode int
 }
 
 var catalogScenarios = []catalogScenario{
@@ -269,6 +284,122 @@ var catalogScenarios = []catalogScenario{
 		expectedOutput: []string{`"kind": "cli"`, `unsupported remote URL`},
 		setupGitRemote: "not-a-url",
 	},
+	{
+		definition: scenarioDefinition{
+			ID: "inspection.repository-toon", Category: "compact-inspection", DelegatedOutcome: "Inspect decisive repository identity in compact TOON output",
+			Repository: "benchmark/target", Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target",
+			ResponseJSON: `{"id":1,"name":"target","full_name":"benchmark/target","description":"compact fixture repository","private":false,"html_url":"https://forgejo.invalid/benchmark/target"}`,
+		},
+		commands:      [][]string{{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "--repo", "benchmark/target", "repo", "get"}},
+		outputOracles: []outputOracle{{format: outputFormatTOONShape, contains: []string{"full_name: benchmark/target", "private: false"}, maxBytes: 1024}},
+	},
+	{
+		definition: scenarioDefinition{
+			ID: "inspection.issue-detail-recovery", Category: "output-recovery", DelegatedOutcome: "Inspect an issue compactly, notice truncation, and recover its complete body",
+			Repository: "benchmark/target", Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target/issues/7",
+			ResponseJSON: issueDetailFixtureJSON(),
+		},
+		commands: [][]string{
+			{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "issue", "view", "benchmark/target", "7"},
+			{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "issue", "view", "benchmark/target", "7", "--full"},
+		},
+		outputOracles: []outputOracle{
+			{format: outputFormatTOONShape, contains: []string{"issue:", "number: 7", "title: Bounded detail", "--full", "truncated"}, excludes: []string{"DETAIL-END"}, maxBytes: 2048},
+			{format: outputFormatTOONShape, contains: []string{"issue:", "number: 7", "title: Bounded detail", "DETAIL-START", "DETAIL-END"}, maxBytes: 2048},
+		},
+	},
+	{
+		definition: scenarioDefinition{
+			ID: "inspection.pull-request-json", Category: "compact-inspection", DelegatedOutcome: "Obtain deterministic parseable pull-request data",
+			Repository: "benchmark/target", Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target/pulls",
+			ResponseJSON: `[{"id":8,"number":8,"title":"Keep output compact","state":"open","draft":false,"html_url":"https://forgejo.invalid/benchmark/target/pulls/8"}]`,
+		},
+		commands:      [][]string{{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "pr", "list", "benchmark/target", "--json"}},
+		outputOracles: []outputOracle{{format: outputFormatJSON, contains: []string{`"number": 8`, `"title": "Keep output compact"`}, maxBytes: 2048}},
+	},
+	{
+		definition: scenarioDefinition{
+			ID: "inspection.commit-checks-generic-api", Category: "generic-api-inspection", DelegatedOutcome: "Inspect commit checks through the generic API when no commit-check alias is assumed",
+			Repository: "benchmark/target", Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target/commits/abc123/statuses",
+			ResponseJSON: `[{"id":9,"context":"verify","status":"success","description":"all checks passed","target_url":"https://ci.invalid/runs/9"}]`,
+		},
+		commands:      [][]string{{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "api", "--json", "call", "repoListStatusesByRef", "owner=benchmark", "repo=target", "ref=abc123"}},
+		outputOracles: []outputOracle{{format: outputFormatJSON, contains: []string{`"context":"verify"`, `"status":"success"`}, maxBytes: 2048}},
+	},
+	{
+		definition: scenarioDefinition{
+			ID: "inspection.actions-run-toon", Category: "compact-inspection", DelegatedOutcome: "Inspect recent Actions runs in compact contextual output",
+			Repository: "benchmark/target", Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target/actions/runs",
+			ResponseJSON: `{"total_count":1,"workflow_runs":[{"id":10,"index_in_repo":3,"title":"Verify main","status":"success","workflow_id":"verify.yml","prettyref":"main","event":"push"}]}`,
+		},
+		commands:      [][]string{{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "run", "list", "benchmark/target"}},
+		outputOracles: []outputOracle{{format: outputFormatTOONShape, contains: []string{"runs[1]", "verify.yml", "success", "benchmark/target"}, maxBytes: 2048}},
+	},
+	{
+		definition: scenarioDefinition{
+			ID: "inspection.workflow-toon", Category: "compact-inspection", DelegatedOutcome: "Inspect repository workflow files in compact contextual output",
+			Repository: "benchmark/target", Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target/contents/.forgejo/workflows",
+			ResponseJSON: `[{"name":"verify.yml","path":".forgejo/workflows/verify.yml","type":"file","size":321,"sha":"feedface"}]`,
+		},
+		commands:      [][]string{{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "workflow", "list", "benchmark/target"}},
+		outputOracles: []outputOracle{{format: outputFormatTOONShape, contains: []string{"workflows[1]", "verify.yml", "type", "benchmark/target"}, maxBytes: 2048}},
+	},
+	{
+		definition: scenarioDefinition{
+			ID: "inspection.release-toon", Category: "compact-inspection", DelegatedOutcome: "Inspect repository releases in compact contextual output",
+			Repository: "benchmark/target", Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target/releases",
+			ResponseJSON: `[{"id":11,"tag_name":"v1.2.3","name":"Stable baseline","draft":false,"prerelease":false,"target_commitish":"main"}]`,
+		},
+		commands:      [][]string{{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "release", "list", "benchmark/target"}},
+		outputOracles: []outputOracle{{format: outputFormatTOONShape, contains: []string{"releases[1]", "v1.2.3", "Stable baseline", "benchmark/target"}, maxBytes: 2048}},
+	},
+	{
+		definition: scenarioDefinition{
+			ID: "inspection.label-json", Category: "compact-inspection", DelegatedOutcome: "Obtain deterministic parseable repository label data",
+			Repository: "benchmark/target", Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target/labels",
+			ResponseJSON: `[{"id":12,"name":"bug","color":"ff0000","description":"Needs attention"}]`,
+		},
+		commands:      [][]string{{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "label", "list", "benchmark/target", "--json"}},
+		outputOracles: []outputOracle{{format: outputFormatJSON, contains: []string{`"name": "bug"`, `"color": "ff0000"`}, maxBytes: 2048}},
+	},
+	{
+		definition: scenarioDefinition{
+			ID: "inspection.issue-search-empty", Category: "empty-state-inspection", DelegatedOutcome: "Distinguish a definitive empty issue search from API, parsing, and usage failures",
+			Repository: "benchmark/target", Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target/issues", QueryValues: map[string]string{"q": "missing", "type": "issues"}, ResponseJSON: `[]`,
+		},
+		commands:      [][]string{{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "search", "issues", "missing", "--repo", "benchmark/target"}},
+		outputOracles: []outputOracle{{format: outputFormatTOONShape, contains: []string{"0 issues found for benchmark/target"}, maxBytes: 1024}},
+	},
+	{
+		definition: scenarioDefinition{
+			ID: "empty-state.issue-search-api-error", Category: "empty-state-recovery", DelegatedOutcome: "Distinguish a Forgejo API failure from an empty issue search",
+			Repository: "benchmark/target", Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target/issues", QueryValues: map[string]string{"q": "missing", "type": "issues"},
+			ResponseStatus: http.StatusInternalServerError, ResponseJSON: `{"message":"fixture unavailable"}`,
+		},
+		commands:      [][]string{{"--json", "-base-url", FixtureBaseURLPlaceholder + "/api/v1", "search", "issues", "missing", "--repo", "benchmark/target"}},
+		expectedExit:  1,
+		outputOracles: []outputOracle{{format: outputFormatJSON, contains: []string{`"kind": "forgejo_api"`, `"status": 500`, "fixture unavailable"}, maxBytes: 2048, exitCode: 1}},
+	},
+	{
+		definition: scenarioDefinition{
+			ID: "empty-state.issue-search-parsing-error", Category: "empty-state-recovery", DelegatedOutcome: "Distinguish a malformed issue response from an empty issue search",
+			Repository: "benchmark/target", Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target/issues", QueryValues: map[string]string{"q": "missing", "type": "issues"},
+			ResponseJSON: `{"not":"an issue list"}`,
+		},
+		commands:      [][]string{{"--json", "-base-url", FixtureBaseURLPlaceholder + "/api/v1", "search", "issues", "missing", "--repo", "benchmark/target"}},
+		expectedExit:  1,
+		outputOracles: []outputOracle{{format: outputFormatJSON, contains: []string{`"kind": "cli"`, "cannot unmarshal object"}, maxBytes: 2048, exitCode: 1}},
+	},
+	{
+		definition:    scenarioDefinition{ID: "empty-state.issue-search-usage-error", Category: "empty-state-recovery", DelegatedOutcome: "Distinguish invalid issue-search usage from an empty result"},
+		commands:      [][]string{{"--json", "search", "issues", "--repo"}},
+		expectedExit:  2,
+		outputOracles: []outputOracle{{format: outputFormatJSON, contains: []string{`"kind": "cli"`, `"code": "USAGE"`}, maxBytes: 2048, exitCode: 2}},
+	},
+}
+
+func issueDetailFixtureJSON() string {
+	return `{"id":7,"number":7,"title":"Bounded detail","state":"open","body":"DETAIL-START ` + strings.Repeat("x", 1200) + ` DETAIL-END","html_url":"https://forgejo.invalid/benchmark/target/issues/7"}`
 }
 
 func ResolveFJGO(ctx context.Context, repoRoot, selected string) (string, func(), error) {
@@ -396,12 +527,19 @@ func runCatalogScenario(ctx context.Context, cfg Config, scenario catalogScenari
 
 	completion := Completion{Evidence: []string{}}
 	evidence := []EvidenceRef{}
-	if scenario.definition.Method != "" && run.outcomeRequest > 0 {
+	outputSatisfied := scenarioOutputsMatch(run.observations, scenario)
+	if scenario.definition.Method != "" && run.outcomeRequest > 0 && outputSatisfied {
 		completion.Satisfied = true
 		completion.Repository = scenario.definition.Repository
 		completion.Evidence = append(completion.Evidence, "fixture observed requested Forgejo outcome")
+		if len(scenario.outputOracles) > 0 {
+			completion.Evidence = append(completion.Evidence, "process output satisfied bounded format and content oracles")
+		}
 		evidence = append(evidence, EvidenceRef{ID: fmt.Sprintf("request-%d", run.outcomeRequest), Kind: "completion-oracle"})
-	} else if scenario.definition.Method == "" && observationsMatch(run.observations, scenario.expectedExit, scenario.expectedOutput) {
+		if len(scenario.outputOracles) > 0 {
+			evidence = append(evidence, EvidenceRef{ID: "process-output", Kind: "completion-oracle"})
+		}
+	} else if scenario.definition.Method == "" && outputSatisfied {
 		completion.Satisfied = true
 		completion.Evidence = append(completion.Evidence, "process output satisfied the external completion oracle")
 		evidence = append(evidence, EvidenceRef{ID: "process-1", Kind: "completion-oracle"})
@@ -515,14 +653,100 @@ func observationsMatch(observations []commandObservation, expectedExit int, expe
 	return true
 }
 
+func scenarioOutputsMatch(observations []commandObservation, scenario catalogScenario) bool {
+	if len(scenario.outputOracles) == 0 {
+		return observationsMatch(observations, scenario.expectedExit, scenario.expectedOutput)
+	}
+	if len(observations) == 0 || observations[len(observations)-1].exitCode != scenario.expectedExit {
+		return false
+	}
+	nextObservation := 0
+	for _, oracle := range scenario.outputOracles {
+		matched := false
+		for nextObservation < len(observations) {
+			observation := observations[nextObservation]
+			nextObservation++
+			if observationMatchesOutputOracle(observation, oracle) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	return true
+}
+
+func observationMatchesOutputOracle(observation commandObservation, oracle outputOracle) bool {
+	if observation.exitCode != oracle.exitCode || observation.stderrBytes != 0 || oracle.maxBytes <= 0 || observation.stdoutBytes > oracle.maxBytes {
+		return false
+	}
+	stdout := bytes.TrimSpace(observation.stdout)
+	switch oracle.format {
+	case outputFormatJSON:
+		if !json.Valid(stdout) {
+			return false
+		}
+	case outputFormatTOONShape:
+		if !hasTOONShape(stdout) {
+			return false
+		}
+	default:
+		return false
+	}
+	for _, expected := range oracle.contains {
+		if !bytes.Contains(observation.stdout, []byte(expected)) {
+			return false
+		}
+	}
+	for _, excluded := range oracle.excludes {
+		if bytes.Contains(observation.stdout, []byte(excluded)) {
+			return false
+		}
+	}
+	return true
+}
+
+// hasTOONShape checks public lexical invariants without importing cmd/fjgo's
+// formatter. Scenario-specific content oracles provide the semantic checks.
+func hasTOONShape(output []byte) bool {
+	if len(output) == 0 || json.Valid(output) || !utf8.Valid(output) {
+		return false
+	}
+	firstLine, _, _ := bytes.Cut(output, []byte("\n"))
+	firstLine = bytes.TrimSpace(firstLine)
+	key, _, found := bytes.Cut(firstLine, []byte(":"))
+	if !found || len(bytes.TrimSpace(key)) == 0 {
+		return false
+	}
+	for _, b := range bytes.TrimSpace(key) {
+		if !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9') || strings.ContainsRune("_-[]{},", rune(b))) {
+			return false
+		}
+	}
+	for _, b := range output {
+		if b < 0x20 && b != '\n' && b != '\r' && b != '\t' {
+			return false
+		}
+	}
+	return true
+}
+
 func summarizeCommand(arguments []string, observation commandObservation, normalization evidenceContext) CommandSummary {
 	return CommandSummary{
 		Arguments:       tokenSafeArguments(arguments, normalization),
 		ExitCode:        observation.exitCode,
 		StdoutBytes:     observation.stdoutBytes,
 		StderrBytes:     observation.stderrBytes,
+		StdoutSHA256:    normalizedOutputSHA256(observation.stdout, normalization),
 		StructuredError: structuredErrorSummary(observation.stdout, normalization),
 	}
+}
+
+func normalizedOutputSHA256(output []byte, normalization evidenceContext) string {
+	digest := sha256.Sum256([]byte(normalization.normalize(string(output))))
+	return fmt.Sprintf("%x", digest)
 }
 
 func tokenSafeArguments(arguments []string, normalization evidenceContext) []string {
@@ -709,7 +933,7 @@ func tracerCommands(scenario scenarioDefinition) [][]string {
 		{
 			"-base-url", FixtureBaseURLPlaceholder + "/api/v1",
 			"api", "--json", "call", scenario.Operation,
-			scenario.QueryKey + "=" + scenario.QueryValue,
+			"q=" + scenario.QueryValues["q"],
 		},
 	}
 }
@@ -883,7 +1107,7 @@ func (f *tracerFixture) Snapshot() ([]RequestSummary, int, int, int, int, int) {
 
 func (f *tracerFixture) handle(w http.ResponseWriter, r *http.Request) {
 	unexpected := r.Method != f.scenario.Method || r.URL.Path != f.scenario.Path
-	outcome := !unexpected && (f.scenario.QueryKey == "" || r.URL.Query().Get(f.scenario.QueryKey) == f.scenario.QueryValue)
+	outcome := !unexpected && fixtureQueryMatches(r, f.scenario)
 	credentialLeak := requestContainsCredential(r, fixtureCredentialCanary)
 	summary := RequestSummary{
 		Method:      r.Method,
@@ -924,25 +1148,28 @@ func (f *tracerFixture) handle(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"ok":true,"data":[]}`))
 		return
 	}
-	if f.scenario.QueryKey == "" {
-		_ = json.NewEncoder(w).Encode(fixtureRepository{
-			ID:       1,
-			Name:     "target",
-			FullName: f.scenario.Repository,
-			HTMLURL:  "https://forgejo.invalid/" + f.scenario.Repository,
-		})
+	if f.scenario.ResponseStatus != 0 {
+		w.WriteHeader(f.scenario.ResponseStatus)
+	}
+	if f.scenario.ResponseJSON != "" {
+		_, _ = w.Write([]byte(f.scenario.ResponseJSON))
 		return
 	}
-	response := fixtureSearchResponse{
-		OK: true,
-		Data: []fixtureRepository{{
-			ID:       1,
-			Name:     "target",
-			FullName: f.scenario.Repository,
-			HTMLURL:  "https://forgejo.invalid/" + f.scenario.Repository,
-		}},
+	_ = json.NewEncoder(w).Encode(fixtureRepository{
+		ID:       1,
+		Name:     "target",
+		FullName: f.scenario.Repository,
+		HTMLURL:  "https://forgejo.invalid/" + f.scenario.Repository,
+	})
+}
+
+func fixtureQueryMatches(r *http.Request, scenario scenarioDefinition) bool {
+	for key, value := range scenario.QueryValues {
+		if r.URL.Query().Get(key) != value {
+			return false
+		}
 	}
-	_ = json.NewEncoder(w).Encode(response)
+	return true
 }
 
 func tokenSafeQuery(r *http.Request, credential string) string {

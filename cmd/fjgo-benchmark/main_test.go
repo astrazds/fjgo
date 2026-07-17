@@ -76,7 +76,7 @@ func TestCommandRunsCompleteCatalogByDefault(t *testing.T) {
 	if err := json.Unmarshal(stdout, &result); err != nil {
 		t.Fatalf("decode result: %v\n%s", err, stdout)
 	}
-	if result.SourceRevision != "command-test" || result.CatalogRevision != "2" || len(result.Results) != 14 {
+	if result.SourceRevision != "command-test" || result.SchemaVersion != "2" || result.CatalogRevision != "3" || len(result.Results) != 26 {
 		t.Fatalf("catalog = %+v", result)
 	}
 	for _, scenario := range result.Results {

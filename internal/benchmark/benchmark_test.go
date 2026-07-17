@@ -45,7 +45,7 @@ func TestTracerProducesDeterministicBlackBoxResult(t *testing.T) {
 		}
 	}
 
-	if first.SchemaVersion != "1" || first.CatalogRevision != "2" {
+	if first.SchemaVersion != "2" || first.CatalogRevision != "3" {
 		t.Fatalf("versions = schema %q catalog %q", first.SchemaVersion, first.CatalogRevision)
 	}
 	if first.SourceRevision != "test-revision" {
@@ -98,7 +98,7 @@ func TestTracerProducesDeterministicBlackBoxResult(t *testing.T) {
 	}
 }
 
-func TestCatalogCoversDiscoveryFallbackAndExplicitContextSources(t *testing.T) {
+func TestCatalogCoversDiscoveryContextAndCompactInspection(t *testing.T) {
 	t.Setenv("FJGO_HOST", "https://ambient.invalid")
 	t.Setenv("FJGO_TOKEN", "ambient-token-must-not-reach-fixture")
 	t.Setenv("FJGO_REPO", "ambient/repository")
@@ -148,8 +148,20 @@ func TestCatalogCoversDiscoveryFallbackAndExplicitContextSources(t *testing.T) {
 		"context-recovery.missing-repository",
 		"context-recovery.conflicting-remote-host",
 		"context-recovery.unsupported-remote",
+		"inspection.repository-toon",
+		"inspection.issue-detail-recovery",
+		"inspection.pull-request-json",
+		"inspection.commit-checks-generic-api",
+		"inspection.actions-run-toon",
+		"inspection.workflow-toon",
+		"inspection.release-toon",
+		"inspection.label-json",
+		"inspection.issue-search-empty",
+		"empty-state.issue-search-api-error",
+		"empty-state.issue-search-parsing-error",
+		"empty-state.issue-search-usage-error",
 	}
-	if first.SchemaVersion != SchemaVersion || first.CatalogRevision != "2" || first.SourceRevision != "test-revision" {
+	if first.SchemaVersion != SchemaVersion || first.CatalogRevision != "3" || first.SourceRevision != "test-revision" {
 		t.Fatalf("catalog metadata = %+v", first)
 	}
 	if len(first.Results) != len(wantIDs) {
@@ -171,21 +183,39 @@ func TestCatalogCoversDiscoveryFallbackAndExplicitContextSources(t *testing.T) {
 		if len(result.Commands) != result.Metrics.CLIInvocations {
 			t.Errorf("result %q commands = %+v metrics = %+v", result.Scenario.ID, result.Commands, result.Metrics)
 		}
+		for _, command := range result.Commands {
+			if len(command.StdoutSHA256) != 64 {
+				t.Errorf("result %q lacks deterministic stdout digest: %+v", result.Scenario.ID, command)
+			}
+		}
 	}
-	missing := first.Results[11]
+	missing := catalogResultByID(t, first, "context-recovery.missing-repository")
 	if missing.Commands[0].StructuredError == nil || missing.Commands[0].StructuredError.Kind != "cli" || missing.Commands[0].StructuredError.Code != "USAGE" {
 		t.Fatalf("missing-context evidence = %+v", missing.Commands)
 	}
-	conflict := first.Results[12]
+	conflict := catalogResultByID(t, first, "context-recovery.conflicting-remote-host")
 	if conflict.Commands[0].StructuredError == nil || !strings.Contains(conflict.Commands[0].StructuredError.Error, "does not match base host") {
 		t.Fatalf("conflict evidence = %+v", conflict.Commands)
 	}
 	if strings.Contains(conflict.Commands[0].StructuredError.Error, "127.0.0.1") {
 		t.Fatalf("conflict evidence contains volatile fixture host: %+v", conflict.Commands)
 	}
-	unsupported := first.Results[13]
+	unsupported := catalogResultByID(t, first, "context-recovery.unsupported-remote")
 	if unsupported.Commands[0].StructuredError == nil || !strings.Contains(unsupported.Commands[0].StructuredError.Error, "unsupported remote URL") {
 		t.Fatalf("unsupported-remote evidence = %+v", unsupported.Commands)
+	}
+	for _, result := range first.Results[14:] {
+		if (result.Scenario.ID != "empty-state.issue-search-usage-error" && result.Metrics.APIRequests == 0) || result.Metrics.StdoutBytes == 0 {
+			t.Errorf("inspection scenario %q lacks observable measurements: %+v", result.Scenario.ID, result.Metrics)
+		}
+	}
+	detail := catalogResultByID(t, first, "inspection.issue-detail-recovery")
+	if detail.Metrics.CLIInvocations != 2 || detail.Metrics.APIRequests != 2 {
+		t.Fatalf("detail recovery did not exercise default and full output: %+v", detail.Metrics)
+	}
+	empty := catalogResultByID(t, first, "inspection.issue-search-empty")
+	if empty.Metrics.CLIInvocations != 1 || empty.Metrics.APIRequests != 1 {
+		t.Fatalf("empty-state scenario measurements = %+v", empty.Metrics)
 	}
 }
 
@@ -202,7 +232,7 @@ func TestCatalogAcceptsAlternativeSequencesAndRecordsCorrections(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := alternative.Results[4]
+	root := catalogResultByID(t, alternative, "repository-context.root-flag")
 	if root.Scenario.Status != StatusPassed || root.Commands[0].Arguments[1] != FixtureBaseURLPlaceholder+"/api/v1" {
 		t.Fatalf("alternative result = %+v", root)
 	}
@@ -211,7 +241,7 @@ func TestCatalogAcceptsAlternativeSequencesAndRecordsCorrections(t *testing.T) {
 		FJGOPath: binary, SourceRevision: "test-revision", Timeout: 2 * time.Second,
 		ScenarioRuns: map[string]ScenarioRun{
 			"repository-context.root-flag": {
-				Commands:          catalogScenarios[4].commands,
+				Commands:          catalogScenarioByID(t, "repository-context.root-flag").commands,
 				ManualCorrections: 1,
 			},
 		},
@@ -219,9 +249,78 @@ func TestCatalogAcceptsAlternativeSequencesAndRecordsCorrections(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root = corrected.Results[4]
+	root = catalogResultByID(t, corrected, "repository-context.root-flag")
 	if root.Scenario.Status != StatusFailed || root.Scenario.CorrectionStatus != "manually_corrected" || root.Metrics.ManualCorrections != 1 {
 		t.Fatalf("corrected result = %+v", root)
+	}
+}
+
+func TestCompactInspectionOraclesRejectWrongOutputModeAndIncompleteRecovery(t *testing.T) {
+	binary := buildFJGO(t)
+	cfg := Config{FJGOPath: binary, SourceRevision: "test-revision", Timeout: 2 * time.Second}
+
+	pull := catalogScenarioByID(t, "inspection.pull-request-json")
+	pull.commands = [][]string{{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "pr", "list", "benchmark/target"}}
+	result, err := runCatalogScenario(context.Background(), cfg, pull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Scenario.Status != StatusFailed || result.Scenario.Completion.Satisfied {
+		t.Fatalf("TOON output satisfied JSON oracle: %+v", result)
+	}
+
+	detail := catalogScenarioByID(t, "inspection.issue-detail-recovery")
+	detail.commands = detail.commands[1:]
+	result, err = runCatalogScenario(context.Background(), cfg, detail)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Scenario.Status != StatusFailed || result.Scenario.Completion.Satisfied {
+		t.Fatalf("full output alone satisfied truncation-recovery oracle: %+v", result)
+	}
+
+	if scenarioOutputsMatch([]commandObservation{{stdout: []byte("value: ok\nextra: too much\n"), stdoutBytes: 26}}, catalogScenario{
+		outputOracles: []outputOracle{{format: outputFormatTOONShape, contains: []string{"value: ok"}, maxBytes: 10}},
+	}) {
+		t.Fatal("oversized TOON output satisfied compact-output oracle")
+	}
+}
+
+func TestEmptyInspectionOracleRejectsMalformedFixtureResponse(t *testing.T) {
+	scenario := catalogScenarioByID(t, "inspection.issue-search-empty")
+	scenario.definition.ResponseJSON = `{"not":"an issue list"}`
+	result, err := runCatalogScenario(context.Background(), Config{
+		FJGOPath: buildFJGO(t), SourceRevision: "test-revision", Timeout: 2 * time.Second,
+	}, scenario)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Scenario.Status != StatusFailed || result.Scenario.Completion.Satisfied || result.Commands[0].ExitCode == 0 {
+		t.Fatalf("malformed API payload looked like a definitive empty state: %+v", result)
+	}
+
+	scenario = catalogScenarioByID(t, "inspection.issue-search-empty")
+	scenario.commands = [][]string{{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "search", "issues", "--repo"}}
+	result, err = runCatalogScenario(context.Background(), Config{
+		FJGOPath: buildFJGO(t), SourceRevision: "test-revision", Timeout: 2 * time.Second,
+	}, scenario)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Scenario.Status != StatusFailed || result.Scenario.Completion.Satisfied || result.Commands[0].ExitCode == 0 || result.Metrics.APIRequests != 0 {
+		t.Fatalf("usage failure looked like a definitive empty state: %+v", result)
+	}
+
+	scenario = catalogScenarioByID(t, "inspection.issue-search-empty")
+	scenario.commands = [][]string{{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "search", "issues", "different", "--repo", "benchmark/target"}}
+	result, err = runCatalogScenario(context.Background(), Config{
+		FJGOPath: buildFJGO(t), SourceRevision: "test-revision", Timeout: 2 * time.Second,
+	}, scenario)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Scenario.Status != StatusFailed || result.Scenario.Completion.Satisfied || result.Metrics.APIRequests != 1 {
+		t.Fatalf("wrong search query satisfied issue-search outcome: %+v", result)
 	}
 }
 
@@ -369,4 +468,26 @@ func buildFJGO(t *testing.T) string {
 		t.Fatalf("build fjgo: %v\n%s", err, out)
 	}
 	return binary
+}
+
+func catalogScenarioByID(t *testing.T, id string) catalogScenario {
+	t.Helper()
+	for _, scenario := range catalogScenarios {
+		if scenario.definition.ID == id {
+			return scenario
+		}
+	}
+	t.Fatalf("catalog scenario %q not found", id)
+	return catalogScenario{}
+}
+
+func catalogResultByID(t *testing.T, result CatalogResult, id string) Result {
+	t.Helper()
+	for _, scenario := range result.Results {
+		if scenario.Scenario.ID == id {
+			return scenario
+		}
+	}
+	t.Fatalf("catalog result %q not found", id)
+	return Result{}
 }
