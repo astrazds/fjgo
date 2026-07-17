@@ -1,15 +1,121 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"repos.astrazds.net/astrazds/fjgo/internal/benchmark"
 )
+
+func TestCommandWritesAndChecksDeterministicTracerBaseline(t *testing.T) {
+	repoRoot, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tempDir := t.TempDir()
+	fjgo := filepath.Join(tempDir, "fjgo")
+	benchmarkCommand := filepath.Join(tempDir, "fjgo-benchmark")
+	buildCommand(t, repoRoot, fjgo, "./cmd/fjgo")
+	buildCommand(t, repoRoot, benchmarkCommand, "./cmd/fjgo-benchmark")
+
+	commandsFile := filepath.Join(tempDir, "commands.json")
+	commands := [][]string{{
+		"-base-url", benchmark.FixtureBaseURLPlaceholder + "/api/v1",
+		"api", "--json", "raw", "GET", "/repos/search", "q=benchmark-target",
+	}}
+	data, err := json.Marshal(commands)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(commandsFile, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	firstPath := filepath.Join(tempDir, "tracer-baseline.json")
+	secondPath := filepath.Join(tempDir, "equivalent.json")
+	for _, run := range []struct{ revision, path string }{{"revision-one", firstPath}, {"revision-two", secondPath}} {
+		cmd := exec.Command(benchmarkCommand, "-fjgo", fjgo, "-source-revision", run.revision, "-commands-file", commandsFile, "-write-baseline", run.path)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("write baseline: %v\n%s", err, output)
+		}
+	}
+	firstJSON, err := os.ReadFile(firstPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondJSON, err := os.ReadFile(secondPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(firstJSON, secondJSON) || !bytes.Contains(firstJSON, []byte(`"source_revision": "{source_revision}"`)) {
+		t.Fatalf("equivalent baselines differ:\nfirst:\n%s\nsecond:\n%s", firstJSON, secondJSON)
+	}
+	firstSummary, err := os.ReadFile(strings.TrimSuffix(firstPath, ".json") + ".md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondSummary, err := os.ReadFile(strings.TrimSuffix(secondPath, ".json") + ".md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(firstSummary, secondSummary) || !bytes.Contains(firstSummary, []byte("operation-discovery.repo-search")) {
+		t.Fatalf("equivalent summaries differ:\nfirst:\n%s\nsecond:\n%s", firstSummary, secondSummary)
+	}
+
+	if err := os.WriteFile(commandsFile, []byte(`[["version"]]`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	compare := exec.Command(benchmarkCommand, "-fjgo", fjgo, "-source-revision", "revision-three", "-commands-file", commandsFile, "-compare-baseline", firstPath)
+	comparisonJSON, err := compare.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var comparison benchmark.Comparison
+	if err := json.Unmarshal(comparisonJSON, &comparison); err != nil {
+		t.Fatalf("decode comparison: %v\n%s", err, comparisonJSON)
+	}
+	if comparison.Counts.Regressed != 1 || len(comparison.Deltas) != 1 || comparison.Deltas[0].ScenarioID != "operation-discovery.repo-search" {
+		t.Fatalf("tracer comparison = %+v", comparison)
+	}
+	if err := os.WriteFile(commandsFile, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	check := exec.Command(benchmarkCommand, "-fjgo", fjgo, "-source-revision", "revision-three", "-commands-file", commandsFile, "-check-baseline", firstPath)
+	if output, err := check.CombinedOutput(); err != nil {
+		t.Fatalf("check current baseline: %v\n%s", err, output)
+	}
+	if err := os.WriteFile(strings.TrimSuffix(firstPath, ".json")+".md", append(firstSummary, []byte("stale\n")...), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	check = exec.Command(benchmarkCommand, "-fjgo", fjgo, "-source-revision", "revision-three", "-commands-file", commandsFile, "-check-baseline", firstPath)
+	if output, err := check.CombinedOutput(); err == nil || !bytes.Contains(output, []byte("summary artifact is stale")) {
+		t.Fatalf("stale summary check = %v\n%s", err, output)
+	}
+
+	selectedPath := filepath.Join(tempDir, "selected.json")
+	selected := exec.Command(benchmarkCommand, "-fjgo", fjgo, "-source-revision", "selection", "-scenario", "mutation.dry-run", "-write-baseline", selectedPath)
+	if output, err := selected.CombinedOutput(); err != nil {
+		t.Fatalf("write selected baseline: %v\n%s", err, output)
+	}
+	selectedJSON, err := os.ReadFile(selectedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var selectedCatalog benchmark.CatalogResult
+	if err := json.Unmarshal(selectedJSON, &selectedCatalog); err != nil {
+		t.Fatal(err)
+	}
+	if len(selectedCatalog.Results) != 1 || selectedCatalog.Results[0].Scenario.ID != "mutation.dry-run" {
+		t.Fatalf("selected baseline = %+v", selectedCatalog.Results)
+	}
+}
 
 func TestCommandEncodesResultFromAlternativeSafeSequence(t *testing.T) {
 	repoRoot, err := filepath.Abs("../..")

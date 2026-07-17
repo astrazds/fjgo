@@ -1,0 +1,74 @@
+{
+  "schema_version": "4",
+  "source_revision": "{source_revision}",
+  "catalog_revision": "5",
+  "results": [
+    {
+      "schema_version": "4",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "scenario": {
+        "id": "operation-discovery.repo-search",
+        "category": "operation-discovery",
+        "delegated_outcome": "Discover the Forgejo repository-search operation and find benchmark/target",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "operation": "repoSearch",
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed repository search outcome"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 130,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "api",
+            "--json",
+            "raw",
+            "GET",
+            "/repos/search",
+            "q=benchmark-target"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 130,
+          "stderr_bytes": 0,
+          "stdout_sha256": "3565eaf0ea7da3aa50204e9a10c9a1d7a660b7adf376e31747f63169dce56a9f"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/search",
+          "query": "q=benchmark-target",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    }
+  ]
+}

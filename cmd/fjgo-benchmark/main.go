@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"repos.astrazds.net/astrazds/fjgo/internal/benchmark"
@@ -27,11 +28,27 @@ func run(ctx context.Context, args []string) error {
 	timeout := flags.Duration("timeout", 5*time.Second, "timeout for each scenario CLI invocation")
 	commandsFile := flags.String("commands-file", "", "JSON command sequence; use {fixture_base_url} for the local fixture")
 	scenarioRunsFile := flags.String("scenario-runs-file", "", "JSON scenario run records keyed by scenario ID")
+	writeBaseline := flags.String("write-baseline", "", "write normalized baseline JSON and a sibling Markdown summary")
+	checkBaseline := flags.String("check-baseline", "", "check normalized baseline JSON and its sibling Markdown summary")
+	compareBaseline := flags.String("compare-baseline", "", "compare the current normalized result with a baseline and emit JSON deltas")
+	var scenarioIDs stringListFlag
+	var categories stringListFlag
+	flags.Var(&scenarioIDs, "scenario", "select a scenario ID; repeatable")
+	flags.Var(&categories, "category", "select a scenario category; repeatable")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
 		return fmt.Errorf("unexpected arguments: %v", flags.Args())
+	}
+	modes := 0
+	for _, path := range []string{*writeBaseline, *checkBaseline, *compareBaseline} {
+		if path != "" {
+			modes++
+		}
+	}
+	if modes > 1 {
+		return fmt.Errorf("-write-baseline, -check-baseline, and -compare-baseline are mutually exclusive")
 	}
 
 	binary, cleanup, err := benchmark.ResolveFJGO(ctx, *repoRoot, *selected)
@@ -63,18 +80,73 @@ func run(ctx context.Context, args []string) error {
 		ScenarioRuns:   scenarioRuns,
 	}
 	var result any
+	var catalog benchmark.CatalogResult
 	if len(commands) > 0 {
-		result, err = benchmark.RunTracer(ctx, cfg)
+		tracer, runErr := benchmark.RunTracer(ctx, cfg)
+		err = runErr
+		result = tracer
+		catalog = benchmark.CatalogFromResult(tracer)
 	} else {
-		result, err = benchmark.RunCatalog(ctx, cfg)
+		catalog, err = benchmark.RunCatalog(ctx, cfg)
+		result = catalog
 	}
 	if err != nil {
 		return err
+	}
+	catalog, err = benchmark.FilterCatalog(catalog, scenarioIDs, categories)
+	if err != nil {
+		return err
+	}
+	if len(commands) == 0 {
+		result = catalog
+	}
+	if *writeBaseline != "" {
+		if err := benchmark.WriteBaseline(*writeBaseline, catalog); err != nil {
+			return err
+		}
+		encoded, err := benchmark.EncodeBaseline(catalog)
+		if err != nil {
+			return err
+		}
+		_, err = os.Stdout.Write(encoded)
+		return err
+	}
+	if *checkBaseline != "" {
+		return benchmark.CheckBaseline(*checkBaseline, catalog)
+	}
+	if *compareBaseline != "" {
+		baseline, err := benchmark.ReadBaseline(*compareBaseline)
+		if err != nil {
+			return err
+		}
+		comparison, err := benchmark.CompareBaselines(baseline, catalog)
+		if err != nil {
+			return err
+		}
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		encoder.SetEscapeHTML(false)
+		return encoder.Encode(comparison)
 	}
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	encoder.SetEscapeHTML(false)
 	return encoder.Encode(result)
+}
+
+type stringListFlag []string
+
+func (f *stringListFlag) String() string {
+	return strings.Join(*f, ",")
+}
+
+func (f *stringListFlag) Set(value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fmt.Errorf("selection cannot be empty")
+	}
+	*f = append(*f, value)
+	return nil
 }
 
 func readScenarioRuns(path string) (map[string]benchmark.ScenarioRun, error) {

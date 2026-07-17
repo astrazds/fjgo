@@ -1,0 +1,12 @@
+[
+  [
+    "-base-url",
+    "{fixture_base_url}/api/v1",
+    "api",
+    "--json",
+    "raw",
+    "GET",
+    "/repos/search",
+    "q=benchmark-target"
+  ]
+]

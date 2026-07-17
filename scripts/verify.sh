@@ -5,6 +5,9 @@ go generate ./internal/forgejo
 gofmt -w cmd/fjgo cmd/fjgo-benchmark internal/benchmark internal/forgejo tools/genapi
 env -u FJGO_HOST -u FJGO_TOKEN go test ./...
 go build ./cmd/fjgo
+go run ./cmd/fjgo-benchmark \
+	-commands-file internal/benchmark/testdata/tracer-commands.json \
+	-check-baseline internal/benchmark/testdata/tracer-baseline.json
 npm test
 npm pack --dry-run >/dev/null
 
