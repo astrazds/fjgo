@@ -3,10 +3,15 @@
 ## Unreleased
 
 - Expanded the deterministic black-box benchmark from one tracer into a
-  14-scenario offline catalog covering API discovery, generic fallback,
-  repository and host context, and structured context recovery.
+  46-scenario offline catalog covering discovery and context, compact
+  inspection, structured recovery, capability behavior, mutations, and
+  credential safety.
 - Added token-safe normalized CLI/request evidence, alternative scenario-run
-  records, and explicit manual-correction accounting to benchmark results.
+  records, explicit manual-correction accounting, baseline comparison, and a
+  bounded portable agent-host result importer.
+- Captured the authoritative current-product baseline with generated summary
+  and candidate-gap report, and made the full deterministic check part of
+  repository verification.
 
 ## v1.1.0 - 2026-07-16
 

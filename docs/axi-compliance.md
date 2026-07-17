@@ -43,10 +43,10 @@ are sorted deterministically before encoding.
 Focused encoder regressions live in `cmd/fjgo/toon_test.go`. The general AXI
 behavior and hook/install contracts are covered in `cmd/fjgo/main_test.go` and
 `internal/fjgoskill` tests. The offline black-box catalog in
-`internal/benchmark` additionally exercises operation/model/alias discovery,
-generic API fallback, explicit repository and host context, safe normalized
-CLI/request evidence, and structured context recovery through the compiled
-`fjgo` process. Run it with:
+`internal/benchmark` additionally exercises operation and model discovery,
+explicit repository and host context, compact inspection and output recovery,
+structured errors and capability recovery, and mutation and credential safety
+through the compiled `fjgo` process. Run all 46 scenarios with:
 
 ```sh
 go run ./cmd/fjgo-benchmark

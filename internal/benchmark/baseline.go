@@ -16,6 +16,7 @@ const (
 	SourceRevisionPlaceholder = "{source_revision}"
 	maxBaselineArtifactSize   = 4 << 20
 	maxMarkdownSummarySize    = 64 << 10
+	maxCandidateGapReportSize = 64 << 10
 	ComparisonSchemaVersion   = "1"
 
 	ChangeAdded     = "added"
@@ -333,6 +334,132 @@ func SummaryFromBaselineJSON(baselineJSON []byte) ([]byte, error) {
 	return sanitized, nil
 }
 
+type candidateGap struct {
+	name           string
+	safetyImpact   safetyImpact
+	agentJobImpact string
+	scenarios      []Result
+}
+
+type safetyImpact string
+
+const (
+	safetyImpactHigh   safetyImpact = "high"
+	safetyImpactMedium safetyImpact = "medium"
+	safetyImpactLow    safetyImpact = "low"
+)
+
+func CandidateGapReportFromBaselineJSON(baselineJSON []byte) ([]byte, error) {
+	if len(baselineJSON) > maxBaselineArtifactSize {
+		return nil, fmt.Errorf("baseline exceeds %d bytes", maxBaselineArtifactSize)
+	}
+	result, err := decodeBaseline(baselineJSON)
+	if err != nil {
+		return nil, err
+	}
+
+	grouped := map[string]*candidateGap{}
+	for _, scenario := range result.Results {
+		classification := classifyCandidateGap(scenario)
+		if classification.name == "" {
+			continue
+		}
+		gap := grouped[classification.name]
+		if gap == nil {
+			gap = &classification
+			grouped[classification.name] = gap
+		}
+		gap.scenarios = append(gap.scenarios, scenario)
+	}
+
+	gaps := make([]*candidateGap, 0, len(grouped))
+	for _, gap := range grouped {
+		gaps = append(gaps, gap)
+	}
+	sort.Slice(gaps, func(i, j int) bool {
+		if len(gaps[i].scenarios) != len(gaps[j].scenarios) {
+			return len(gaps[i].scenarios) > len(gaps[j].scenarios)
+		}
+		if safetyImpactRank(gaps[i].safetyImpact) != safetyImpactRank(gaps[j].safetyImpact) {
+			return safetyImpactRank(gaps[i].safetyImpact) > safetyImpactRank(gaps[j].safetyImpact)
+		}
+		return gaps[i].name < gaps[j].name
+	})
+
+	var report strings.Builder
+	fmt.Fprintf(&report, "# fjgo benchmark candidate gaps\n\nSchema: `%s`\\\nCatalog: `%s`\\\nCandidate groups: %d\n\n", result.SchemaVersion, result.CatalogRevision, len(gaps))
+	report.WriteString("This report groups observed failures and friction for review. It does not create tracker issues, and endpoint count alone is not evidence for a curated command.\n\n")
+	report.WriteString("## Candidate gaps\n\n")
+	if len(gaps) == 0 {
+		report.WriteString("No failures or friction were observed.\n")
+	}
+	for _, gap := range gaps {
+		fmt.Fprintf(&report, "### %s\n\nFrequency: %d\\\nSafety impact: %s\\\nAgent-job impact: %s\n\nSupporting bounded evidence:\n\n", gap.name, len(gap.scenarios), gap.safetyImpact, gap.agentJobImpact)
+		for _, scenario := range gap.scenarios {
+			fmt.Fprintf(&report, "- `%s` (%s): %s\n", escapeMarkdownCode(scenario.Scenario.ID), scenario.Scenario.Status, candidateEvidence(scenario))
+		}
+		if report.Len() > maxCandidateGapReportSize {
+			return nil, fmt.Errorf("candidate-gap report exceeds %d bytes", maxCandidateGapReportSize)
+		}
+		report.WriteByte('\n')
+	}
+	sanitized, leaks := sanitizeRetainedArtifact([]byte(report.String()), fixtureCredentialCanary)
+	if leaks > 0 {
+		return nil, fmt.Errorf("candidate-gap report contained %d credential canary leak(s)", leaks)
+	}
+	return sanitized, nil
+}
+
+func classifyCandidateGap(result Result) candidateGap {
+	switch {
+	case result.Safety.CredentialLeaks > 0 || result.Safety.UnsafeRequests > 0:
+		return candidateGap{name: "Credential or mutation safety violation", safetyImpact: safetyImpactHigh, agentJobImpact: "blocked with unsafe behavior"}
+	case result.Safety.UnexpectedRequests > 0:
+		return candidateGap{name: "Unexpected Forgejo request", safetyImpact: safetyImpactMedium, agentJobImpact: "blocked"}
+	case result.Safety.TimedOut || result.Scenario.Status == StatusTimedOut:
+		return candidateGap{name: "Subprocess timeout", safetyImpact: safetyImpactLow, agentJobImpact: "blocked"}
+	case result.Scenario.Status == StatusRecovered:
+		return candidateGap{name: "Autonomous recovery round trips", safetyImpact: safetyImpactLow, agentJobImpact: "completed with CLI and context friction"}
+	case result.Scenario.Status == StatusManuallyCorrected:
+		return candidateGap{name: "Manual command correction required", safetyImpact: safetyImpactLow, agentJobImpact: "completed only with human intervention"}
+	case result.Scenario.Status == StatusClarificationRequired:
+		return candidateGap{name: "Scenario clarification required", safetyImpact: safetyImpactLow, agentJobImpact: "blocked pending human interpretation"}
+	case result.Scenario.Status == StatusIncomplete:
+		return candidateGap{name: "Incomplete agent job", safetyImpact: safetyImpactLow, agentJobImpact: "blocked"}
+	case result.Scenario.Status == StatusFailed || !result.Scenario.Completion.Satisfied:
+		return candidateGap{name: "Completion oracle failure", safetyImpact: safetyImpactLow, agentJobImpact: "blocked"}
+	default:
+		return candidateGap{}
+	}
+}
+
+func safetyImpactRank(impact safetyImpact) int {
+	switch impact {
+	case safetyImpactHigh:
+		return 3
+	case safetyImpactMedium:
+		return 2
+	case safetyImpactLow:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func candidateEvidence(result Result) string {
+	if len(result.Scenario.FailureEvidence) > 0 {
+		return strings.Join(result.Scenario.FailureEvidence, "; ")
+	}
+	references := make([]string, 0, len(result.Evidence))
+	for _, evidence := range result.Evidence {
+		references = append(references, evidence.ID)
+	}
+	if len(references) > 0 {
+		return fmt.Sprintf("%d CLI invocation(s), %d API request(s); evidence: %s", result.Metrics.CLIInvocations, result.Metrics.APIRequests, strings.Join(references, ", "))
+	}
+	return fmt.Sprintf("%d CLI invocation(s), %d API request(s); status %s", result.Metrics.CLIInvocations, result.Metrics.APIRequests, result.Scenario.Status)
+}
+
 func WriteBaseline(path string, result CatalogResult) error {
 	baselineJSON, err := EncodeBaseline(result)
 	if err != nil {
@@ -342,10 +469,17 @@ func WriteBaseline(path string, result CatalogResult) error {
 	if err != nil {
 		return err
 	}
+	gaps, err := CandidateGapReportFromBaselineJSON(baselineJSON)
+	if err != nil {
+		return err
+	}
 	if err := os.WriteFile(path, baselineJSON, 0o644); err != nil {
 		return err
 	}
-	return os.WriteFile(summaryPath(path), summary, 0o644)
+	if err := os.WriteFile(summaryPath(path), summary, 0o644); err != nil {
+		return err
+	}
+	return os.WriteFile(candidateGapReportPath(path), gaps, 0o644)
 }
 
 func CheckBaseline(path string, current CatalogResult) error {
@@ -370,6 +504,17 @@ func CheckBaseline(path string, current CatalogResult) error {
 	}
 	if !bytes.Equal(wantSummary, currentSummary) {
 		return errors.New("summary artifact is stale")
+	}
+	wantGaps, err := readBaselineArtifact(candidateGapReportPath(path))
+	if err != nil {
+		return err
+	}
+	currentGaps, err := CandidateGapReportFromBaselineJSON(currentJSON)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(wantGaps, currentGaps) {
+		return errors.New("candidate-gap report is stale")
 	}
 	return nil
 }
@@ -442,6 +587,11 @@ func readBaselineArtifact(path string) ([]byte, error) {
 func summaryPath(path string) string {
 	extension := filepath.Ext(path)
 	return strings.TrimSuffix(path, extension) + ".md"
+}
+
+func candidateGapReportPath(path string) string {
+	extension := filepath.Ext(path)
+	return strings.TrimSuffix(path, extension) + ".gaps.md"
 }
 
 func escapeMarkdownCode(value string) string {

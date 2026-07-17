@@ -67,6 +67,17 @@ func TestCommandWritesAndChecksDeterministicTracerBaseline(t *testing.T) {
 	if !bytes.Equal(firstSummary, secondSummary) || !bytes.Contains(firstSummary, []byte("operation-discovery.repo-search")) {
 		t.Fatalf("equivalent summaries differ:\nfirst:\n%s\nsecond:\n%s", firstSummary, secondSummary)
 	}
+	firstGaps, err := os.ReadFile(strings.TrimSuffix(firstPath, ".json") + ".gaps.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondGaps, err := os.ReadFile(strings.TrimSuffix(secondPath, ".json") + ".gaps.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(firstGaps, secondGaps) || !bytes.Contains(firstGaps, []byte("## Candidate gaps")) || !bytes.Contains(firstGaps, []byte("No failures or friction were observed.")) {
+		t.Fatalf("equivalent gap reports differ:\nfirst:\n%s\nsecond:\n%s", firstGaps, secondGaps)
+	}
 
 	if err := os.WriteFile(commandsFile, []byte(`[["version"]]`), 0o600); err != nil {
 		t.Fatal(err)
@@ -97,6 +108,16 @@ func TestCommandWritesAndChecksDeterministicTracerBaseline(t *testing.T) {
 	check = exec.Command(benchmarkCommand, "-fjgo", fjgo, "-source-revision", "revision-three", "-commands-file", commandsFile, "-check-baseline", firstPath)
 	if output, err := check.CombinedOutput(); err == nil || !bytes.Contains(output, []byte("summary artifact is stale")) {
 		t.Fatalf("stale summary check = %v\n%s", err, output)
+	}
+	if err := os.WriteFile(strings.TrimSuffix(firstPath, ".json")+".md", firstSummary, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(strings.TrimSuffix(firstPath, ".json")+".gaps.md", append(firstGaps, []byte("stale\n")...), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	check = exec.Command(benchmarkCommand, "-fjgo", fjgo, "-source-revision", "revision-three", "-commands-file", commandsFile, "-check-baseline", firstPath)
+	if output, err := check.CombinedOutput(); err == nil || !bytes.Contains(output, []byte("candidate-gap report is stale")) {
+		t.Fatalf("stale gap report check = %v\n%s", err, output)
 	}
 
 	selectedPath := filepath.Join(tempDir, "selected.json")

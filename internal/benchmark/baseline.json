@@ -1,0 +1,3344 @@
+{
+  "schema_version": "5",
+  "source_revision": "{source_revision}",
+  "catalog_revision": "5",
+  "results": [
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "discovery.operation-inspect",
+        "category": "operation-discovery",
+        "delegated_outcome": "Discover how to fetch one repository",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "evidence": [
+            "process output satisfied the external completion oracle"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 0,
+        "stdout_bytes": 844,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "api",
+            "--json",
+            "inspect",
+            "repoGet"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 844,
+          "stderr_bytes": 0,
+          "stdout_sha256": "c86f02f6992a33c33cde34005b960103a82ed9e53cceb25db21d9a38ef96ece4"
+        }
+      ],
+      "requests": null,
+      "evidence": [
+        {
+          "id": "process-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "discovery.model-inspect",
+        "category": "operation-discovery",
+        "delegated_outcome": "Discover the repository response model",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "evidence": [
+            "process output satisfied the external completion oracle"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 0,
+        "stdout_bytes": 5016,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "model",
+            "--json",
+            "inspect",
+            "Repository"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 5016,
+          "stderr_bytes": 0,
+          "stdout_sha256": "3f4b41a0cdab920d2efaa6ee2573fb89e06efe7150060fb6f316f2388db5e3d6"
+        }
+      ],
+      "requests": null,
+      "evidence": [
+        {
+          "id": "process-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "discovery.alias-inspect",
+        "category": "operation-discovery",
+        "delegated_outcome": "Discover the repository-get alias and backing operation",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "evidence": [
+            "process output satisfied the external completion oracle"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 0,
+        "stdout_bytes": 1062,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "alias",
+            "--json",
+            "inspect",
+            "repo",
+            "get"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 1062,
+          "stderr_bytes": 0,
+          "stdout_sha256": "e7db9ee6fbd0658398a8d74c05afd29cc5e79cea04d9271582b54c57db71c997"
+        }
+      ],
+      "requests": null,
+      "evidence": [
+        {
+          "id": "process-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "discovery.generic-api-fallback",
+        "category": "operation-discovery",
+        "delegated_outcome": "Fetch benchmark/target through the generic API fallback",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 110,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "api",
+            "--json",
+            "raw",
+            "GET",
+            "/repos/benchmark/target"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 110,
+          "stderr_bytes": 0,
+          "stdout_sha256": "b40ce20df53bc7be199fb6f7a8601e6e76fe97825e1c7bd9907f732501622628"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "repository-context.root-flag",
+        "category": "repository-context",
+        "delegated_outcome": "Fetch benchmark/target using root repository context",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 127,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "--repo",
+            "benchmark/target",
+            "repo",
+            "get",
+            "--json"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 127,
+          "stderr_bytes": 0,
+          "stdout_sha256": "693c51ebdac4a28b106e04f5d0b2a3146ad11e8d93b5d57015a79cda83722d3c"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "repository-context.command-local-flag",
+        "category": "repository-context",
+        "delegated_outcome": "Fetch benchmark/target using command-local repository context",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 127,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "repo",
+            "get",
+            "--repo",
+            "benchmark/target",
+            "--json"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 127,
+          "stderr_bytes": 0,
+          "stdout_sha256": "693c51ebdac4a28b106e04f5d0b2a3146ad11e8d93b5d57015a79cda83722d3c"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "repository-context.environment",
+        "category": "repository-context",
+        "delegated_outcome": "Fetch benchmark/target using FJGO_REPO",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 127,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "repo",
+            "get",
+            "--json"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 127,
+          "stderr_bytes": 0,
+          "stdout_sha256": "693c51ebdac4a28b106e04f5d0b2a3146ad11e8d93b5d57015a79cda83722d3c"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "repository-context.git-remote",
+        "category": "repository-context",
+        "delegated_outcome": "Fetch benchmark/target using an explicit Forgejo git remote",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 127,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "-R",
+            "origin",
+            "repo",
+            "get",
+            "--json"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 127,
+          "stderr_bytes": 0,
+          "stdout_sha256": "693c51ebdac4a28b106e04f5d0b2a3146ad11e8d93b5d57015a79cda83722d3c"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "host-context.environment",
+        "category": "host-context",
+        "delegated_outcome": "Fetch benchmark/target using FJGO_HOST",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 127,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--repo",
+            "benchmark/target",
+            "repo",
+            "get",
+            "--json"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 127,
+          "stderr_bytes": 0,
+          "stdout_sha256": "693c51ebdac4a28b106e04f5d0b2a3146ad11e8d93b5d57015a79cda83722d3c"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "host-context.command-local-flag",
+        "category": "host-context",
+        "delegated_outcome": "Fetch benchmark/target using command-local --host",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 127,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "repo",
+            "get",
+            "--host",
+            "{fixture_base_url}",
+            "--repo",
+            "benchmark/target",
+            "--json"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 127,
+          "stderr_bytes": 0,
+          "stdout_sha256": "693c51ebdac4a28b106e04f5d0b2a3146ad11e8d93b5d57015a79cda83722d3c"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "host-context.explicit-base-url",
+        "category": "host-context",
+        "delegated_outcome": "Fetch benchmark/target using an explicit non-standard API base URL",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 127,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/custom/api",
+            "--repo",
+            "benchmark/target",
+            "repo",
+            "get",
+            "--json"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 127,
+          "stderr_bytes": 0,
+          "stdout_sha256": "693c51ebdac4a28b106e04f5d0b2a3146ad11e8d93b5d57015a79cda83722d3c"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/custom/api/repos/benchmark/target",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "context-recovery.missing-repository",
+        "category": "context-recovery",
+        "delegated_outcome": "Recover from missing repository context with structured guidance",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "evidence": [
+            "process output satisfied the external completion oracle"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 0,
+        "stdout_bytes": 310,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--json",
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "repo",
+            "get"
+          ],
+          "exit_code": 2,
+          "stdout_bytes": 310,
+          "stderr_bytes": 0,
+          "stdout_sha256": "23a7b354f150e6972d32ad87f678ddf56b16e722f69a4ae0ef3d7910e13a6a6e",
+          "structured_error": {
+            "kind": "cli",
+            "code": "USAGE",
+            "error": "usage: fjgo repo get [owner/repo]",
+            "help": [
+              "Pass `owner/repo`, root `--repo OWNER/REPO`, set FJGO_REPO=OWNER/REPO, or use `-R origin`"
+            ]
+          }
+        }
+      ],
+      "requests": null,
+      "evidence": [
+        {
+          "id": "process-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "context-recovery.conflicting-remote-host",
+        "category": "context-recovery",
+        "delegated_outcome": "Recover when a git remote conflicts with the configured Forgejo host",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "evidence": [
+            "process output satisfied the external completion oracle"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 0,
+        "stdout_bytes": 291,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--json",
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "-R",
+            "origin",
+            "repo",
+            "get"
+          ],
+          "exit_code": 1,
+          "stdout_bytes": 291,
+          "stderr_bytes": 0,
+          "stdout_sha256": "3e896398597dd0f3a2575dea16cceab61355845829ab0936d90b026cd1415c7c",
+          "structured_error": {
+            "kind": "cli",
+            "code": "ERROR",
+            "error": "parse git remote \"origin\": remote host \"other.invalid\" does not match base host \"{fixture_host}\""
+          }
+        }
+      ],
+      "requests": null,
+      "evidence": [
+        {
+          "id": "process-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "context-recovery.unsupported-remote",
+        "category": "context-recovery",
+        "delegated_outcome": "Recover when a git remote URL form is unsupported",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "evidence": [
+            "process output satisfied the external completion oracle"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 0,
+        "stdout_bytes": 253,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--json",
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "-R",
+            "origin",
+            "repo",
+            "get"
+          ],
+          "exit_code": 1,
+          "stdout_bytes": 253,
+          "stderr_bytes": 0,
+          "stdout_sha256": "61921e87daacee2dbf7d1eac062020eb21835b3c4cd992fef0cda35b7c20f15a",
+          "structured_error": {
+            "kind": "cli",
+            "code": "ERROR",
+            "error": "parse git remote \"origin\": unsupported remote URL \"not-a-url\""
+          }
+        }
+      ],
+      "requests": null,
+      "evidence": [
+        {
+          "id": "process-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "inspection.repository-toon",
+        "category": "compact-inspection",
+        "delegated_outcome": "Inspect decisive repository identity in compact TOON output",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 130,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "--repo",
+            "benchmark/target",
+            "repo",
+            "get"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 130,
+          "stderr_bytes": 0,
+          "stdout_sha256": "2150e28b4c8464f2b8e7f0667182fb81c4ff803be33881d69564a8439415b91e"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "inspection.issue-detail-recovery",
+        "category": "output-recovery",
+        "delegated_outcome": "Inspect an issue compactly, notice truncation, and recover its complete body",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 2,
+        "api_requests": 2,
+        "stdout_bytes": 2729,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "issue",
+            "view",
+            "benchmark/target",
+            "7"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 1220,
+          "stderr_bytes": 0,
+          "stdout_sha256": "c36d91a8a9ebb5f5d85194a4c166e6c5376905d47345f50d98fe76bd6e7c1d3f"
+        },
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "issue",
+            "view",
+            "benchmark/target",
+            "7",
+            "--full"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 1509,
+          "stderr_bytes": 0,
+          "stdout_sha256": "adf1b57e7482f8af22467946003e13d6993968fd374c60b00b348d19ab3180b7"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target/issues/7",
+          "auth_present": true
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target/issues/7",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "inspection.pull-request-json",
+        "category": "compact-inspection",
+        "delegated_outcome": "Obtain deterministic parseable pull-request data",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 166,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "pr",
+            "list",
+            "benchmark/target",
+            "--json"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 166,
+          "stderr_bytes": 0,
+          "stdout_sha256": "b93988d3e854dc8f5aef097b91792344dd203c15e392a21ec9675966b94873e9"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target/pulls",
+          "query": "limit=30\u0026state=open",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "inspection.commit-checks-generic-api",
+        "category": "generic-api-inspection",
+        "delegated_outcome": "Inspect commit checks through the generic API when no commit-check alias is assumed",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 123,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "api",
+            "--json",
+            "call",
+            "repoListStatusesByRef",
+            "owner=benchmark",
+            "repo=target",
+            "ref=abc123"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 123,
+          "stderr_bytes": 0,
+          "stdout_sha256": "1f3cff6f28ad9d2764df3417261920d0e78fcc1ff13bc424332a6a031c8c21d0"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target/commits/abc123/statuses",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "inspection.actions-run-toon",
+        "category": "compact-inspection",
+        "delegated_outcome": "Inspect recent Actions runs in compact contextual output",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 290,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "run",
+            "list",
+            "benchmark/target"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 290,
+          "stderr_bytes": 0,
+          "stdout_sha256": "327271e11b823c18944f5345a2a4b8a8422775bd7effdf3c1fec01fc8e218e3a"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target/actions/runs",
+          "query": "limit=30",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "inspection.workflow-toon",
+        "category": "compact-inspection",
+        "delegated_outcome": "Inspect repository workflow files in compact contextual output",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 209,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "workflow",
+            "list",
+            "benchmark/target"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 209,
+          "stderr_bytes": 0,
+          "stdout_sha256": "777d09a6a2cdf3677909dc48b58aab6e5459631e583d5c51cb9e802fcd41c9b6"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target/contents/.forgejo/workflows",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "inspection.release-toon",
+        "category": "compact-inspection",
+        "delegated_outcome": "Inspect repository releases in compact contextual output",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 275,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "release",
+            "list",
+            "benchmark/target"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 275,
+          "stderr_bytes": 0,
+          "stdout_sha256": "4d00c941232a1036f9bdb9d27eafae058e0886625c1fe8d30fb14cf84800fc5a"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target/releases",
+          "query": "limit=30",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "inspection.label-json",
+        "category": "compact-inspection",
+        "delegated_outcome": "Obtain deterministic parseable repository label data",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 105,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "label",
+            "list",
+            "benchmark/target",
+            "--json"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 105,
+          "stderr_bytes": 0,
+          "stdout_sha256": "8b2dc87ca9df7dc3b4ec9b533679ec59631d4ea5bd49eff75ad7826a2f43ffb3"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target/labels",
+          "query": "limit=100",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "inspection.issue-search-empty",
+        "category": "empty-state-inspection",
+        "delegated_outcome": "Distinguish a definitive empty issue search from API, parsing, and usage failures",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 43,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "search",
+            "issues",
+            "missing",
+            "--repo",
+            "benchmark/target"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 43,
+          "stderr_bytes": 0,
+          "stdout_sha256": "231943726c24baa7f6ba797aa01798290246d03806fce59ecdec8b52602c5d04"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target/issues",
+          "query": "limit=30\u0026q=missing\u0026type=issues",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "empty-state.issue-search-api-error",
+        "category": "empty-state-recovery",
+        "delegated_outcome": "Distinguish a Forgejo API failure from an empty issue search",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 291,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--json",
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "search",
+            "issues",
+            "missing",
+            "--repo",
+            "benchmark/target"
+          ],
+          "exit_code": 1,
+          "stdout_bytes": 291,
+          "stderr_bytes": 0,
+          "stdout_sha256": "c479d2d34eff1db8832063f618415cb5e659d67d488031bef8f9720271ea77b6",
+          "structured_error": {
+            "kind": "forgejo_api",
+            "code": "ERROR",
+            "error": "forgejo api: status 500: fixture unavailable"
+          }
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target/issues",
+          "query": "limit=30\u0026q=missing\u0026type=issues",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "empty-state.issue-search-parsing-error",
+        "category": "empty-state-recovery",
+        "delegated_outcome": "Distinguish a malformed issue response from an empty issue search",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 290,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--json",
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "search",
+            "issues",
+            "missing",
+            "--repo",
+            "benchmark/target"
+          ],
+          "exit_code": 1,
+          "stdout_bytes": 290,
+          "stderr_bytes": 0,
+          "stdout_sha256": "2485b841af9acaa2c204420fdf876979f2eb768eabcb575a25a6a7efe68fffad",
+          "structured_error": {
+            "kind": "cli",
+            "code": "ERROR",
+            "error": "json: cannot unmarshal object into Go value of type []*forgejo.Issue"
+          }
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target/issues",
+          "query": "limit=30\u0026q=missing\u0026type=issues",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "empty-state.issue-search-usage-error",
+        "category": "empty-state-recovery",
+        "delegated_outcome": "Distinguish invalid issue-search usage from an empty result",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "evidence": [
+            "process output satisfied the external completion oracle"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 0,
+        "stdout_bytes": 152,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--json",
+            "search",
+            "issues",
+            "--repo"
+          ],
+          "exit_code": 2,
+          "stdout_bytes": 152,
+          "stderr_bytes": 0,
+          "stdout_sha256": "8d564c96f47ef8c21cca222f119e1849999206bb53e128a5d960a208353e256b",
+          "structured_error": {
+            "kind": "cli",
+            "code": "USAGE",
+            "error": "--repo requires a value"
+          }
+        }
+      ],
+      "requests": null,
+      "evidence": [
+        {
+          "id": "process-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "recovery.missing-required-argument",
+        "category": "structured-error-recovery",
+        "delegated_outcome": "Recover autonomously from missing repository context and inspect benchmark/target",
+        "status": "recovered",
+        "correction_status": "autonomous_recovery",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 2,
+        "api_requests": 1,
+        "stdout_bytes": 437,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--json",
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "repo",
+            "get"
+          ],
+          "exit_code": 2,
+          "stdout_bytes": 310,
+          "stderr_bytes": 0,
+          "stdout_sha256": "23a7b354f150e6972d32ad87f678ddf56b16e722f69a4ae0ef3d7910e13a6a6e",
+          "structured_error": {
+            "kind": "cli",
+            "code": "USAGE",
+            "error": "usage: fjgo repo get [owner/repo]",
+            "help": [
+              "Pass `owner/repo`, root `--repo OWNER/REPO`, set FJGO_REPO=OWNER/REPO, or use `-R origin`"
+            ]
+          }
+        },
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "--repo",
+            "benchmark/target",
+            "repo",
+            "get",
+            "--json"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 127,
+          "stderr_bytes": 0,
+          "stdout_sha256": "693c51ebdac4a28b106e04f5d0b2a3146ad11e8d93b5d57015a79cda83722d3c"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "recovery.api-unauthorized",
+        "category": "structured-error-recovery",
+        "delegated_outcome": "Distinguish an actionable Forgejo API error without unsafe recovery",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 377,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--json",
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "--repo",
+            "benchmark/target",
+            "repo",
+            "get"
+          ],
+          "exit_code": 1,
+          "stdout_bytes": 377,
+          "stderr_bytes": 0,
+          "stdout_sha256": "0e4e0ef90510f9fa53c30700994b8928fbabf9c8e2521a5c46ae8923fc105e16",
+          "structured_error": {
+            "kind": "forgejo_api",
+            "code": "AUTH_TOKEN_INVALID",
+            "error": "forgejo api: status 401: token invalid",
+            "help": [
+              "Set FJGO_TOKEN or pass -token with a Forgejo access token for this base URL"
+            ]
+          }
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "recovery.api-forbidden",
+        "category": "structured-error-recovery",
+        "delegated_outcome": "Distinguish an actionable Forgejo API error without unsafe recovery",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 369,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--json",
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "--repo",
+            "benchmark/target",
+            "repo",
+            "get"
+          ],
+          "exit_code": 1,
+          "stdout_bytes": 369,
+          "stderr_bytes": 0,
+          "stdout_sha256": "93e47d85a78d16daab05c71b97c3b46557ab7ea5e17ea5e7066c16f0abbf5522",
+          "structured_error": {
+            "kind": "forgejo_api",
+            "code": "AUTH_SCOPE_MISSING",
+            "error": "forgejo api: status 403: scope required",
+            "help": [
+              "Check that the token has permission for this repository and action"
+            ]
+          }
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "recovery.api-not-found",
+        "category": "structured-error-recovery",
+        "delegated_outcome": "Distinguish an actionable Forgejo API error without unsafe recovery",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 390,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--json",
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "--repo",
+            "benchmark/target",
+            "repo",
+            "get"
+          ],
+          "exit_code": 1,
+          "stdout_bytes": 390,
+          "stderr_bytes": 0,
+          "stdout_sha256": "7cb7ad3e411a8a633d48bfbdf32182a907a82c4ceb546b27735fe606fb7c9597",
+          "structured_error": {
+            "kind": "forgejo_api",
+            "code": "REPO_NOT_FOUND",
+            "error": "forgejo api: status 404: repository not found",
+            "help": [
+              "Check the owner/repo, issue number, pull request number, release ID, tag, or base URL"
+            ]
+          }
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "recovery.api-validation",
+        "category": "structured-error-recovery",
+        "delegated_outcome": "Distinguish an actionable Forgejo API error without unsafe recovery",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 430,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--json",
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "--repo",
+            "benchmark/target",
+            "repo",
+            "get"
+          ],
+          "exit_code": 1,
+          "stdout_bytes": 430,
+          "stderr_bytes": 0,
+          "stdout_sha256": "21b76eda489bf8b143e8f718b47a3ce29dccc35840c3db2af7a5b0287773e085",
+          "structured_error": {
+            "kind": "forgejo_api",
+            "code": "VALIDATION",
+            "error": "forgejo api: status 422: validation failed",
+            "help": [
+              "Run the matching `fjgo \u003ccommand\u003e --dry-run --yes` or `fjgo api inspect \u003coperationId\u003e` to verify the request body"
+            ]
+          }
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "recovery.api-rate-limited",
+        "category": "structured-error-recovery",
+        "delegated_outcome": "Distinguish an actionable Forgejo API error without unsafe recovery",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 365,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--json",
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "--repo",
+            "benchmark/target",
+            "repo",
+            "get"
+          ],
+          "exit_code": 1,
+          "stdout_bytes": 365,
+          "stderr_bytes": 0,
+          "stdout_sha256": "8cc9a81aef6a3cb156fafc704fd756e3aa53584e1cd6e0366236665bc9af94b3",
+          "structured_error": {
+            "kind": "forgejo_api",
+            "code": "RATE_LIMITED",
+            "error": "forgejo api: status 429: rate limit exceeded",
+            "help": [
+              "Wait for the Forgejo API rate limit window to reset, then retry"
+            ]
+          }
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "recovery.api-server-error",
+        "category": "structured-error-recovery",
+        "delegated_outcome": "Distinguish an actionable Forgejo API error without unsafe recovery",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 265,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--json",
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "--repo",
+            "benchmark/target",
+            "repo",
+            "get"
+          ],
+          "exit_code": 1,
+          "stdout_bytes": 265,
+          "stderr_bytes": 0,
+          "stdout_sha256": "25521481c96fa33444e7b70091694a03f771083f5a645e40d36ae4fef05d2c17",
+          "structured_error": {
+            "kind": "forgejo_api",
+            "code": "ERROR",
+            "error": "forgejo api: status 500: server failed"
+          }
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "recovery.unknown-subcommand",
+        "category": "structured-error-recovery",
+        "delegated_outcome": "Recover autonomously from an unknown CLI command while inspecting repoGet",
+        "status": "recovered",
+        "correction_status": "autonomous_recovery",
+        "completion": {
+          "satisfied": true,
+          "evidence": [
+            "process output satisfied the external completion oracle"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 2,
+        "api_requests": 0,
+        "stdout_bytes": 1230,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--json",
+            "operation",
+            "inspect",
+            "repoGet"
+          ],
+          "exit_code": 2,
+          "stdout_bytes": 386,
+          "stderr_bytes": 0,
+          "stdout_sha256": "735847fc011014a81078a697ed4e53306023ca03b9c38ad3ee80e032077a8c75",
+          "structured_error": {
+            "kind": "cli",
+            "code": "USAGE",
+            "error": "unknown command \"operation\"",
+            "help": [
+              "valid commands: setup, hook, doctor, context, version, me, auth, whoami, get, api, alias, model, repo, issue, pr, pull, run, workflow, search, label, secret, variable, release, update, skill, install"
+            ]
+          }
+        },
+        {
+          "arguments": [
+            "api",
+            "--json",
+            "inspect",
+            "repoGet"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 844,
+          "stderr_bytes": 0,
+          "stdout_sha256": "c86f02f6992a33c33cde34005b960103a82ed9e53cceb25db21d9a38ef96ece4"
+        }
+      ],
+      "requests": null,
+      "evidence": [
+        {
+          "id": "process-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "recovery.unknown-operation",
+        "category": "structured-error-recovery",
+        "delegated_outcome": "Recover autonomously from an unavailable API operation and inspect the supported repoGet operation",
+        "status": "recovered",
+        "correction_status": "autonomous_recovery",
+        "completion": {
+          "satisfied": true,
+          "evidence": [
+            "process output satisfied the external completion oracle"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 2,
+        "api_requests": 0,
+        "stdout_bytes": 1027,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--json",
+            "api",
+            "inspect",
+            "notAForgejoOperation"
+          ],
+          "exit_code": 2,
+          "stdout_bytes": 183,
+          "stderr_bytes": 0,
+          "stdout_sha256": "6ef898946e5c1641ae697299b1ca3b42045b22e61cb277162e5855eefd87e5f0",
+          "structured_error": {
+            "kind": "cli",
+            "code": "USAGE",
+            "error": "unknown operation \"notAForgejoOperation\""
+          }
+        },
+        {
+          "arguments": [
+            "api",
+            "--json",
+            "inspect",
+            "repoGet"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 844,
+          "stderr_bytes": 0,
+          "stdout_sha256": "c86f02f6992a33c33cde34005b960103a82ed9e53cceb25db21d9a38ef96ece4"
+        }
+      ],
+      "requests": null,
+      "evidence": [
+        {
+          "id": "process-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "recovery.invalid-fields",
+        "category": "structured-error-recovery",
+        "delegated_outcome": "Recover autonomously from invalid output fields and inspect issues",
+        "status": "recovered",
+        "correction_status": "autonomous_recovery",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 2,
+        "api_requests": 1,
+        "stdout_bytes": 382,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--json",
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "issue",
+            "list",
+            "benchmark/target",
+            "--fields",
+            "not_a_field"
+          ],
+          "exit_code": 2,
+          "stdout_bytes": 379,
+          "stderr_bytes": 0,
+          "stdout_sha256": "391953e0df7c77296e6335142dd7d74c19b0f58b66583db0e8172e46777d5e54",
+          "structured_error": {
+            "kind": "cli",
+            "code": "USAGE",
+            "error": "unknown field(s) for `issue list`: not_a_field",
+            "help": [
+              "available fields: author, body, comments, labels, number, state, title, updated, url"
+            ]
+          }
+        },
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "issue",
+            "list",
+            "benchmark/target",
+            "--json"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 3,
+          "stderr_bytes": 0,
+          "stdout_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target/issues",
+          "query": "limit=30\u0026state=open\u0026type=issues",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "recovery.malformed-value",
+        "category": "structured-error-recovery",
+        "delegated_outcome": "Recover autonomously from a malformed timeout while inspecting repoGet",
+        "status": "recovered",
+        "correction_status": "autonomous_recovery",
+        "completion": {
+          "satisfied": true,
+          "evidence": [
+            "process output satisfied the external completion oracle"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 2,
+        "api_requests": 0,
+        "stdout_bytes": 1249,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--json",
+            "--timeout",
+            "not-a-duration",
+            "api",
+            "inspect",
+            "repoGet"
+          ],
+          "exit_code": 2,
+          "stdout_bytes": 405,
+          "stderr_bytes": 0,
+          "stdout_sha256": "fb282709dc98284615e18a9b3a3a0e4241f8431df09207221ec2e141fb317267",
+          "structured_error": {
+            "kind": "cli",
+            "code": "USAGE",
+            "error": "unknown flag --timeout for `fjgo`",
+            "help": [
+              "valid flags for `fjgo`: --help, --host, --json, --otp, --password, --repo, --repo-from-remote, --sudo, --username, --version, -R, -base-url, -timeout, -token (--help always allowed)"
+            ]
+          }
+        },
+        {
+          "arguments": [
+            "api",
+            "--json",
+            "inspect",
+            "repoGet"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 844,
+          "stderr_bytes": 0,
+          "stdout_sha256": "c86f02f6992a33c33cde34005b960103a82ed9e53cceb25db21d9a38ef96ece4"
+        }
+      ],
+      "requests": null,
+      "evidence": [
+        {
+          "id": "process-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "capability.version-dependent-operation",
+        "category": "capability-recovery",
+        "delegated_outcome": "Inspect the Forgejo version and safely identify that its Actions runs operation is unavailable",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 2,
+        "api_requests": 2,
+        "stdout_bytes": 456,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "api",
+            "--json",
+            "raw",
+            "GET",
+            "/version"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 19,
+          "stderr_bytes": 0,
+          "stdout_sha256": "6e4b78685ed8d81022d087cf9c7b911796e17827f4da4fb8b39b48d5df07115d"
+        },
+        {
+          "arguments": [
+            "--json",
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "api",
+            "call",
+            "ListActionRuns",
+            "owner=benchmark",
+            "repo=target"
+          ],
+          "exit_code": 1,
+          "stdout_bytes": 437,
+          "stderr_bytes": 0,
+          "stdout_sha256": "d6918a05b12a9edead582f66826e1597dca2e71350ec847ba2f9eb98e71195e0",
+          "structured_error": {
+            "kind": "forgejo_api",
+            "code": "NOT_FOUND",
+            "error": "forgejo api: status 404: ListActionRuns is unavailable on Forgejo 9.0.0",
+            "help": [
+              "Check the owner/repo, issue number, pull request number, release ID, tag, or base URL"
+            ]
+          }
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/version",
+          "auth_present": true
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target/actions/runs",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-2",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "recovery.subprocess-timeout",
+        "category": "process-recovery",
+        "delegated_outcome": "Terminate and record a subprocess that exceeds its bounded response timeout",
+        "status": "timed_out",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": false,
+          "evidence": [
+            "command exit status did not satisfy the completion oracle"
+          ]
+        },
+        "failure_evidence": [
+          "completion oracle was not satisfied",
+          "subprocess timed out"
+        ]
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": true
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "--repo",
+            "benchmark/target",
+            "repo",
+            "get",
+            "--json"
+          ],
+          "exit_code": -1,
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target",
+          "auth_present": true
+        }
+      ],
+      "evidence": []
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "recovery.unexpected-fixture-traffic",
+        "category": "fixture-recovery",
+        "delegated_outcome": "Reject and summarize a request outside the scenario fixture contract",
+        "status": "failed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": false,
+          "evidence": [
+            "command exit status did not satisfy the completion oracle"
+          ]
+        },
+        "failure_evidence": [
+          "completion oracle was not satisfied",
+          "fixture observed 1 unexpected request(s)"
+        ]
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 382,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 1,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--json",
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "api",
+            "raw",
+            "GET",
+            "/unexpected"
+          ],
+          "exit_code": 1,
+          "stdout_bytes": 382,
+          "stderr_bytes": 0,
+          "stdout_sha256": "0dadc0923a02f53d0a7985199dcc26748d8290fff7fda5c794058d45aa05dfdb",
+          "structured_error": {
+            "kind": "forgejo_api",
+            "code": "NOT_FOUND",
+            "error": "forgejo api: status 404: unexpected fixture request",
+            "help": [
+              "Check the owner/repo, issue number, pull request number, release ID, tag, or base URL"
+            ]
+          }
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/unexpected",
+          "auth_present": true,
+          "unexpected": true,
+          "expected_method": "GET",
+          "expected_path": "/api/v1/version"
+        }
+      ],
+      "evidence": []
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "recovery.misleading-success-payload",
+        "category": "structured-error-recovery",
+        "delegated_outcome": "Reject an error-shaped successful response that lacks decisive repository data",
+        "status": "failed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": false,
+          "evidence": []
+        },
+        "failure_evidence": [
+          "completion oracle was not satisfied"
+        ]
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 3,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "--repo",
+            "benchmark/target",
+            "repo",
+            "get",
+            "--json"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 3,
+          "stderr_bytes": 0,
+          "stdout_sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target",
+          "auth_present": true
+        }
+      ],
+      "evidence": []
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "mutation.confirmation-required",
+        "category": "mutation-safety",
+        "delegated_outcome": "Refuse a repository mutation that was not explicitly confirmed",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "evidence": [
+            "process output satisfied the external completion oracle"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 0,
+        "stdout_bytes": 259,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--json",
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "repo",
+            "edit",
+            "benchmark/target",
+            "--description",
+            "benchmark updated"
+          ],
+          "exit_code": 2,
+          "stdout_bytes": 259,
+          "stderr_bytes": 0,
+          "stdout_sha256": "60b0c6cbc7003f53b6be546606719adb28d36615e3521e0578f73096b2b0c70a",
+          "structured_error": {
+            "kind": "cli",
+            "code": "USAGE",
+            "error": "repo edit requires --yes"
+          }
+        }
+      ],
+      "requests": null,
+      "evidence": [
+        {
+          "id": "process-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "mutation.dry-run",
+        "category": "mutation-safety",
+        "delegated_outcome": "Preview a repository mutation without sending it",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "evidence": [
+            "process output satisfied the external completion oracle"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 0,
+        "stdout_bytes": 139,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "api",
+            "raw",
+            "PATCH",
+            "/repos/benchmark/target",
+            "--dry-run",
+            "--yes",
+            "-body",
+            "redacted"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 139,
+          "stderr_bytes": 0,
+          "stdout_sha256": "ba07e9f02099f3776b8ce47ca24f789a266496fd8fdf922fcc3071a3d82b2b63"
+        }
+      ],
+      "requests": null,
+      "evidence": [
+        {
+          "id": "process-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "mutation.secret-request-preview",
+        "category": "credential-safety",
+        "delegated_outcome": "Preview a secret mutation without exposing or sending its value",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "evidence": [
+            "process output satisfied the external completion oracle"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 0,
+        "stdout_bytes": 182,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "secret",
+            "set",
+            "benchmark/target",
+            "BENCHMARK_SECRET",
+            "--print-request",
+            "--yes"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 182,
+          "stderr_bytes": 0,
+          "stdout_sha256": "1353ab2383046230c878da067a7b91d196da24426843421e0040ed763cd81f8e"
+        }
+      ],
+      "requests": null,
+      "evidence": [
+        {
+          "id": "process-1",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "mutation.permitted-repo-edit",
+        "category": "mutation-safety",
+        "delegated_outcome": "Apply one explicitly permitted repository mutation",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles",
+            "fixture observed the expected state transition"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 89,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 1,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "repo",
+            "edit",
+            "benchmark/target",
+            "--description",
+            "benchmark updated",
+            "--yes",
+            "--json"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 89,
+          "stderr_bytes": 0,
+          "stdout_sha256": "c74f62f716d6e40769fee111ea2eeee4768385cd1266bb94ba96d878c9c34530"
+        }
+      ],
+      "requests": [
+        {
+          "method": "PATCH",
+          "path": "/api/v1/repos/benchmark/target",
+          "auth_present": true,
+          "body_bytes": 35,
+          "body_summary": "description=benchmark updated",
+          "permitted_mutation": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "fixture-state",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "5",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "mutation.reflected-credential-error",
+        "category": "credential-safety",
+        "delegated_outcome": "Report a reflected authorization failure without exposing the credential",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 1,
+        "api_requests": 1,
+        "stdout_bytes": 389,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 0,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "--json",
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "--repo",
+            "benchmark/target",
+            "repo",
+            "get"
+          ],
+          "exit_code": 1,
+          "stdout_bytes": 389,
+          "stderr_bytes": 0,
+          "stdout_sha256": "1bf472a77b604bdb4617ad6c5a18519e153bcfcf2e79e9d5a155dbb7e4fa3375",
+          "structured_error": {
+            "kind": "forgejo_api",
+            "code": "AUTH_TOKEN_INVALID",
+            "error": "forgejo api: status 401: token redacted is invalid",
+            "help": [
+              "Set FJGO_TOKEN or pass -token with a Forgejo access token for this base URL"
+            ]
+          }
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    }
+  ]
+}

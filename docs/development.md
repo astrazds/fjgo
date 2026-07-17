@@ -26,23 +26,57 @@ Forgejo Actions runs the same script on pushes and pull requests through
 
 ## Agent-job benchmark
 
-Run the deterministic black-box tracer from the repository root:
+Run the complete deterministic black-box benchmark from the repository root:
 
 ```sh
 go run ./cmd/fjgo-benchmark
 ```
 
-The command builds `fjgo` once, runs the complete operation-discovery and
-explicit-context catalog against isolated offline Forgejo fixtures, and writes
-versioned deterministic result JSON to stdout. The catalog covers operation,
-model, and alias inspection; generic API fallback; root, command-local,
-environment, and git-remote repository context; environment, command-local,
-and non-standard base-URL host context; and structured recovery from missing,
-conflicting, or unsupported context. Use `-fjgo ./fjgo` to select an existing
-binary instead.
+The command builds `fjgo` once, runs all 46 scenarios against isolated offline
+Forgejo fixtures, and writes versioned deterministic result JSON to stdout. The
+catalog covers operation and model discovery, repository and host context,
+compact inspection and output recovery, structured errors and capability
+recovery, and mutation and credential safety. Use `-fjgo ./fjgo` to select an
+existing binary instead.
 Each result retains token-safe normalized CLI arguments, exit and byte counts,
 structured recovery evidence where available, normalized Forgejo requests, and
 manual-correction accounting without retaining unrestricted process output.
+
+The authoritative current-product baseline is committed as
+`internal/benchmark/baseline.json`. Regenerate its JSON, concise Markdown
+summary, and candidate-gap report together:
+
+```sh
+go run ./cmd/fjgo-benchmark -write-baseline internal/benchmark/baseline.json
+```
+
+The generated `baseline.gaps.md` groups observed failures and friction by
+frequency, safety impact, agent-job impact, and bounded evidence. It is a
+review input only: generation does not create tracker issues, and endpoint
+count alone does not justify a curated command. Check all three committed
+artifacts without rewriting them:
+
+```sh
+go run ./cmd/fjgo-benchmark -check-baseline internal/benchmark/baseline.json
+```
+
+`./scripts/verify.sh` runs this full offline check. Public-demo smoke and the
+optional authenticated smoke remain separate validation layers and are not
+part of benchmark scoring.
+
+Select a smaller diagnostic run by repeating `-scenario` or `-category`:
+
+```sh
+go run ./cmd/fjgo-benchmark -category mutation-safety
+go run ./cmd/fjgo-benchmark -scenario mutation.dry-run
+```
+
+Compare the live product with the committed baseline and emit scenario-level
+JSON deltas:
+
+```sh
+go run ./cmd/fjgo-benchmark -compare-baseline internal/benchmark/baseline.json
+```
 
 To evaluate alternative autonomous or corrected sequences across the catalog,
 pass `-scenario-runs-file` with an object keyed by stable scenario ID:
@@ -66,7 +100,7 @@ For Codex, Claude Code, OpenCode, or another external host, use the
 [portable agent-job benchmark packet](benchmark-agent-packet.md). The packet
 defines host-neutral outcomes, context, mutation and credential boundaries,
 bounded evidence, and the import record. Importing a record does not launch
-fjgo or an agent runtime:
+fjgo or embed, authenticate, or control an agent runtime:
 
 ```sh
 go run ./cmd/fjgo-benchmark -import-host-run host-run.json
