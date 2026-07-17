@@ -42,7 +42,17 @@ are sorted deterministically before encoding.
 
 Focused encoder regressions live in `cmd/fjgo/toon_test.go`. The general AXI
 behavior and hook/install contracts are covered in `cmd/fjgo/main_test.go` and
-`internal/fjgoskill` tests. The required project gate is:
+`internal/fjgoskill` tests. The offline black-box catalog in
+`internal/benchmark` additionally exercises operation/model/alias discovery,
+generic API fallback, explicit repository and host context, safe normalized
+CLI/request evidence, and structured context recovery through the compiled
+`fjgo` process. Run it with:
+
+```sh
+go run ./cmd/fjgo-benchmark
+```
+
+The required project gate is:
 
 ```sh
 ./scripts/verify.sh

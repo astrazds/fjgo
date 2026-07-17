@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Expanded the deterministic black-box benchmark from one tracer into a
+  14-scenario offline catalog covering API discovery, generic fallback,
+  repository and host context, and structured context recovery.
+- Added token-safe normalized CLI/request evidence, alternative scenario-run
+  records, and explicit manual-correction accounting to benchmark results.
+
 ## v1.1.0 - 2026-07-16
 
 - Added a Forgejo-hosted Agent Skills distribution installable with

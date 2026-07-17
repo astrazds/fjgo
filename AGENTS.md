@@ -20,6 +20,7 @@ Run these before handing work back:
 
 ```sh
 ./scripts/verify.sh
+go run ./cmd/fjgo-benchmark
 ```
 
 Useful smoke check:
@@ -80,6 +81,7 @@ base URL is explicitly configured.
 ## Code Layout
 
 - `cmd/fjgo`: CLI parsing and command dispatch
+- `cmd/fjgo-benchmark`: deterministic black-box benchmark command
 - `cmd/fjgo/toon.go`: stdlib TOON output encoder and truncation helpers
 - `cmd/fjgo/axi_shared.go`: shared AXI field/body/count/log helpers
 - `cmd/fjgo/workflow_commands.go`: curated issue and pull request commands
@@ -91,6 +93,7 @@ base URL is explicitly configured.
 - `cmd/fjgo/secrets_variables_commands.go`: repo Actions secret/variable commands
 - `cmd/fjgo/hooks.go`: explicit AXI session hook setup/capture helpers
 - `internal/forgejo`: HTTP client, generated API methods, generated models
+- `internal/benchmark`: offline agent-job catalog, fixtures, runner, and result schema
 - `internal/fjgoskill`: embedded Codex skill and installer helper
 - `tools/genapi`: stdlib Swagger generator for `endpoints_gen.go` and
   `models_gen.go`

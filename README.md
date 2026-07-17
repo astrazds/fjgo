@@ -121,7 +121,8 @@ npx -y fjgo issue create --help
 - [Agent setup prompt](docs/agent-setup-prompt.md): a ready-to-paste setup prompt
   for another coding agent.
 - [Development guide](docs/development.md): build, test, generate code, and make
-  releases. CI runs through `.forgejo/workflows/verify.yml`.
+  releases, including the deterministic offline agent-job benchmark and its
+  scenario-run record format. CI runs through `.forgejo/workflows/verify.yml`.
 - [AXI compliance](docs/axi-compliance.md): the agent-friendly interface rules
   followed by `fjgo`.
 - [Field validation](docs/alpha.md): the v1.1 live-testing checklist.
