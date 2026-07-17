@@ -173,12 +173,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		*repoContext = contextFlags.Repo
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, *timeout)
-	defer cancel()
-
+	httpClient := *http.DefaultClient
+	httpClient.Timeout = *timeout
 	client, err := forgejo.NewClientWithAuth(*baseURL, forgejo.AuthConfig{
 		Token: *token, Username: *username, Password: *password, OTP: *otp, Sudo: *sudo,
-	}, http.DefaultClient)
+	}, &httpClient)
 	if err != nil {
 		return err
 	}
@@ -302,7 +301,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	case "release":
 		return runRelease(ctx, client, cfg, fs.Args()[1:], stdout)
 	case "update":
-		return runUpdate(ctx, fs.Args()[1:], stdout)
+		return runUpdate(ctx, &httpClient, fs.Args()[1:], stdout)
 	case "skill":
 		return runSkill(fs.Args()[1:], stdout, stderr)
 	case "install":

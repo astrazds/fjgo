@@ -21,7 +21,7 @@ const (
 	defaultUpdateRepo    = "astrazds/fjgo"
 )
 
-func runUpdate(ctx context.Context, args []string, stdout io.Writer) error {
+func runUpdate(ctx context.Context, httpClient *http.Client, args []string, stdout io.Writer) error {
 	if len(args) != 0 && hasHelp(args) {
 		return writeHelp(stdout, updateHelp())
 	}
@@ -58,7 +58,7 @@ func runUpdate(ctx context.Context, args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	updateClient, err := forgejo.NewClient(baseURL, "", http.DefaultClient)
+	updateClient, err := forgejo.NewClient(baseURL, "", httpClient)
 	if err != nil {
 		return err
 	}

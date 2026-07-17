@@ -13,7 +13,9 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"repos.astrazds.net/astrazds/fjgo/internal/forgejo"
 )
@@ -1376,6 +1378,58 @@ func TestRunWatchUsesActionRunAPI(t *testing.T) {
 	}
 }
 
+func TestRunWatchCanOutliveHTTPTimeout(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/repos/astra/fjgo/actions/runs/1" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		status := "running"
+		if requests.Add(1) == 2 {
+			status = "success"
+		}
+		_, _ = fmt.Fprintf(w, `{"id":1,"status":%q}`, status)
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "-timeout", "50ms", "run", "watch", "astra/fjgo", "1", "--interval", "100ms", "--timeout", "1s"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if got := requests.Load(); got != 2 {
+		t.Fatalf("requests = %d, want 2", got)
+	}
+	if !strings.Contains(stdout.String(), "status: success") {
+		t.Fatalf("watch stdout = %s", stdout.String())
+	}
+}
+
+func TestHTTPTimeoutBoundsEachRunWatchRequest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/repos/astra/fjgo/actions/runs/1" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		select {
+		case <-r.Context().Done():
+			return
+		case <-time.After(500 * time.Millisecond):
+			_, _ = w.Write([]byte(`{"id":1,"status":"success"}`))
+		}
+	}))
+	defer server.Close()
+
+	started := time.Now()
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "-timeout", "50ms", "run", "watch", "astra/fjgo", "1", "--timeout", "1s"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("run error = nil, want HTTP timeout")
+	}
+	if elapsed := time.Since(started); elapsed >= 250*time.Millisecond {
+		t.Fatalf("HTTP timeout took %s, want less than 250ms", elapsed)
+	}
+}
+
 func TestWorkflowViewUsesContentsAPI(t *testing.T) {
 	content := base64.StdEncoding.EncodeToString([]byte("name: verify\non: push\n"))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2640,6 +2694,31 @@ func TestUpdateCheckReportsLatestReleaseAsset(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("update check missing %q:\n%s", want, got)
 		}
+	}
+}
+
+func TestHTTPTimeoutBoundsUpdateRequest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/repos/astra/fjgo/releases/latest" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		select {
+		case <-r.Context().Done():
+			return
+		case <-time.After(500 * time.Millisecond):
+			_, _ = w.Write([]byte(`{"tag_name":"v9.9.9"}`))
+		}
+	}))
+	defer server.Close()
+
+	started := time.Now()
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-timeout", "50ms", "update", "--check", "--base-url", server.URL + "/api/v1", "--repo", "astra/fjgo"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("run error = nil, want HTTP timeout")
+	}
+	if elapsed := time.Since(started); elapsed >= 250*time.Millisecond {
+		t.Fatalf("HTTP timeout took %s, want less than 250ms", elapsed)
 	}
 }
 
