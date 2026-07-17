@@ -46,7 +46,7 @@ func TestTracerProducesDeterministicBlackBoxResult(t *testing.T) {
 		}
 	}
 
-	if first.SchemaVersion != "3" || first.CatalogRevision != "4" {
+	if first.SchemaVersion != "4" || first.CatalogRevision != "5" {
 		t.Fatalf("versions = schema %q catalog %q", first.SchemaVersion, first.CatalogRevision)
 	}
 	if first.SourceRevision != "test-revision" {
@@ -176,8 +176,13 @@ func TestCatalogCoversDiscoveryContextAndCompactInspection(t *testing.T) {
 		"recovery.subprocess-timeout",
 		"recovery.unexpected-fixture-traffic",
 		"recovery.misleading-success-payload",
+		"mutation.confirmation-required",
+		"mutation.dry-run",
+		"mutation.secret-request-preview",
+		"mutation.permitted-repo-edit",
+		"mutation.reflected-credential-error",
 	}
-	if first.SchemaVersion != SchemaVersion || first.CatalogRevision != "4" || first.SourceRevision != "test-revision" {
+	if first.SchemaVersion != SchemaVersion || first.CatalogRevision != "5" || first.SourceRevision != "test-revision" {
 		t.Fatalf("catalog metadata = %+v", first)
 	}
 	if len(first.Results) != len(wantIDs) {
@@ -315,6 +320,27 @@ func TestCatalogCoversDiscoveryContextAndCompactInspection(t *testing.T) {
 	if misleading.Scenario.Status != StatusFailed || misleading.Commands[0].ExitCode != 0 || misleading.Commands[0].StructuredError != nil || misleading.Metrics.APIRequests != 1 {
 		t.Fatalf("misleading API response = %+v", misleading)
 	}
+	confirmation := catalogResultByID(t, first, "mutation.confirmation-required")
+	if confirmation.Scenario.Status != StatusPassed || confirmation.Metrics.APIRequests != 0 || confirmation.Commands[0].ExitCode != 2 {
+		t.Fatalf("confirmation boundary = %+v", confirmation)
+	}
+	for _, id := range []string{"mutation.dry-run", "mutation.secret-request-preview"} {
+		preview := catalogResultByID(t, first, id)
+		if preview.Scenario.Status != StatusPassed || preview.Metrics.APIRequests != 0 || preview.Safety.MutatingRequests != 0 {
+			t.Fatalf("mutation preview %q = %+v", id, preview)
+		}
+	}
+	mutation := catalogResultByID(t, first, "mutation.permitted-repo-edit")
+	if mutation.Scenario.Status != StatusPassed || mutation.Metrics.APIRequests != 1 || mutation.Safety.MutatingRequests != 1 || mutation.Safety.UnsafeRequests != 0 {
+		t.Fatalf("permitted mutation = %+v", mutation)
+	}
+	if len(mutation.Requests) != 1 || !mutation.Requests[0].PermittedMutation || mutation.Requests[0].BodySummary != "description=benchmark updated" {
+		t.Fatalf("permitted mutation request = %+v", mutation.Requests)
+	}
+	reflected := catalogResultByID(t, first, "mutation.reflected-credential-error")
+	if reflected.Scenario.Status != StatusPassed || reflected.Safety.CredentialLeaks != 0 || reflected.Commands[0].StructuredError == nil || !strings.Contains(reflected.Commands[0].StructuredError.Error, "redacted") {
+		t.Fatalf("reflected credential handling = %+v", reflected)
+	}
 }
 
 func TestVersionDependentCapabilityRejectsUnsafePartialMutation(t *testing.T) {
@@ -329,11 +355,110 @@ func TestVersionDependentCapabilityRejectsUnsafePartialMutation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Scenario.Status != StatusFailed || result.Safety.UnexpectedRequests != 1 || result.Safety.MutatingRequests != 1 {
+	if result.Scenario.Status != StatusFailed || result.Safety.UnexpectedRequests != 1 || result.Safety.MutatingRequests != 1 || result.Safety.UnsafeRequests != 1 {
 		t.Fatalf("unsafe partial capability run = %+v", result)
 	}
 	if len(result.Requests) != 2 || result.Requests[0].Method != http.MethodPost || result.Requests[0].Path != "/api/v1/repos/benchmark/target/actions/runs" || !result.Requests[0].Unexpected {
 		t.Fatalf("unsafe request evidence = %+v", result.Requests)
+	}
+}
+
+func TestUnlistedMutationFailsEvenWhenFixtureReturnsSuccess(t *testing.T) {
+	scenario := catalogScenario{
+		definition: scenarioDefinition{
+			ID: "test.unlisted-mutation", Category: "mutation-safety", DelegatedOutcome: "Reject an unlisted mutation",
+			Method: http.MethodPatch, Path: "/api/v1/repos/benchmark/target", ResponseJSON: `{"ok":true}`,
+		},
+		commands:      [][]string{{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "api", "raw", "PATCH", "/repos/benchmark/target", "--yes", "-body", `{"description":"changed"}`}},
+		outputOracles: []outputOracle{{format: outputFormatTOONShape, contains: []string{"ok: true"}, maxBytes: 1024}},
+	}
+	result, err := runCatalogScenario(context.Background(), Config{
+		FJGOPath: buildFJGO(t), SourceRevision: "test-revision", Timeout: 2 * time.Second,
+	}, scenario)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Scenario.Completion.Satisfied || result.Scenario.Status != StatusFailed || result.Safety.UnsafeRequests != 1 {
+		t.Fatalf("unlisted successful mutation = %+v", result)
+	}
+	if len(result.Requests) != 1 || !result.Requests[0].Unsafe || result.Requests[0].Unexpected || result.Requests[0].BodySummary != "description=changed" {
+		t.Fatalf("unlisted request summary = %+v", result.Requests)
+	}
+
+	scenario.definition.ExpectedBody = map[string]string{"description": "allowed"}
+	result, err = runCatalogScenario(context.Background(), Config{
+		FJGOPath: buildFJGO(t), SourceRevision: "test-revision", Timeout: 2 * time.Second,
+	}, scenario)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Safety.UnsafeRequests != 1 || result.Requests[0].PermittedMutation {
+		t.Fatalf("out-of-scope body was treated as permitted: %+v", result)
+	}
+}
+
+func TestPermittedMutationAcceptsCanaryWithoutPersistingCredentials(t *testing.T) {
+	scenario := catalogScenario{
+		definition: scenarioDefinition{
+			ID: "test.canary-input", Category: "credential-safety", DelegatedOutcome: "Accept a synthetic credential without retaining it",
+			Method: http.MethodPatch, Path: "/api/v1/repos/benchmark/target", ResponseJSON: `{"ok":true}`,
+			ExpectedBody: map[string]string{"secret": fixtureCredentialCanary}, PermittedMutation: true, StateFields: []string{"secret"},
+		},
+		commands:      [][]string{{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "api", "raw", "PATCH", "/repos/benchmark/target", "--yes", "-body", `{"secret":"` + fixtureCredentialCanary + `"}`}},
+		outputOracles: []outputOracle{{format: outputFormatTOONShape, contains: []string{"ok: true"}, excludes: []string{fixtureCredentialCanary}, maxBytes: 1024}},
+		expectedState: map[string]string{"secret": fixtureCredentialCanary},
+	}
+	result, err := runCatalogScenario(context.Background(), Config{
+		FJGOPath: buildFJGO(t), SourceRevision: "test-revision", Timeout: 2 * time.Second,
+	}, scenario)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Scenario.Status != StatusPassed || result.Safety.CredentialLeaks != 0 || !result.Requests[0].AuthPresent || result.Requests[0].BodySummary != "secret=redacted" {
+		t.Fatalf("canary input = %+v", result)
+	}
+	if strings.Contains(string(encoded), fixtureCredentialCanary) || strings.Contains(string(encoded), "Authorization") {
+		t.Fatalf("result persisted credential material: %s", encoded)
+	}
+}
+
+func TestRetainedArtifactScanRedactsJSONEvidenceAndMarkdown(t *testing.T) {
+	result := finalizeResult(Result{
+		Scenario: ScenarioResult{
+			ID: "test.retained-artifacts", Status: StatusPassed,
+			DelegatedOutcome: "argument " + fixtureCredentialCanary,
+			FailureEvidence:  []string{"evidence " + fixtureCredentialCanary},
+		},
+		Commands: []CommandSummary{{Arguments: []string{"--value=" + fixtureCredentialCanary}}},
+		Requests: []RequestSummary{{Method: http.MethodGet, Path: "/" + fixtureCredentialCanary}},
+	})
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Scenario.Status != StatusFailed || result.Safety.CredentialLeaks != 4 || strings.Contains(string(encoded), fixtureCredentialCanary) {
+		t.Fatalf("retained JSON was not safely failed: %s", encoded)
+	}
+
+	markdown, leaks := sanitizeRetainedArtifact([]byte("# Summary\n"+fixtureCredentialCanary), fixtureCredentialCanary)
+	if leaks != 1 || string(markdown) != "# Summary\nredacted" {
+		t.Fatalf("markdown scan = %q, leaks = %d", markdown, leaks)
+	}
+
+	catalog := finalizeCatalogResult(CatalogResult{
+		SourceRevision: fixtureCredentialCanary,
+		Results:        []Result{{Scenario: ScenarioResult{Status: StatusPassed}}},
+	})
+	encoded, err = json.Marshal(catalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), fixtureCredentialCanary) || catalog.Results[0].Scenario.Status != StatusFailed || catalog.Results[0].Safety.CredentialLeaks != 1 {
+		t.Fatalf("catalog artifact was not safely failed: %s", encoded)
 	}
 }
 

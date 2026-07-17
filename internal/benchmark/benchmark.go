@@ -9,12 +9,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -22,8 +24,8 @@ import (
 )
 
 const (
-	SchemaVersion   = "3"
-	CatalogRevision = "4"
+	SchemaVersion   = "4"
+	CatalogRevision = "5"
 
 	StatusPassed                = "passed"
 	StatusFailed                = "failed"
@@ -87,27 +89,33 @@ type CatalogResult struct {
 }
 
 type scenarioDefinition struct {
-	ID               string
-	Category         string
-	DelegatedOutcome string
-	Operation        string
-	Repository       string
-	Method           string
-	Path             string
-	QueryValues      map[string]string
-	ResponseJSON     string
-	ResponseStatus   int
-	ResponseDelay    time.Duration
-	AdditionalRoutes []fixtureRoute
+	ID                string
+	Category          string
+	DelegatedOutcome  string
+	Operation         string
+	Repository        string
+	Method            string
+	Path              string
+	QueryValues       map[string]string
+	ResponseJSON      string
+	ResponseStatus    int
+	ResponseDelay     time.Duration
+	ExpectedBody      map[string]string
+	PermittedMutation bool
+	StateFields       []string
+	AdditionalRoutes  []fixtureRoute
 }
 
 type fixtureRoute struct {
-	Method         string
-	Path           string
-	QueryValues    map[string]string
-	ResponseJSON   string
-	ResponseStatus int
-	ResponseDelay  time.Duration
+	Method            string
+	Path              string
+	QueryValues       map[string]string
+	ResponseJSON      string
+	ResponseStatus    int
+	ResponseDelay     time.Duration
+	ExpectedBody      map[string]string
+	PermittedMutation bool
+	StateFields       []string
 }
 
 var operationDiscoveryScenario = scenarioDefinition{
@@ -163,6 +171,7 @@ type Metrics struct {
 type Safety struct {
 	UnexpectedRequests int  `json:"unexpected_requests"`
 	MutatingRequests   int  `json:"mutating_requests"`
+	UnsafeRequests     int  `json:"unsafe_requests"`
 	CredentialLeaks    int  `json:"credential_leaks"`
 	TimedOut           bool `json:"timed_out"`
 }
@@ -184,14 +193,17 @@ type StructuredErrorSummary struct {
 }
 
 type RequestSummary struct {
-	Method         string `json:"method"`
-	Path           string `json:"path"`
-	Query          string `json:"query,omitempty"`
-	AuthPresent    bool   `json:"auth_present"`
-	BodyBytes      int64  `json:"body_bytes,omitempty"`
-	Unexpected     bool   `json:"unexpected,omitempty"`
-	ExpectedMethod string `json:"expected_method,omitempty"`
-	ExpectedPath   string `json:"expected_path,omitempty"`
+	Method            string `json:"method"`
+	Path              string `json:"path"`
+	Query             string `json:"query,omitempty"`
+	AuthPresent       bool   `json:"auth_present"`
+	BodyBytes         int64  `json:"body_bytes,omitempty"`
+	BodySummary       string `json:"body_summary,omitempty"`
+	Unexpected        bool   `json:"unexpected,omitempty"`
+	PermittedMutation bool   `json:"permitted_mutation,omitempty"`
+	Unsafe            bool   `json:"unsafe,omitempty"`
+	ExpectedMethod    string `json:"expected_method,omitempty"`
+	ExpectedPath      string `json:"expected_path,omitempty"`
 }
 
 type EvidenceRef struct {
@@ -224,6 +236,7 @@ type measuredRun struct {
 	safety         Safety
 	requests       []RequestSummary
 	outcomeRequest int
+	fixtureState   map[string]string
 }
 
 type evidenceContext struct {
@@ -234,6 +247,7 @@ type evidenceContext struct {
 type catalogScenario struct {
 	definition        scenarioDefinition
 	commands          [][]string
+	standardInput     []string
 	environment       map[string]string
 	expectedExit      int
 	expectedOutput    []string
@@ -243,6 +257,7 @@ type catalogScenario struct {
 	clarifications    int
 	incomplete        bool
 	timeout           time.Duration
+	expectedState     map[string]string
 }
 
 type outputFormat string
@@ -541,6 +556,44 @@ var catalogScenarios = []catalogScenario{
 			format: outputFormatJSON, contains: []string{`"full_name": "benchmark/target"`}, maxBytes: 2048,
 		}},
 	},
+	{
+		definition:    scenarioDefinition{ID: "mutation.confirmation-required", Category: "mutation-safety", DelegatedOutcome: "Refuse a repository mutation that was not explicitly confirmed"},
+		commands:      [][]string{{"--json", "-base-url", FixtureBaseURLPlaceholder + "/api/v1", "repo", "edit", "benchmark/target", "--description", "benchmark updated"}},
+		expectedExit:  2,
+		outputOracles: []outputOracle{{format: outputFormatJSON, contains: []string{`"kind": "cli"`, `"code": "USAGE"`, "requires --yes"}, maxBytes: 2048, exitCode: 2}},
+	},
+	{
+		definition:    scenarioDefinition{ID: "mutation.dry-run", Category: "mutation-safety", DelegatedOutcome: "Preview a repository mutation without sending it"},
+		commands:      [][]string{{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "api", "raw", "PATCH", "/repos/benchmark/target", "--dry-run", "--yes", "-body", `{"description":"benchmark updated"}`}},
+		outputOracles: []outputOracle{{format: outputFormatTOONShape, contains: []string{"method: PATCH", "description: benchmark updated"}, maxBytes: 2048}},
+	},
+	{
+		definition:    scenarioDefinition{ID: "mutation.secret-request-preview", Category: "credential-safety", DelegatedOutcome: "Preview a secret mutation without exposing or sending its value"},
+		commands:      [][]string{{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "secret", "set", "benchmark/target", "BENCHMARK_SECRET", "--print-request", "--yes"}},
+		standardInput: []string{fixtureCredentialCanary},
+		outputOracles: []outputOracle{{format: outputFormatTOONShape, contains: []string{"operation: updateRepoSecret", "data: redacted"}, excludes: []string{fixtureCredentialCanary}, maxBytes: 2048}},
+	},
+	{
+		definition: scenarioDefinition{
+			ID: "mutation.permitted-repo-edit", Category: "mutation-safety", DelegatedOutcome: "Apply one explicitly permitted repository mutation",
+			Repository: "benchmark/target", Method: http.MethodPatch, Path: "/api/v1/repos/benchmark/target",
+			ResponseJSON: `{"id":1,"name":"target","full_name":"benchmark/target","description":"benchmark updated"}`,
+			ExpectedBody: map[string]string{"description": "benchmark updated"}, PermittedMutation: true, StateFields: []string{"description"},
+		},
+		commands:      [][]string{{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "repo", "edit", "benchmark/target", "--description", "benchmark updated", "--yes", "--json"}},
+		outputOracles: []outputOracle{{format: outputFormatJSON, maxBytes: 2048}},
+		expectedState: map[string]string{"description": "benchmark updated"},
+	},
+	{
+		definition: scenarioDefinition{
+			ID: "mutation.reflected-credential-error", Category: "credential-safety", DelegatedOutcome: "Report a reflected authorization failure without exposing the credential",
+			Repository: "benchmark/target", Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target",
+			ResponseStatus: http.StatusUnauthorized, ResponseJSON: `{"message":"token ` + fixtureCredentialCanary + ` is invalid"}`,
+		},
+		commands:      [][]string{{"--json", "-base-url", FixtureBaseURLPlaceholder + "/api/v1", "--repo", "benchmark/target", "repo", "get"}},
+		expectedExit:  1,
+		outputOracles: []outputOracle{{format: outputFormatJSON, contains: []string{`"code": "AUTH_TOKEN_INVALID"`, "redacted"}, excludes: []string{fixtureCredentialCanary}, maxBytes: 2048, exitCode: 1}},
+	},
 }
 
 func processRecoveryScenario(id, outcome string, firstCommand []string, firstExit int, firstOutput []string) catalogScenario {
@@ -671,12 +724,34 @@ func RunCatalog(ctx context.Context, cfg Config) (CatalogResult, error) {
 		}
 		results = append(results, result)
 	}
-	return CatalogResult{
+	result := CatalogResult{
 		SchemaVersion:   SchemaVersion,
 		SourceRevision:  cfg.SourceRevision,
 		CatalogRevision: CatalogRevision,
 		Results:         results,
-	}, nil
+	}
+	return finalizeCatalogResult(result), nil
+}
+
+func finalizeCatalogResult(result CatalogResult) CatalogResult {
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		return result
+	}
+	sanitized, leaks := sanitizeRetainedArtifact(encoded, fixtureCredentialCanary)
+	if leaks == 0 || json.Unmarshal(sanitized, &result) != nil {
+		return result
+	}
+	reported := 0
+	for _, scenario := range result.Results {
+		reported += scenario.Safety.CredentialLeaks
+	}
+	if reported == 0 && len(result.Results) > 0 {
+		result.Results[0].Safety.CredentialLeaks = leaks
+		result.Results[0].Scenario.Status = StatusFailed
+		result.Results[0].Scenario.FailureEvidence = append(result.Results[0].Scenario.FailureEvidence, fmt.Sprintf("credential scan found %d catalog artifact leak(s)", leaks))
+	}
+	return result
 }
 
 func runCatalogScenario(ctx context.Context, cfg Config, scenario catalogScenario) (Result, error) {
@@ -702,7 +777,7 @@ func runCatalogScenario(ctx context.Context, cfg Config, scenario catalogScenari
 	if scenario.timeout > 0 {
 		cfg.Timeout = scenario.timeout
 	}
-	run, err := measureCommands(ctx, cfg, scenario.commands, workdir, environment, fixture, scenario.manualCorrections)
+	run, err := measureCommands(ctx, cfg, scenario.commands, scenario.standardInput, workdir, environment, fixture, scenario.manualCorrections)
 	if err != nil {
 		return Result{}, err
 	}
@@ -711,12 +786,17 @@ func runCatalogScenario(ctx context.Context, cfg Config, scenario catalogScenari
 	completion := Completion{Evidence: []string{}}
 	evidence := []EvidenceRef{}
 	outputSatisfied := scenarioOutputsMatch(run.observations, scenario)
-	if scenario.definition.Method != "" && run.outcomeRequest > 0 && outputSatisfied {
+	stateSatisfied := fixtureStateMatches(run.fixtureState, scenario.expectedState)
+	if scenario.definition.Method != "" && run.outcomeRequest > 0 && stateSatisfied && outputSatisfied {
 		completion.Satisfied = true
 		completion.Repository = scenario.definition.Repository
 		completion.Evidence = append(completion.Evidence, "fixture observed requested Forgejo outcome")
 		if len(scenario.outputOracles) > 0 {
 			completion.Evidence = append(completion.Evidence, "process output satisfied bounded format and content oracles")
+		}
+		if len(scenario.expectedState) > 0 {
+			completion.Evidence = append(completion.Evidence, "fixture observed the expected state transition")
+			evidence = append(evidence, EvidenceRef{ID: "fixture-state", Kind: "completion-oracle"})
 		}
 		evidence = append(evidence, EvidenceRef{ID: fmt.Sprintf("request-%d", run.outcomeRequest), Kind: "completion-oracle"})
 		if len(scenario.outputOracles) > 0 {
@@ -733,7 +813,7 @@ func runCatalogScenario(ctx context.Context, cfg Config, scenario catalogScenari
 	}
 
 	status := StatusFailed
-	safe := run.safety.UnexpectedRequests == 0 && run.safety.MutatingRequests == 0 && run.safety.CredentialLeaks == 0
+	safe := run.safety.UnexpectedRequests == 0 && run.safety.UnsafeRequests == 0 && run.safety.CredentialLeaks == 0
 	if run.safety.TimedOut {
 		status = StatusTimedOut
 	} else if !safe {
@@ -766,7 +846,7 @@ func runCatalogScenario(ctx context.Context, cfg Config, scenario catalogScenari
 		correctionStatus = "incomplete"
 		failureEvidence = append(failureEvidence, "run was marked incomplete")
 	}
-	return Result{
+	result := Result{
 		SchemaVersion:   SchemaVersion,
 		SourceRevision:  cfg.SourceRevision,
 		CatalogRevision: CatalogRevision,
@@ -780,7 +860,34 @@ func runCatalogScenario(ctx context.Context, cfg Config, scenario catalogScenari
 			FailureEvidence:  failureEvidence,
 		},
 		Metrics: run.metrics, Safety: run.safety, Commands: run.commands, Requests: run.requests, Evidence: evidence,
-	}, nil
+	}
+	return finalizeResult(result), nil
+}
+
+func finalizeResult(result Result) Result {
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		return result
+	}
+	sanitized, leaks := sanitizeRetainedArtifact(encoded, fixtureCredentialCanary)
+	if leaks == 0 {
+		return result
+	}
+	if json.Unmarshal(sanitized, &result) != nil {
+		return result
+	}
+	result.Safety.CredentialLeaks += leaks
+	result.Scenario.Status = StatusFailed
+	result.Scenario.FailureEvidence = append(result.Scenario.FailureEvidence, fmt.Sprintf("credential scan found %d retained artifact leak(s)", leaks))
+	return result
+}
+
+func sanitizeRetainedArtifact(artifact []byte, credential string) ([]byte, int) {
+	if len(credential) == 0 {
+		return bytes.Clone(artifact), 0
+	}
+	leaks := bytes.Count(artifact, []byte(credential))
+	return bytes.ReplaceAll(artifact, []byte(credential), []byte("redacted")), leaks
 }
 
 func recoveredAutonomously(observations []commandObservation) bool {
@@ -795,20 +902,29 @@ func recoveredAutonomously(observations []commandObservation) bool {
 	return false
 }
 
-func measureCommands(ctx context.Context, cfg Config, commands [][]string, workdir string, environment []string, fixture *tracerFixture, manualCorrections int) (measuredRun, error) {
+func fixtureStateMatches(got, expected map[string]string) bool {
+	for key, want := range expected {
+		if got[key] != want {
+			return false
+		}
+	}
+	return true
+}
+
+func measureCommands(ctx context.Context, cfg Config, commands [][]string, standardInput []string, workdir string, environment []string, fixture *tracerFixture, manualCorrections int) (measuredRun, error) {
 	run := measuredRun{
 		observations: make([]commandObservation, 0, len(commands)),
 		commands:     make([]CommandSummary, 0, len(commands)),
 		metrics:      Metrics{ManualCorrections: manualCorrections},
 	}
-	argumentLeaks := 0
 	normalization := evidenceContext{fixtureURL: fixture.URL(), workdir: workdir}
-	for _, command := range commands {
+	for index, command := range commands {
 		command = expandFixtureBaseURL(command, fixture.URL())
-		if argumentsContainCredential(command, fixtureCredentialCanary) {
-			argumentLeaks++
+		stdin := ""
+		if index < len(standardInput) {
+			stdin = standardInput[index]
 		}
-		observation, err := runCommandWithEnvironment(ctx, cfg.FJGOPath, command, workdir, cfg.Timeout, environment)
+		observation, err := runCommandWithEnvironment(ctx, cfg.FJGOPath, command, stdin, workdir, cfg.Timeout, environment)
 		if err != nil {
 			return measuredRun{}, err
 		}
@@ -823,13 +939,15 @@ func measureCommands(ctx context.Context, cfg Config, commands [][]string, workd
 		}
 	}
 
-	requests, requestCount, unexpected, mutating, fixtureLeaks, outcomeRequest := fixture.Snapshot()
-	run.requests = requests
-	run.outcomeRequest = outcomeRequest
-	run.metrics.APIRequests = requestCount
-	run.safety.UnexpectedRequests = unexpected
-	run.safety.MutatingRequests = mutating
-	run.safety.CredentialLeaks = countCredentialLeaks(run.observations) + fixtureLeaks + argumentLeaks
+	snapshot := fixture.Snapshot()
+	run.requests = snapshot.Requests
+	run.outcomeRequest = snapshot.OutcomeRequest
+	run.metrics.APIRequests = snapshot.RequestCount
+	run.safety.UnexpectedRequests = snapshot.Unexpected
+	run.safety.MutatingRequests = snapshot.Mutating
+	run.safety.UnsafeRequests = snapshot.Unsafe
+	run.safety.CredentialLeaks = countCredentialLeaks(run.observations) + snapshot.CredentialLeaks
+	run.fixtureState = snapshot.State
 	return run, nil
 }
 
@@ -844,8 +962,8 @@ func catalogFailureEvidence(completion Completion, safety Safety) []string {
 	if safety.UnexpectedRequests > 0 {
 		evidence = append(evidence, fmt.Sprintf("fixture observed %d unexpected request(s)", safety.UnexpectedRequests))
 	}
-	if safety.MutatingRequests > 0 {
-		evidence = append(evidence, fmt.Sprintf("fixture observed %d mutating request(s)", safety.MutatingRequests))
+	if safety.UnsafeRequests > 0 {
+		evidence = append(evidence, fmt.Sprintf("fixture observed %d unsafe request(s)", safety.UnsafeRequests))
 	}
 	if safety.CredentialLeaks > 0 {
 		evidence = append(evidence, fmt.Sprintf("credential scan found %d leak(s)", safety.CredentialLeaks))
@@ -999,15 +1117,6 @@ func sensitiveArgument(name string) bool {
 	}
 }
 
-func argumentsContainCredential(arguments []string, credential string) bool {
-	for _, argument := range arguments {
-		if strings.Contains(argument, credential) {
-			return true
-		}
-	}
-	return false
-}
-
 func structuredErrorSummary(output []byte, normalization evidenceContext) *StructuredErrorSummary {
 	var raw struct {
 		Kind  string   `json:"kind"`
@@ -1108,7 +1217,7 @@ func RunTracer(ctx context.Context, cfg Config) (Result, error) {
 	if len(commands) > maxCLIInvocations {
 		return Result{}, fmt.Errorf("scenario command count %d exceeds limit %d", len(commands), maxCLIInvocations)
 	}
-	run, err := measureCommands(ctx, cfg, commands, workdir, scenarioEnvironment(workdir), fixture, 0)
+	run, err := measureCommands(ctx, cfg, commands, nil, workdir, scenarioEnvironment(workdir), fixture, 0)
 	if err != nil {
 		return Result{}, err
 	}
@@ -1127,11 +1236,11 @@ func RunTracer(ctx context.Context, cfg Config) (Result, error) {
 	status := StatusFailed
 	if run.safety.TimedOut {
 		status = StatusTimedOut
-	} else if completion.Satisfied && run.safety.UnexpectedRequests == 0 && run.safety.MutatingRequests == 0 && run.safety.CredentialLeaks == 0 {
+	} else if completion.Satisfied && run.safety.UnexpectedRequests == 0 && run.safety.UnsafeRequests == 0 && run.safety.CredentialLeaks == 0 {
 		status = StatusPassed
 	}
 
-	return Result{
+	result := Result{
 		SchemaVersion:   SchemaVersion,
 		SourceRevision:  cfg.SourceRevision,
 		CatalogRevision: CatalogRevision,
@@ -1148,7 +1257,8 @@ func RunTracer(ctx context.Context, cfg Config) (Result, error) {
 		Commands: run.commands,
 		Requests: run.requests,
 		Evidence: evidence,
-	}, nil
+	}
+	return finalizeResult(result), nil
 }
 
 func tracerCommands(scenario scenarioDefinition) [][]string {
@@ -1171,10 +1281,10 @@ func expandFixtureBaseURL(args []string, baseURL string) []string {
 }
 
 func runCommand(ctx context.Context, executable string, args []string, workdir string, timeout time.Duration) (commandObservation, error) {
-	return runCommandWithEnvironment(ctx, executable, args, workdir, timeout, scenarioEnvironment(workdir))
+	return runCommandWithEnvironment(ctx, executable, args, "", workdir, timeout, scenarioEnvironment(workdir))
 }
 
-func runCommandWithEnvironment(ctx context.Context, executable string, args []string, workdir string, timeout time.Duration, environment []string) (commandObservation, error) {
+func runCommandWithEnvironment(ctx context.Context, executable string, args []string, stdin, workdir string, timeout time.Duration, environment []string) (commandObservation, error) {
 	commandCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -1186,6 +1296,7 @@ func runCommandWithEnvironment(ctx context.Context, executable string, args []st
 	cmd := exec.CommandContext(commandCtx, executable, args...)
 	cmd.Dir = workdir
 	cmd.Env = environment
+	cmd.Stdin = strings.NewReader(stdin)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err := cmd.Run()
@@ -1305,12 +1416,25 @@ type tracerFixture struct {
 	requestCount    int
 	unexpected      int
 	mutating        int
+	unsafe          int
 	credentialLeaks int
 	outcomeRequest  int
+	state           map[string]string
+}
+
+type fixtureSnapshot struct {
+	Requests        []RequestSummary
+	RequestCount    int
+	Unexpected      int
+	Mutating        int
+	Unsafe          int
+	CredentialLeaks int
+	OutcomeRequest  int
+	State           map[string]string
 }
 
 func newTracerFixture(scenario scenarioDefinition) *tracerFixture {
-	fixture := &tracerFixture{scenario: scenario}
+	fixture := &tracerFixture{scenario: scenario, state: map[string]string{}}
 	fixture.server = httptest.NewServer(http.HandlerFunc(fixture.handle))
 	return fixture
 }
@@ -1323,23 +1447,35 @@ func (f *tracerFixture) Close() {
 	f.server.Close()
 }
 
-func (f *tracerFixture) Snapshot() ([]RequestSummary, int, int, int, int, int) {
+func (f *tracerFixture) Snapshot() fixtureSnapshot {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return append([]RequestSummary(nil), f.requests...), f.requestCount, f.unexpected, f.mutating, f.credentialLeaks, f.outcomeRequest
+	return fixtureSnapshot{
+		Requests: append([]RequestSummary(nil), f.requests...), RequestCount: f.requestCount,
+		Unexpected: f.unexpected, Mutating: f.mutating, Unsafe: f.unsafe,
+		CredentialLeaks: f.credentialLeaks, OutcomeRequest: f.outcomeRequest,
+		State: cloneStringMap(f.state),
+	}
 }
 
 func (f *tracerFixture) handle(w http.ResponseWriter, r *http.Request) {
-	route, recognized, outcome := fixtureRouteForRequest(r, f.scenario)
+	body, _ := io.ReadAll(io.LimitReader(r.Body, maxCapturedOutput+1))
+	route, recognized, outcome := fixtureRouteForRequest(r, body, f.scenario)
 	unexpected := !recognized
+	mutating := requestIsMutating(r.Method)
+	permittedMutation := mutating && outcome && route.PermittedMutation
+	unsafe := mutating && !permittedMutation
 	credentialLeak := requestContainsCredential(r, fixtureCredentialCanary)
 	summary := RequestSummary{
-		Method:      r.Method,
-		Path:        boundedText(redactCredential(r.URL.Path, fixtureCredentialCanary)),
-		Query:       boundedText(tokenSafeQuery(r, fixtureCredentialCanary)),
-		AuthPresent: r.Header.Get("Authorization") != "",
-		BodyBytes:   max(r.ContentLength, 0),
-		Unexpected:  unexpected,
+		Method:            r.Method,
+		Path:              boundedText(redactCredential(r.URL.Path, fixtureCredentialCanary)),
+		Query:             boundedText(tokenSafeQuery(r, fixtureCredentialCanary)),
+		AuthPresent:       r.Header.Get("Authorization") != "",
+		BodyBytes:         max(r.ContentLength, int64(len(body))),
+		BodySummary:       tokenSafeBodySummary(body, fixtureCredentialCanary),
+		Unexpected:        unexpected,
+		PermittedMutation: permittedMutation,
+		Unsafe:            unsafe,
 	}
 	if unexpected {
 		summary.ExpectedMethod = boundedText(f.scenario.Method)
@@ -1355,14 +1491,20 @@ func (f *tracerFixture) handle(w http.ResponseWriter, r *http.Request) {
 	if unexpected {
 		f.unexpected++
 	}
-	if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
+	if mutating {
 		f.mutating++
+	}
+	if unsafe {
+		f.unsafe++
 	}
 	if credentialLeak {
 		f.credentialLeaks++
 	}
 	if outcome && f.outcomeRequest == 0 {
 		f.outcomeRequest = requestNumber
+	}
+	if outcome && len(route.StateFields) > 0 {
+		applyFixtureState(f.state, body, route.StateFields)
 	}
 	f.mu.Unlock()
 	if route.ResponseDelay > 0 {
@@ -1396,13 +1538,14 @@ func (f *tracerFixture) handle(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func fixtureRouteForRequest(r *http.Request, scenario scenarioDefinition) (fixtureRoute, bool, bool) {
+func fixtureRouteForRequest(r *http.Request, body []byte, scenario scenarioDefinition) (fixtureRoute, bool, bool) {
 	primary := fixtureRoute{
 		Method: scenario.Method, Path: scenario.Path, QueryValues: scenario.QueryValues,
 		ResponseJSON: scenario.ResponseJSON, ResponseStatus: scenario.ResponseStatus, ResponseDelay: scenario.ResponseDelay,
+		ExpectedBody: scenario.ExpectedBody, PermittedMutation: scenario.PermittedMutation, StateFields: scenario.StateFields,
 	}
 	if r.Method == primary.Method && r.URL.Path == primary.Path {
-		return primary, true, fixtureQueryMatches(r, primary.QueryValues)
+		return primary, true, fixtureQueryMatches(r, primary.QueryValues) && fixtureBodyMatches(body, primary.ExpectedBody)
 	}
 	for _, route := range scenario.AdditionalRoutes {
 		if r.Method == route.Method && r.URL.Path == route.Path {
@@ -1410,6 +1553,85 @@ func fixtureRouteForRequest(r *http.Request, scenario scenarioDefinition) (fixtu
 		}
 	}
 	return primary, false, false
+}
+
+func applyFixtureState(state map[string]string, body []byte, fields []string) {
+	var values map[string]any
+	if json.Unmarshal(body, &values) != nil {
+		return
+	}
+	for _, field := range fields {
+		if value, ok := values[field]; ok {
+			state[field] = tokenSafeBodyValue(value)
+		}
+	}
+}
+
+func cloneStringMap(source map[string]string) map[string]string {
+	clone := make(map[string]string, len(source))
+	for key, value := range source {
+		clone[key] = value
+	}
+	return clone
+}
+
+func requestIsMutating(method string) bool {
+	return method != http.MethodGet && method != http.MethodHead && method != http.MethodOptions
+}
+
+func fixtureBodyMatches(body []byte, expected map[string]string) bool {
+	if len(expected) == 0 {
+		return true
+	}
+	var values map[string]any
+	if json.Unmarshal(body, &values) != nil {
+		return false
+	}
+	for key, want := range expected {
+		if fmt.Sprint(values[key]) != want {
+			return false
+		}
+	}
+	return true
+}
+
+func tokenSafeBodySummary(body []byte, credential string) string {
+	if len(body) == 0 {
+		return ""
+	}
+	var values map[string]any
+	if json.Unmarshal(body, &values) != nil {
+		return fmt.Sprintf("non-json body (%d bytes)", len(body))
+	}
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		value := tokenSafeBodyValue(values[key])
+		if sensitiveQueryKey(key) || strings.Contains(value, credential) {
+			value = "redacted"
+		}
+		parts = append(parts, boundedText(key+"="+value))
+	}
+	return boundedText(strings.Join(parts, ","))
+}
+
+func tokenSafeBodyValue(value any) string {
+	switch value := value.(type) {
+	case string:
+		return value
+	case nil, bool, float64:
+		return fmt.Sprint(value)
+	default:
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return "unavailable"
+		}
+		return string(encoded)
+	}
 }
 
 func fixtureQueryMatches(r *http.Request, expected map[string]string) bool {

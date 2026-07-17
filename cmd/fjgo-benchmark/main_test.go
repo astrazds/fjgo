@@ -77,7 +77,7 @@ func TestCommandRunsCompleteCatalogByDefault(t *testing.T) {
 	if err := json.Unmarshal(stdout, &result); err != nil {
 		t.Fatalf("decode result: %v\n%s", err, stdout)
 	}
-	if result.SourceRevision != "command-test" || result.SchemaVersion != "3" || result.CatalogRevision != "4" || len(result.Results) != 41 {
+	if result.SourceRevision != "command-test" || result.SchemaVersion != "4" || result.CatalogRevision != "5" || len(result.Results) != 46 {
 		t.Fatalf("catalog = %+v", result)
 	}
 	statuses := map[string]int{}
@@ -85,7 +85,7 @@ func TestCommandRunsCompleteCatalogByDefault(t *testing.T) {
 		statuses[scenario.Scenario.Status]++
 	}
 	wantStatuses := map[string]int{
-		benchmark.StatusPassed:    33,
+		benchmark.StatusPassed:    38,
 		benchmark.StatusRecovered: 5,
 		benchmark.StatusTimedOut:  1,
 		benchmark.StatusFailed:    2,
