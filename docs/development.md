@@ -24,7 +24,7 @@ Swagger coverage, checks the npm package, and builds a test release archive.
 Forgejo Actions runs the same script on pushes and pull requests through
 `.forgejo/workflows/verify.yml`.
 
-## Agent-job benchmark tracer
+## Agent-job benchmark
 
 Run the deterministic black-box tracer from the repository root:
 
@@ -32,12 +32,38 @@ Run the deterministic black-box tracer from the repository root:
 go run ./cmd/fjgo-benchmark
 ```
 
-The command builds `fjgo` once, runs the operation-discovery scenario against
-an offline local Forgejo fixture, and writes versioned result JSON to stdout.
-Use `-fjgo ./fjgo` to select an existing binary instead.
+The command builds `fjgo` once, runs the complete operation-discovery and
+explicit-context catalog against isolated offline Forgejo fixtures, and writes
+versioned deterministic result JSON to stdout. The catalog covers operation,
+model, and alias inspection; generic API fallback; root, command-local,
+environment, and git-remote repository context; environment, command-local,
+and non-standard base-URL host context; and structured recovery from missing,
+conflicting, or unsupported context. Use `-fjgo ./fjgo` to select an existing
+binary instead.
+Each result retains token-safe normalized CLI arguments, exit and byte counts,
+structured recovery evidence where available, normalized Forgejo requests, and
+manual-correction accounting without retaining unrestricted process output.
 
-To evaluate another safe command sequence against the same outcome oracle, pass
-a bounded JSON array of argument arrays with `-commands-file`. Use
+To evaluate alternative autonomous or corrected sequences across the catalog,
+pass `-scenario-runs-file` with an object keyed by stable scenario ID:
+
+```json
+{
+  "repository-context.root-flag": {
+    "commands": [
+      ["-base-url", "{fixture_base_url}/api/v1", "api", "--json", "raw", "GET", "/repos/benchmark/target"]
+    ],
+    "manual_corrections": 0
+  }
+}
+```
+
+An alternative sequence is scored by the scenario's external completion oracle,
+not by matching the default command. A positive `manual_corrections` count is
+recorded as `manually_corrected` and cannot pass as autonomous completion.
+
+To evaluate another safe command sequence against the original tracer outcome
+oracle, pass a bounded JSON array of argument arrays with `-commands-file`. Use
 `{fixture_base_url}` where the sequence needs the local fixture URL:
 
 ```json

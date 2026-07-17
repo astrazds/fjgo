@@ -26,6 +26,7 @@ func run(ctx context.Context, args []string) error {
 	sourceRevision := flags.String("source-revision", "", "source revision recorded in the result")
 	timeout := flags.Duration("timeout", 5*time.Second, "timeout for each scenario CLI invocation")
 	commandsFile := flags.String("commands-file", "", "JSON command sequence; use {fixture_base_url} for the local fixture")
+	scenarioRunsFile := flags.String("scenario-runs-file", "", "JSON scenario run records keyed by scenario ID")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -47,12 +48,26 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	result, err := benchmark.RunTracer(ctx, benchmark.Config{
+	scenarioRuns, err := readScenarioRuns(*scenarioRunsFile)
+	if err != nil {
+		return err
+	}
+	if len(commands) > 0 && len(scenarioRuns) > 0 {
+		return fmt.Errorf("-commands-file and -scenario-runs-file cannot be used together")
+	}
+	cfg := benchmark.Config{
 		FJGOPath:       binary,
 		SourceRevision: revision,
 		Timeout:        *timeout,
 		Commands:       commands,
-	})
+		ScenarioRuns:   scenarioRuns,
+	}
+	var result any
+	if len(commands) > 0 {
+		result, err = benchmark.RunTracer(ctx, cfg)
+	} else {
+		result, err = benchmark.RunCatalog(ctx, cfg)
+	}
 	if err != nil {
 		return err
 	}
@@ -62,19 +77,42 @@ func run(ctx context.Context, args []string) error {
 	return encoder.Encode(result)
 }
 
+func readScenarioRuns(path string) (map[string]benchmark.ScenarioRun, error) {
+	if path == "" {
+		return nil, nil
+	}
+	data, err := readBoundedFile(path, "scenario runs")
+	if err != nil {
+		return nil, err
+	}
+	var runs map[string]benchmark.ScenarioRun
+	if err := json.Unmarshal(data, &runs); err != nil {
+		return nil, fmt.Errorf("decode scenario runs file: %w", err)
+	}
+	if len(runs) == 0 {
+		return nil, fmt.Errorf("scenario runs file contains no runs")
+	}
+	for id, run := range runs {
+		if len(run.Commands) == 0 {
+			return nil, fmt.Errorf("scenario run %q contains no commands", id)
+		}
+		if run.ManualCorrections < 0 {
+			return nil, fmt.Errorf("scenario run %q has negative manual corrections", id)
+		}
+		for i, command := range run.Commands {
+			if len(command) == 0 {
+				return nil, fmt.Errorf("scenario run %q command %d is empty", id, i+1)
+			}
+		}
+	}
+	return runs, nil
+}
+
 func readCommands(path string) ([][]string, error) {
 	if path == "" {
 		return nil, nil
 	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return nil, err
-	}
-	const maxCommandsFileSize = 64 << 10
-	if info.Size() > maxCommandsFileSize {
-		return nil, fmt.Errorf("commands file exceeds %d bytes", maxCommandsFileSize)
-	}
-	data, err := os.ReadFile(path)
+	data, err := readBoundedFile(path, "commands")
 	if err != nil {
 		return nil, err
 	}
@@ -91,4 +129,16 @@ func readCommands(path string) ([][]string, error) {
 		}
 	}
 	return commands, nil
+}
+
+func readBoundedFile(path, kind string) ([]byte, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	const maxInputFileSize = 64 << 10
+	if info.Size() > maxInputFileSize {
+		return nil, fmt.Errorf("%s file exceeds %d bytes", kind, maxInputFileSize)
+	}
+	return os.ReadFile(path)
 }

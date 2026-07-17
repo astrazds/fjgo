@@ -3,6 +3,7 @@ package benchmark
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -44,7 +45,7 @@ func TestTracerProducesDeterministicBlackBoxResult(t *testing.T) {
 		}
 	}
 
-	if first.SchemaVersion != "1" || first.CatalogRevision != "1" {
+	if first.SchemaVersion != "1" || first.CatalogRevision != "2" {
 		t.Fatalf("versions = schema %q catalog %q", first.SchemaVersion, first.CatalogRevision)
 	}
 	if first.SourceRevision != "test-revision" {
@@ -94,6 +95,162 @@ func TestTracerProducesDeterministicBlackBoxResult(t *testing.T) {
 	}
 	if rawOnlyResult.Scenario.Status != StatusPassed || !rawOnlyResult.Scenario.Completion.Satisfied {
 		t.Fatalf("raw-only scenario = %+v", rawOnlyResult.Scenario)
+	}
+}
+
+func TestCatalogCoversDiscoveryFallbackAndExplicitContextSources(t *testing.T) {
+	t.Setenv("FJGO_HOST", "https://ambient.invalid")
+	t.Setenv("FJGO_TOKEN", "ambient-token-must-not-reach-fixture")
+	t.Setenv("FJGO_REPO", "ambient/repository")
+
+	cfg := Config{
+		FJGOPath:       buildFJGO(t),
+		SourceRevision: "test-revision",
+		Timeout:        2 * time.Second,
+	}
+	first, err := RunCatalog(context.Background(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := RunCatalog(context.Background(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstJSON, err := json.Marshal(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondJSON, err := json.Marshal(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(firstJSON) != string(secondJSON) {
+		t.Fatalf("catalog results differ:\nfirst:\n%s\nsecond:\n%s", firstJSON, secondJSON)
+	}
+	for _, secret := range []string{"ambient-token-must-not-reach-fixture", fixtureCredentialCanary} {
+		if strings.Contains(string(firstJSON), secret) {
+			t.Fatalf("catalog contains credential %q", secret)
+		}
+	}
+
+	wantIDs := []string{
+		"discovery.operation-inspect",
+		"discovery.model-inspect",
+		"discovery.alias-inspect",
+		"discovery.generic-api-fallback",
+		"repository-context.root-flag",
+		"repository-context.command-local-flag",
+		"repository-context.environment",
+		"repository-context.git-remote",
+		"host-context.environment",
+		"host-context.command-local-flag",
+		"host-context.explicit-base-url",
+		"context-recovery.missing-repository",
+		"context-recovery.conflicting-remote-host",
+		"context-recovery.unsupported-remote",
+	}
+	if first.SchemaVersion != SchemaVersion || first.CatalogRevision != "2" || first.SourceRevision != "test-revision" {
+		t.Fatalf("catalog metadata = %+v", first)
+	}
+	if len(first.Results) != len(wantIDs) {
+		t.Fatalf("result count = %d, want %d", len(first.Results), len(wantIDs))
+	}
+	for i, result := range first.Results {
+		if result.Scenario.ID != wantIDs[i] {
+			t.Errorf("result %d id = %q, want %q", i, result.Scenario.ID, wantIDs[i])
+		}
+		if result.Scenario.Status != StatusPassed || !result.Scenario.Completion.Satisfied {
+			t.Errorf("result %q = %+v", result.Scenario.ID, result)
+		}
+		if result.Scenario.CorrectionStatus != "autonomous" || result.Metrics.ManualCorrections != 0 {
+			t.Errorf("result %q correction accounting = %+v %+v", result.Scenario.ID, result.Scenario, result.Metrics)
+		}
+		if result.Metrics.CLIInvocations == 0 {
+			t.Errorf("result %q has no CLI measurements", result.Scenario.ID)
+		}
+		if len(result.Commands) != result.Metrics.CLIInvocations {
+			t.Errorf("result %q commands = %+v metrics = %+v", result.Scenario.ID, result.Commands, result.Metrics)
+		}
+	}
+	missing := first.Results[11]
+	if missing.Commands[0].StructuredError == nil || missing.Commands[0].StructuredError.Kind != "cli" || missing.Commands[0].StructuredError.Code != "USAGE" {
+		t.Fatalf("missing-context evidence = %+v", missing.Commands)
+	}
+	conflict := first.Results[12]
+	if conflict.Commands[0].StructuredError == nil || !strings.Contains(conflict.Commands[0].StructuredError.Error, "does not match base host") {
+		t.Fatalf("conflict evidence = %+v", conflict.Commands)
+	}
+	if strings.Contains(conflict.Commands[0].StructuredError.Error, "127.0.0.1") {
+		t.Fatalf("conflict evidence contains volatile fixture host: %+v", conflict.Commands)
+	}
+	unsupported := first.Results[13]
+	if unsupported.Commands[0].StructuredError == nil || !strings.Contains(unsupported.Commands[0].StructuredError.Error, "unsupported remote URL") {
+		t.Fatalf("unsupported-remote evidence = %+v", unsupported.Commands)
+	}
+}
+
+func TestCatalogAcceptsAlternativeSequencesAndRecordsCorrections(t *testing.T) {
+	binary := buildFJGO(t)
+	alternative, err := RunCatalog(context.Background(), Config{
+		FJGOPath: binary, SourceRevision: "test-revision", Timeout: 2 * time.Second,
+		ScenarioRuns: map[string]ScenarioRun{
+			"repository-context.root-flag": {
+				Commands: [][]string{{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "api", "--json", "raw", "GET", "/repos/benchmark/target"}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := alternative.Results[4]
+	if root.Scenario.Status != StatusPassed || root.Commands[0].Arguments[1] != FixtureBaseURLPlaceholder+"/api/v1" {
+		t.Fatalf("alternative result = %+v", root)
+	}
+
+	corrected, err := RunCatalog(context.Background(), Config{
+		FJGOPath: binary, SourceRevision: "test-revision", Timeout: 2 * time.Second,
+		ScenarioRuns: map[string]ScenarioRun{
+			"repository-context.root-flag": {
+				Commands:          catalogScenarios[4].commands,
+				ManualCorrections: 1,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root = corrected.Results[4]
+	if root.Scenario.Status != StatusFailed || root.Scenario.CorrectionStatus != "manually_corrected" || root.Metrics.ManualCorrections != 1 {
+		t.Fatalf("corrected result = %+v", root)
+	}
+}
+
+func TestCatalogFailureEvidenceIsBoundedAndDoesNotRetainOutput(t *testing.T) {
+	scenario := catalogScenario{
+		definition: scenarioDefinition{
+			ID: "test.failed-outcome", Category: "test", DelegatedOutcome: "Observe an unavailable fixture outcome",
+			Method: http.MethodGet, Path: "/api/v1/repos/benchmark/missing", Repository: "benchmark/missing",
+		},
+		commands: [][]string{{"version"}},
+	}
+	result, err := runCatalogScenario(context.Background(), Config{
+		FJGOPath: buildFJGO(t), SourceRevision: "test-revision", Timeout: 2 * time.Second,
+	}, scenario)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Scenario.Status != StatusFailed || len(result.Scenario.FailureEvidence) != 1 {
+		t.Fatalf("scenario = %+v", result.Scenario)
+	}
+	if got := result.Scenario.FailureEvidence[0]; got != "completion oracle was not satisfied" {
+		t.Fatalf("failure evidence = %q", got)
+	}
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), "version:") {
+		t.Fatalf("result retained raw process output: %s", encoded)
 	}
 }
 
