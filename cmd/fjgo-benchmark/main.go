@@ -96,8 +96,8 @@ func readScenarioRuns(path string) (map[string]benchmark.ScenarioRun, error) {
 		if len(run.Commands) == 0 {
 			return nil, fmt.Errorf("scenario run %q contains no commands", id)
 		}
-		if run.ManualCorrections < 0 {
-			return nil, fmt.Errorf("scenario run %q has negative manual corrections", id)
+		if err := run.ValidateState(); err != nil {
+			return nil, fmt.Errorf("scenario run %q: %w", id, err)
 		}
 		for i, command := range run.Commands {
 			if len(command) == 0 {

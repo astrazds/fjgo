@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"repos.astrazds.net/astrazds/fjgo/internal/benchmark"
@@ -76,13 +77,21 @@ func TestCommandRunsCompleteCatalogByDefault(t *testing.T) {
 	if err := json.Unmarshal(stdout, &result); err != nil {
 		t.Fatalf("decode result: %v\n%s", err, stdout)
 	}
-	if result.SourceRevision != "command-test" || result.SchemaVersion != "2" || result.CatalogRevision != "3" || len(result.Results) != 26 {
+	if result.SourceRevision != "command-test" || result.SchemaVersion != "3" || result.CatalogRevision != "4" || len(result.Results) != 41 {
 		t.Fatalf("catalog = %+v", result)
 	}
+	statuses := map[string]int{}
 	for _, scenario := range result.Results {
-		if scenario.Scenario.Status != benchmark.StatusPassed {
-			t.Fatalf("scenario = %+v", scenario)
-		}
+		statuses[scenario.Scenario.Status]++
+	}
+	wantStatuses := map[string]int{
+		benchmark.StatusPassed:    33,
+		benchmark.StatusRecovered: 5,
+		benchmark.StatusTimedOut:  1,
+		benchmark.StatusFailed:    2,
+	}
+	if !reflect.DeepEqual(statuses, wantStatuses) {
+		t.Fatalf("status counts = %v, want %v", statuses, wantStatuses)
 	}
 }
 
@@ -123,6 +132,23 @@ func TestCommandAcceptsScenarioRunRecords(t *testing.T) {
 	root := result.Results[4]
 	if root.Scenario.Status != benchmark.StatusPassed || root.Commands[0].Arguments[4] != "raw" {
 		t.Fatalf("root scenario = %+v", root)
+	}
+}
+
+func TestScenarioRunRecordsRejectConflictingOrNegativeStateMarkers(t *testing.T) {
+	for name, content := range map[string]string{
+		"negative clarifications": `{"scenario":{"commands":[["version"]],"clarifications":-1}}`,
+		"conflicting markers":     `{"scenario":{"commands":[["version"]],"manual_corrections":1,"incomplete":true}}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "runs.json")
+			if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := readScenarioRuns(path); err == nil {
+				t.Fatal("expected invalid run-state marker error")
+			}
+		})
 	}
 }
 

@@ -3,6 +3,7 @@ package benchmark
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os/exec"
 	"path/filepath"
@@ -45,7 +46,7 @@ func TestTracerProducesDeterministicBlackBoxResult(t *testing.T) {
 		}
 	}
 
-	if first.SchemaVersion != "2" || first.CatalogRevision != "3" {
+	if first.SchemaVersion != "3" || first.CatalogRevision != "4" {
 		t.Fatalf("versions = schema %q catalog %q", first.SchemaVersion, first.CatalogRevision)
 	}
 	if first.SourceRevision != "test-revision" {
@@ -160,8 +161,23 @@ func TestCatalogCoversDiscoveryContextAndCompactInspection(t *testing.T) {
 		"empty-state.issue-search-api-error",
 		"empty-state.issue-search-parsing-error",
 		"empty-state.issue-search-usage-error",
+		"recovery.missing-required-argument",
+		"recovery.api-unauthorized",
+		"recovery.api-forbidden",
+		"recovery.api-not-found",
+		"recovery.api-validation",
+		"recovery.api-rate-limited",
+		"recovery.api-server-error",
+		"recovery.unknown-subcommand",
+		"recovery.unknown-operation",
+		"recovery.invalid-fields",
+		"recovery.malformed-value",
+		"capability.version-dependent-operation",
+		"recovery.subprocess-timeout",
+		"recovery.unexpected-fixture-traffic",
+		"recovery.misleading-success-payload",
 	}
-	if first.SchemaVersion != SchemaVersion || first.CatalogRevision != "3" || first.SourceRevision != "test-revision" {
+	if first.SchemaVersion != SchemaVersion || first.CatalogRevision != "4" || first.SourceRevision != "test-revision" {
 		t.Fatalf("catalog metadata = %+v", first)
 	}
 	if len(first.Results) != len(wantIDs) {
@@ -171,10 +187,27 @@ func TestCatalogCoversDiscoveryContextAndCompactInspection(t *testing.T) {
 		if result.Scenario.ID != wantIDs[i] {
 			t.Errorf("result %d id = %q, want %q", i, result.Scenario.ID, wantIDs[i])
 		}
-		if result.Scenario.Status != StatusPassed || !result.Scenario.Completion.Satisfied {
+		wantStatus := StatusPassed
+		if isAutonomousRecoveryScenario(result.Scenario.ID) {
+			wantStatus = "recovered"
+		}
+		wantCompletion := true
+		if result.Scenario.ID == "recovery.subprocess-timeout" {
+			wantStatus = StatusTimedOut
+			wantCompletion = false
+		}
+		if result.Scenario.ID == "recovery.unexpected-fixture-traffic" || result.Scenario.ID == "recovery.misleading-success-payload" {
+			wantStatus = StatusFailed
+			wantCompletion = false
+		}
+		if result.Scenario.Status != wantStatus || result.Scenario.Completion.Satisfied != wantCompletion {
 			t.Errorf("result %q = %+v", result.Scenario.ID, result)
 		}
-		if result.Scenario.CorrectionStatus != "autonomous" || result.Metrics.ManualCorrections != 0 {
+		wantCorrectionStatus := "autonomous"
+		if isAutonomousRecoveryScenario(result.Scenario.ID) {
+			wantCorrectionStatus = "autonomous_recovery"
+		}
+		if result.Scenario.CorrectionStatus != wantCorrectionStatus || result.Metrics.ManualCorrections != 0 {
 			t.Errorf("result %q correction accounting = %+v %+v", result.Scenario.ID, result.Scenario, result.Metrics)
 		}
 		if result.Metrics.CLIInvocations == 0 {
@@ -205,7 +238,7 @@ func TestCatalogCoversDiscoveryContextAndCompactInspection(t *testing.T) {
 		t.Fatalf("unsupported-remote evidence = %+v", unsupported.Commands)
 	}
 	for _, result := range first.Results[14:] {
-		if (result.Scenario.ID != "empty-state.issue-search-usage-error" && result.Metrics.APIRequests == 0) || result.Metrics.StdoutBytes == 0 {
+		if result.Scenario.ID != "recovery.subprocess-timeout" && result.Metrics.StdoutBytes == 0 {
 			t.Errorf("inspection scenario %q lacks observable measurements: %+v", result.Scenario.ID, result.Metrics)
 		}
 	}
@@ -216,6 +249,91 @@ func TestCatalogCoversDiscoveryContextAndCompactInspection(t *testing.T) {
 	empty := catalogResultByID(t, first, "inspection.issue-search-empty")
 	if empty.Metrics.CLIInvocations != 1 || empty.Metrics.APIRequests != 1 {
 		t.Fatalf("empty-state scenario measurements = %+v", empty.Metrics)
+	}
+	recovered := catalogResultByID(t, first, "recovery.missing-required-argument")
+	if recovered.Scenario.Status != "recovered" || recovered.Metrics.CLIInvocations != 2 || recovered.Metrics.APIRequests != 1 {
+		t.Fatalf("structured usage recovery = %+v", recovered)
+	}
+	if recovered.Commands[0].StructuredError == nil || recovered.Commands[0].StructuredError.Code != "USAGE" || recovered.Commands[1].ExitCode != 0 {
+		t.Fatalf("structured usage recovery commands = %+v", recovered.Commands)
+	}
+	for id, want := range map[string]struct {
+		status int
+		code   string
+	}{
+		"recovery.api-unauthorized": {status: 401, code: "AUTH_TOKEN_INVALID"},
+		"recovery.api-forbidden":    {status: 403, code: "AUTH_SCOPE_MISSING"},
+		"recovery.api-not-found":    {status: 404, code: "REPO_NOT_FOUND"},
+		"recovery.api-validation":   {status: 422, code: "VALIDATION"},
+		"recovery.api-rate-limited": {status: 429, code: "RATE_LIMITED"},
+		"recovery.api-server-error": {status: 500, code: "ERROR"},
+	} {
+		result := catalogResultByID(t, first, id)
+		if result.Scenario.Status != StatusPassed || result.Metrics.APIRequests != 1 || len(result.Commands) != 1 {
+			t.Errorf("API recovery %q = %+v", id, result)
+			continue
+		}
+		got := result.Commands[0].StructuredError
+		if got == nil || got.Kind != "forgejo_api" || got.Code != want.code || !strings.Contains(got.Error, fmt.Sprintf("status %d", want.status)) {
+			t.Errorf("API recovery %q structured error = %+v", id, got)
+		}
+	}
+	for _, id := range []string{
+		"recovery.unknown-subcommand",
+		"recovery.unknown-operation",
+		"recovery.invalid-fields",
+		"recovery.malformed-value",
+	} {
+		result := catalogResultByID(t, first, id)
+		if result.Scenario.Status != StatusRecovered || result.Scenario.CorrectionStatus != "autonomous_recovery" || len(result.Commands) != 2 {
+			t.Errorf("structured recovery %q = %+v", id, result)
+			continue
+		}
+		if result.Commands[0].StructuredError == nil || result.Commands[0].ExitCode == 0 || result.Commands[1].ExitCode != 0 {
+			t.Errorf("structured recovery %q commands = %+v", id, result.Commands)
+		}
+	}
+	capability := catalogResultByID(t, first, "capability.version-dependent-operation")
+	if capability.Scenario.Status != StatusPassed || capability.Metrics.CLIInvocations != 2 || capability.Metrics.APIRequests != 2 {
+		t.Fatalf("version-dependent capability = %+v", capability)
+	}
+	if capability.Commands[0].ExitCode != 0 || capability.Commands[1].StructuredError == nil || !strings.Contains(capability.Commands[1].StructuredError.Error, "ListActionRuns is unavailable") {
+		t.Fatalf("version-dependent capability commands = %+v", capability.Commands)
+	}
+	timedOut := catalogResultByID(t, first, "recovery.subprocess-timeout")
+	if timedOut.Scenario.Status != StatusTimedOut || !timedOut.Safety.TimedOut || timedOut.Metrics.CLIInvocations != 1 {
+		t.Fatalf("subprocess timeout = %+v", timedOut)
+	}
+	unexpected := catalogResultByID(t, first, "recovery.unexpected-fixture-traffic")
+	if unexpected.Scenario.Status != StatusFailed || unexpected.Safety.UnexpectedRequests != 1 || len(unexpected.Requests) != 1 {
+		t.Fatalf("unexpected fixture traffic = %+v", unexpected)
+	}
+	if request := unexpected.Requests[0]; request.Path != "/api/v1/unexpected" || !request.Unexpected || request.BodyBytes != 0 || request.ExpectedMethod != http.MethodGet || request.ExpectedPath != "/api/v1/version" {
+		t.Fatalf("unexpected fixture request summary = %+v", request)
+	}
+	misleading := catalogResultByID(t, first, "recovery.misleading-success-payload")
+	if misleading.Scenario.Status != StatusFailed || misleading.Commands[0].ExitCode != 0 || misleading.Commands[0].StructuredError != nil || misleading.Metrics.APIRequests != 1 {
+		t.Fatalf("misleading API response = %+v", misleading)
+	}
+}
+
+func TestVersionDependentCapabilityRejectsUnsafePartialMutation(t *testing.T) {
+	scenario := catalogScenarioByID(t, "capability.version-dependent-operation")
+	scenario.commands = [][]string{
+		{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "api", "--json", "raw", "POST", "/repos/benchmark/target/actions/runs", "--yes"},
+		{"--json", "-base-url", FixtureBaseURLPlaceholder + "/api/v1", "api", "call", "ListActionRuns", "owner=benchmark", "repo=target"},
+	}
+	result, err := runCatalogScenario(context.Background(), Config{
+		FJGOPath: buildFJGO(t), SourceRevision: "test-revision", Timeout: 2 * time.Second,
+	}, scenario)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Scenario.Status != StatusFailed || result.Safety.UnexpectedRequests != 1 || result.Safety.MutatingRequests != 1 {
+		t.Fatalf("unsafe partial capability run = %+v", result)
+	}
+	if len(result.Requests) != 2 || result.Requests[0].Method != http.MethodPost || result.Requests[0].Path != "/api/v1/repos/benchmark/target/actions/runs" || !result.Requests[0].Unexpected {
+		t.Fatalf("unsafe request evidence = %+v", result.Requests)
 	}
 }
 
@@ -250,8 +368,42 @@ func TestCatalogAcceptsAlternativeSequencesAndRecordsCorrections(t *testing.T) {
 		t.Fatal(err)
 	}
 	root = catalogResultByID(t, corrected, "repository-context.root-flag")
-	if root.Scenario.Status != StatusFailed || root.Scenario.CorrectionStatus != "manually_corrected" || root.Metrics.ManualCorrections != 1 {
+	if root.Scenario.Status != StatusManuallyCorrected || root.Scenario.CorrectionStatus != "manually_corrected" || root.Metrics.ManualCorrections != 1 {
 		t.Fatalf("corrected result = %+v", root)
+	}
+
+	clarified, err := RunCatalog(context.Background(), Config{
+		FJGOPath: binary, SourceRevision: "test-revision", Timeout: 2 * time.Second,
+		ScenarioRuns: map[string]ScenarioRun{
+			"repository-context.root-flag": {
+				Commands:       catalogScenarioByID(t, "repository-context.root-flag").commands,
+				Clarifications: 1,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root = catalogResultByID(t, clarified, "repository-context.root-flag")
+	if root.Scenario.Status != StatusClarificationRequired || root.Scenario.CorrectionStatus != "clarification_required" || root.Metrics.Clarifications != 1 {
+		t.Fatalf("clarified result = %+v", root)
+	}
+
+	incomplete, err := RunCatalog(context.Background(), Config{
+		FJGOPath: binary, SourceRevision: "test-revision", Timeout: 2 * time.Second,
+		ScenarioRuns: map[string]ScenarioRun{
+			"repository-context.root-flag": {
+				Commands:   catalogScenarioByID(t, "repository-context.root-flag").commands,
+				Incomplete: true,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root = catalogResultByID(t, incomplete, "repository-context.root-flag")
+	if root.Scenario.Status != StatusIncomplete || root.Scenario.CorrectionStatus != "incomplete" {
+		t.Fatalf("incomplete result = %+v", root)
 	}
 }
 
@@ -385,6 +537,27 @@ func TestTracerReportsUnexpectedFixtureRequest(t *testing.T) {
 	}
 }
 
+func TestTracerBoundsUnexpectedRequestEvidence(t *testing.T) {
+	longValue := strings.Repeat("x", 2048)
+	result, err := RunTracer(context.Background(), Config{
+		FJGOPath: buildFJGO(t), SourceRevision: "test-revision", Timeout: 2 * time.Second,
+		Commands: [][]string{{
+			"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "api", "--json", "raw", "GET", "/" + longValue, "q=" + longValue,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Requests) != 1 || len(result.Requests[0].Path) > maxEvidenceText || len(result.Requests[0].Query) > maxEvidenceText {
+		t.Fatalf("unbounded request summary = %+v", result.Requests)
+	}
+	for _, argument := range result.Commands[0].Arguments {
+		if len(argument) > maxEvidenceText {
+			t.Fatalf("unbounded retained argument length %d", len(argument))
+		}
+	}
+}
+
 func TestTracerRequiresFixtureObservedOutcome(t *testing.T) {
 	result, err := RunTracer(context.Background(), Config{
 		FJGOPath:       buildFJGO(t),
@@ -490,4 +663,13 @@ func catalogResultByID(t *testing.T, result CatalogResult, id string) Result {
 	}
 	t.Fatalf("catalog result %q not found", id)
 	return Result{}
+}
+
+func isAutonomousRecoveryScenario(id string) bool {
+	switch id {
+	case "recovery.missing-required-argument", "recovery.unknown-subcommand", "recovery.unknown-operation", "recovery.invalid-fields", "recovery.malformed-value":
+		return true
+	default:
+		return false
+	}
 }

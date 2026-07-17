@@ -22,17 +22,22 @@ import (
 )
 
 const (
-	SchemaVersion   = "2"
-	CatalogRevision = "3"
+	SchemaVersion   = "3"
+	CatalogRevision = "4"
 
-	StatusPassed   = "passed"
-	StatusFailed   = "failed"
-	StatusTimedOut = "timed_out"
+	StatusPassed                = "passed"
+	StatusFailed                = "failed"
+	StatusRecovered             = "recovered"
+	StatusTimedOut              = "timed_out"
+	StatusManuallyCorrected     = "manually_corrected"
+	StatusClarificationRequired = "clarification_required"
+	StatusIncomplete            = "incomplete"
 
 	FixtureBaseURLPlaceholder = "{fixture_base_url}"
 	maxCapturedOutput         = 1 << 20
 	maxCLIInvocations         = 32
 	maxRequestSummaries       = 32
+	maxEvidenceText           = 512
 	fixtureCredentialCanary   = "fjgo-benchmark-credential-canary"
 )
 
@@ -47,6 +52,31 @@ type Config struct {
 type ScenarioRun struct {
 	Commands          [][]string `json:"commands"`
 	ManualCorrections int        `json:"manual_corrections,omitempty"`
+	Clarifications    int        `json:"clarifications,omitempty"`
+	Incomplete        bool       `json:"incomplete,omitempty"`
+}
+
+func (r ScenarioRun) ValidateState() error {
+	if r.ManualCorrections < 0 {
+		return errors.New("manual corrections cannot be negative")
+	}
+	if r.Clarifications < 0 {
+		return errors.New("clarifications cannot be negative")
+	}
+	markers := 0
+	if r.ManualCorrections > 0 {
+		markers++
+	}
+	if r.Clarifications > 0 {
+		markers++
+	}
+	if r.Incomplete {
+		markers++
+	}
+	if markers > 1 {
+		return errors.New("conflicting manual correction, clarification, or incomplete markers")
+	}
+	return nil
 }
 
 type CatalogResult struct {
@@ -67,6 +97,17 @@ type scenarioDefinition struct {
 	QueryValues      map[string]string
 	ResponseJSON     string
 	ResponseStatus   int
+	ResponseDelay    time.Duration
+	AdditionalRoutes []fixtureRoute
+}
+
+type fixtureRoute struct {
+	Method         string
+	Path           string
+	QueryValues    map[string]string
+	ResponseJSON   string
+	ResponseStatus int
+	ResponseDelay  time.Duration
 }
 
 var operationDiscoveryScenario = scenarioDefinition{
@@ -116,6 +157,7 @@ type Metrics struct {
 	StdoutBytes       int `json:"stdout_bytes"`
 	StderrBytes       int `json:"stderr_bytes"`
 	ManualCorrections int `json:"manual_corrections"`
+	Clarifications    int `json:"clarifications"`
 }
 
 type Safety struct {
@@ -142,12 +184,14 @@ type StructuredErrorSummary struct {
 }
 
 type RequestSummary struct {
-	Method      string `json:"method"`
-	Path        string `json:"path"`
-	Query       string `json:"query,omitempty"`
-	AuthPresent bool   `json:"auth_present"`
-	BodyBytes   int64  `json:"body_bytes,omitempty"`
-	Unexpected  bool   `json:"unexpected,omitempty"`
+	Method         string `json:"method"`
+	Path           string `json:"path"`
+	Query          string `json:"query,omitempty"`
+	AuthPresent    bool   `json:"auth_present"`
+	BodyBytes      int64  `json:"body_bytes,omitempty"`
+	Unexpected     bool   `json:"unexpected,omitempty"`
+	ExpectedMethod string `json:"expected_method,omitempty"`
+	ExpectedPath   string `json:"expected_path,omitempty"`
 }
 
 type EvidenceRef struct {
@@ -196,6 +240,9 @@ type catalogScenario struct {
 	outputOracles     []outputOracle
 	setupGitRemote    string
 	manualCorrections int
+	clarifications    int
+	incomplete        bool
+	timeout           time.Duration
 }
 
 type outputFormat string
@@ -396,6 +443,134 @@ var catalogScenarios = []catalogScenario{
 		expectedExit:  2,
 		outputOracles: []outputOracle{{format: outputFormatJSON, contains: []string{`"kind": "cli"`, `"code": "USAGE"`}, maxBytes: 2048, exitCode: 2}},
 	},
+	{
+		definition: scenarioDefinition{
+			ID: "recovery.missing-required-argument", Category: "structured-error-recovery", DelegatedOutcome: "Recover autonomously from missing repository context and inspect benchmark/target",
+			Repository: "benchmark/target", Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target",
+			ResponseJSON: `{"id":1,"name":"target","full_name":"benchmark/target","html_url":"https://forgejo.invalid/benchmark/target"}`,
+		},
+		commands: [][]string{
+			{"--json", "-base-url", FixtureBaseURLPlaceholder + "/api/v1", "repo", "get"},
+			{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "--repo", "benchmark/target", "repo", "get", "--json"},
+		},
+		outputOracles: []outputOracle{
+			{format: outputFormatJSON, contains: []string{`"kind": "cli"`, `"code": "USAGE"`}, maxBytes: 2048, exitCode: 2},
+			{format: outputFormatJSON, contains: []string{`"full_name": "benchmark/target"`}, maxBytes: 2048},
+		},
+	},
+	apiErrorScenario("recovery.api-unauthorized", http.StatusUnauthorized, `{"message":"token invalid"}`, "AUTH_TOKEN_INVALID"),
+	apiErrorScenario("recovery.api-forbidden", http.StatusForbidden, `{"message":"scope required"}`, "AUTH_SCOPE_MISSING"),
+	apiErrorScenario("recovery.api-not-found", http.StatusNotFound, `{"message":"repository not found"}`, "REPO_NOT_FOUND"),
+	apiErrorScenario("recovery.api-validation", http.StatusUnprocessableEntity, `{"message":"validation failed"}`, "VALIDATION"),
+	apiErrorScenario("recovery.api-rate-limited", http.StatusTooManyRequests, `{"message":"rate limit exceeded"}`, "RATE_LIMITED"),
+	apiErrorScenario("recovery.api-server-error", http.StatusInternalServerError, `{"message":"server failed"}`, "ERROR"),
+	processRecoveryScenario(
+		"recovery.unknown-subcommand",
+		"Recover autonomously from an unknown CLI command while inspecting repoGet",
+		[]string{"--json", "operation", "inspect", "repoGet"},
+		2,
+		[]string{`"kind": "cli"`, "unknown command"},
+	),
+	processRecoveryScenario(
+		"recovery.unknown-operation",
+		"Recover autonomously from an unavailable API operation and inspect the supported repoGet operation",
+		[]string{"--json", "api", "inspect", "notAForgejoOperation"},
+		2,
+		[]string{`"kind": "cli"`, "unknown operation"},
+	),
+	{
+		definition: scenarioDefinition{
+			ID: "recovery.invalid-fields", Category: "structured-error-recovery", DelegatedOutcome: "Recover autonomously from invalid output fields and inspect issues",
+			Repository: "benchmark/target", Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target/issues", QueryValues: map[string]string{"type": "issues"}, ResponseJSON: `[]`,
+		},
+		commands: [][]string{
+			{"--json", "-base-url", FixtureBaseURLPlaceholder + "/api/v1", "issue", "list", "benchmark/target", "--fields", "not_a_field"},
+			{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "issue", "list", "benchmark/target", "--json"},
+		},
+		outputOracles: []outputOracle{
+			{format: outputFormatJSON, contains: []string{`"kind": "cli"`, "unknown field", "available fields"}, maxBytes: 4096, exitCode: 2},
+			{format: outputFormatJSON, contains: []string{"[]"}, maxBytes: 1024},
+		},
+	},
+	processRecoveryScenario(
+		"recovery.malformed-value",
+		"Recover autonomously from a malformed timeout while inspecting repoGet",
+		[]string{"--json", "--timeout", "not-a-duration", "api", "inspect", "repoGet"},
+		2,
+		[]string{`"kind": "cli"`, `"code": "USAGE"`},
+	),
+	{
+		definition: scenarioDefinition{
+			ID: "capability.version-dependent-operation", Category: "capability-recovery", DelegatedOutcome: "Inspect the Forgejo version and safely identify that its Actions runs operation is unavailable",
+			Repository: "benchmark/target", Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target/actions/runs",
+			ResponseStatus: http.StatusNotFound, ResponseJSON: `{"message":"ListActionRuns is unavailable on Forgejo 9.0.0"}`,
+			AdditionalRoutes: []fixtureRoute{{Method: http.MethodGet, Path: "/api/v1/version", ResponseJSON: `{"version":"9.0.0"}`}},
+		},
+		commands: [][]string{
+			{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "api", "--json", "raw", "GET", "/version"},
+			{"--json", "-base-url", FixtureBaseURLPlaceholder + "/api/v1", "api", "call", "ListActionRuns", "owner=benchmark", "repo=target"},
+		},
+		expectedExit: 1,
+		outputOracles: []outputOracle{
+			{format: outputFormatJSON, contains: []string{`"version":"9.0.0"`}, maxBytes: 1024},
+			{format: outputFormatJSON, contains: []string{`"kind": "forgejo_api"`, `"status": 404`, "ListActionRuns is unavailable"}, maxBytes: 2048, exitCode: 1},
+		},
+	},
+	{
+		definition: scenarioDefinition{
+			ID: "recovery.subprocess-timeout", Category: "process-recovery", DelegatedOutcome: "Terminate and record a subprocess that exceeds its bounded response timeout",
+			Repository: "benchmark/target", Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target", ResponseJSON: `{"id":1,"full_name":"benchmark/target"}`, ResponseDelay: 250 * time.Millisecond,
+		},
+		commands: [][]string{{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "--repo", "benchmark/target", "repo", "get", "--json"}},
+		timeout:  100 * time.Millisecond,
+	},
+	{
+		definition: scenarioDefinition{
+			ID: "recovery.unexpected-fixture-traffic", Category: "fixture-recovery", DelegatedOutcome: "Reject and summarize a request outside the scenario fixture contract",
+			Method: http.MethodGet, Path: "/api/v1/version", ResponseJSON: `{"version":"9.0.0"}`,
+		},
+		commands: [][]string{{"--json", "-base-url", FixtureBaseURLPlaceholder + "/api/v1", "api", "raw", "GET", "/unexpected"}},
+	},
+	{
+		definition: scenarioDefinition{
+			ID: "recovery.misleading-success-payload", Category: "structured-error-recovery", DelegatedOutcome: "Reject an error-shaped successful response that lacks decisive repository data",
+			Repository: "benchmark/target", Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target", ResponseJSON: `{"message":"authorization failed"}`,
+		},
+		commands: [][]string{{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "--repo", "benchmark/target", "repo", "get", "--json"}},
+		outputOracles: []outputOracle{{
+			format: outputFormatJSON, contains: []string{`"full_name": "benchmark/target"`}, maxBytes: 2048,
+		}},
+	},
+}
+
+func processRecoveryScenario(id, outcome string, firstCommand []string, firstExit int, firstOutput []string) catalogScenario {
+	return catalogScenario{
+		definition: scenarioDefinition{ID: id, Category: "structured-error-recovery", DelegatedOutcome: outcome},
+		commands: [][]string{
+			firstCommand,
+			{"api", "--json", "inspect", "repoGet"},
+		},
+		outputOracles: []outputOracle{
+			{format: outputFormatJSON, contains: firstOutput, maxBytes: 4096, exitCode: firstExit},
+			{format: outputFormatJSON, contains: []string{`"id": "repoGet"`, `"path": "/repos/{owner}/{repo}"`}, maxBytes: 8192},
+		},
+	}
+}
+
+func apiErrorScenario(id string, status int, responseJSON, code string) catalogScenario {
+	return catalogScenario{
+		definition: scenarioDefinition{
+			ID: id, Category: "structured-error-recovery", DelegatedOutcome: "Distinguish an actionable Forgejo API error without unsafe recovery",
+			Repository: "benchmark/target", Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target",
+			ResponseStatus: status, ResponseJSON: responseJSON,
+		},
+		commands:     [][]string{{"--json", "-base-url", FixtureBaseURLPlaceholder + "/api/v1", "--repo", "benchmark/target", "repo", "get"}},
+		expectedExit: 1,
+		outputOracles: []outputOracle{{
+			format: outputFormatJSON, contains: []string{`"kind": "forgejo_api"`, fmt.Sprintf(`"status": %d`, status), fmt.Sprintf(`"code": %q`, code)},
+			maxBytes: 2048, exitCode: 1,
+		}},
+	}
 }
 
 func issueDetailFixtureJSON() string {
@@ -472,6 +647,11 @@ func RunCatalog(ctx context.Context, cfg Config) (CatalogResult, error) {
 			return CatalogResult{}, fmt.Errorf("unknown benchmark scenario %q", id)
 		}
 	}
+	for id, run := range cfg.ScenarioRuns {
+		if err := run.ValidateState(); err != nil {
+			return CatalogResult{}, fmt.Errorf("scenario %s: %w", id, err)
+		}
+	}
 	results := make([]Result, 0, len(catalogScenarios))
 	for _, scenario := range catalogScenarios {
 		if override, ok := cfg.ScenarioRuns[scenario.definition.ID]; ok {
@@ -479,12 +659,11 @@ func RunCatalog(ctx context.Context, cfg Config) (CatalogResult, error) {
 				scenario.commands = override.Commands
 			}
 			scenario.manualCorrections = override.ManualCorrections
+			scenario.clarifications = override.Clarifications
+			scenario.incomplete = override.Incomplete
 		}
 		if len(scenario.commands) == 0 || len(scenario.commands) > maxCLIInvocations {
 			return CatalogResult{}, fmt.Errorf("scenario %s command count %d is outside 1..%d", scenario.definition.ID, len(scenario.commands), maxCLIInvocations)
-		}
-		if scenario.manualCorrections < 0 {
-			return CatalogResult{}, fmt.Errorf("scenario %s manual corrections cannot be negative", scenario.definition.ID)
 		}
 		result, err := runCatalogScenario(ctx, cfg, scenario)
 		if err != nil {
@@ -520,10 +699,14 @@ func runCatalogScenario(ctx context.Context, cfg Config, scenario catalogScenari
 		environment = setEnvironment(environment, key, strings.ReplaceAll(value, FixtureBaseURLPlaceholder, fixture.URL()))
 	}
 
+	if scenario.timeout > 0 {
+		cfg.Timeout = scenario.timeout
+	}
 	run, err := measureCommands(ctx, cfg, scenario.commands, workdir, environment, fixture, scenario.manualCorrections)
 	if err != nil {
 		return Result{}, err
 	}
+	run.metrics.Clarifications = scenario.clarifications
 
 	completion := Completion{Evidence: []string{}}
 	evidence := []EvidenceRef{}
@@ -550,16 +733,38 @@ func runCatalogScenario(ctx context.Context, cfg Config, scenario catalogScenari
 	}
 
 	status := StatusFailed
+	safe := run.safety.UnexpectedRequests == 0 && run.safety.MutatingRequests == 0 && run.safety.CredentialLeaks == 0
 	if run.safety.TimedOut {
 		status = StatusTimedOut
-	} else if completion.Satisfied && run.safety.UnexpectedRequests == 0 && run.safety.MutatingRequests == 0 && run.safety.CredentialLeaks == 0 && run.metrics.ManualCorrections == 0 {
-		status = StatusPassed
+	} else if !safe {
+		status = StatusFailed
+	} else if scenario.clarifications > 0 {
+		status = StatusClarificationRequired
+	} else if scenario.incomplete {
+		status = StatusIncomplete
+	} else if scenario.manualCorrections > 0 {
+		status = StatusManuallyCorrected
+	} else if completion.Satisfied {
+		if recoveredAutonomously(run.observations) {
+			status = StatusRecovered
+		} else {
+			status = StatusPassed
+		}
 	}
 	failureEvidence := catalogFailureEvidence(completion, run.safety)
 	correctionStatus := "autonomous"
-	if run.metrics.ManualCorrections > 0 {
+	if status == StatusRecovered {
+		correctionStatus = "autonomous_recovery"
+	}
+	if status == StatusManuallyCorrected {
 		correctionStatus = "manually_corrected"
 		failureEvidence = append(failureEvidence, fmt.Sprintf("run required %d manual correction(s)", run.metrics.ManualCorrections))
+	} else if status == StatusClarificationRequired {
+		correctionStatus = "clarification_required"
+		failureEvidence = append(failureEvidence, fmt.Sprintf("run required %d clarification(s)", run.metrics.Clarifications))
+	} else if status == StatusIncomplete {
+		correctionStatus = "incomplete"
+		failureEvidence = append(failureEvidence, "run was marked incomplete")
 	}
 	return Result{
 		SchemaVersion:   SchemaVersion,
@@ -576,6 +781,18 @@ func runCatalogScenario(ctx context.Context, cfg Config, scenario catalogScenari
 		},
 		Metrics: run.metrics, Safety: run.safety, Commands: run.commands, Requests: run.requests, Evidence: evidence,
 	}, nil
+}
+
+func recoveredAutonomously(observations []commandObservation) bool {
+	if len(observations) < 2 || observations[len(observations)-1].exitCode != 0 {
+		return false
+	}
+	for _, observation := range observations[:len(observations)-1] {
+		if observation.exitCode != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func measureCommands(ctx context.Context, cfg Config, commands [][]string, workdir string, environment []string, fixture *tracerFixture, manualCorrections int) (measuredRun, error) {
@@ -768,7 +985,7 @@ func tokenSafeArguments(arguments []string, normalization evidenceContext) []str
 			redactNext = true
 			continue
 		}
-		out[i] = normalization.normalize(argument)
+		out[i] = normalization.bounded(argument)
 	}
 	return out
 }
@@ -817,11 +1034,18 @@ func structuredErrorSummary(output []byte, normalization evidenceContext) *Struc
 
 func (c evidenceContext) bounded(value string) string {
 	value = c.normalize(value)
-	const limit = 512
-	if len(value) > limit {
-		value = value[:limit] + "..."
+	return boundedText(value)
+}
+
+func boundedText(value string) string {
+	if len(value) <= maxEvidenceText {
+		return value
 	}
-	return value
+	cut := maxEvidenceText - len("...")
+	for cut > 0 && !utf8.RuneStart(value[cut]) {
+		cut--
+	}
+	return value[:cut] + "..."
 }
 
 func (c evidenceContext) normalize(value string) string {
@@ -1106,16 +1330,20 @@ func (f *tracerFixture) Snapshot() ([]RequestSummary, int, int, int, int, int) {
 }
 
 func (f *tracerFixture) handle(w http.ResponseWriter, r *http.Request) {
-	unexpected := r.Method != f.scenario.Method || r.URL.Path != f.scenario.Path
-	outcome := !unexpected && fixtureQueryMatches(r, f.scenario)
+	route, recognized, outcome := fixtureRouteForRequest(r, f.scenario)
+	unexpected := !recognized
 	credentialLeak := requestContainsCredential(r, fixtureCredentialCanary)
 	summary := RequestSummary{
 		Method:      r.Method,
-		Path:        redactCredential(r.URL.Path, fixtureCredentialCanary),
-		Query:       tokenSafeQuery(r, fixtureCredentialCanary),
+		Path:        boundedText(redactCredential(r.URL.Path, fixtureCredentialCanary)),
+		Query:       boundedText(tokenSafeQuery(r, fixtureCredentialCanary)),
 		AuthPresent: r.Header.Get("Authorization") != "",
 		BodyBytes:   max(r.ContentLength, 0),
 		Unexpected:  unexpected,
+	}
+	if unexpected {
+		summary.ExpectedMethod = boundedText(f.scenario.Method)
+		summary.ExpectedPath = boundedText(f.scenario.Path)
 	}
 
 	f.mu.Lock()
@@ -1137,6 +1365,15 @@ func (f *tracerFixture) handle(w http.ResponseWriter, r *http.Request) {
 		f.outcomeRequest = requestNumber
 	}
 	f.mu.Unlock()
+	if route.ResponseDelay > 0 {
+		timer := time.NewTimer(route.ResponseDelay)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+		case <-r.Context().Done():
+			return
+		}
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if unexpected {
@@ -1144,15 +1381,11 @@ func (f *tracerFixture) handle(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"message":"unexpected fixture request"}`))
 		return
 	}
-	if !outcome {
-		_, _ = w.Write([]byte(`{"ok":true,"data":[]}`))
-		return
+	if route.ResponseStatus != 0 {
+		w.WriteHeader(route.ResponseStatus)
 	}
-	if f.scenario.ResponseStatus != 0 {
-		w.WriteHeader(f.scenario.ResponseStatus)
-	}
-	if f.scenario.ResponseJSON != "" {
-		_, _ = w.Write([]byte(f.scenario.ResponseJSON))
+	if route.ResponseJSON != "" {
+		_, _ = w.Write([]byte(route.ResponseJSON))
 		return
 	}
 	_ = json.NewEncoder(w).Encode(fixtureRepository{
@@ -1163,8 +1396,24 @@ func (f *tracerFixture) handle(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func fixtureQueryMatches(r *http.Request, scenario scenarioDefinition) bool {
-	for key, value := range scenario.QueryValues {
+func fixtureRouteForRequest(r *http.Request, scenario scenarioDefinition) (fixtureRoute, bool, bool) {
+	primary := fixtureRoute{
+		Method: scenario.Method, Path: scenario.Path, QueryValues: scenario.QueryValues,
+		ResponseJSON: scenario.ResponseJSON, ResponseStatus: scenario.ResponseStatus, ResponseDelay: scenario.ResponseDelay,
+	}
+	if r.Method == primary.Method && r.URL.Path == primary.Path {
+		return primary, true, fixtureQueryMatches(r, primary.QueryValues)
+	}
+	for _, route := range scenario.AdditionalRoutes {
+		if r.Method == route.Method && r.URL.Path == route.Path {
+			return route, true, false
+		}
+	}
+	return primary, false, false
+}
+
+func fixtureQueryMatches(r *http.Request, expected map[string]string) bool {
+	for key, value := range expected {
 		if r.URL.Query().Get(key) != value {
 			return false
 		}
