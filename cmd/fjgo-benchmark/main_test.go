@@ -291,7 +291,7 @@ func TestCommandImportsBoundedPortableHostRunWithoutLaunchingFJGO(t *testing.T) 
 	recordPath := filepath.Join(tempDir, "host-run.json")
 	record := []byte(`{
   "schema_version":"1","benchmark_schema_version":"5","catalog_revision":"5",
-  "fjgo":{"version":"1.1.0","source_revision":"host-source"},
+  "fjgo":{"version":"1.2.0","source_revision":"host-source"},
   "host":{"name":"claude_code","version":"1"},
   "model":{"provider":"anthropic","name":"claude"},
   "scenario":{"id":"discovery.operation-inspect","status":"passed","completion_satisfied":true},

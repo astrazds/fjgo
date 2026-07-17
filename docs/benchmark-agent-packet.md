@@ -76,7 +76,7 @@ The record is JSON, at most 64 KiB, and uses this shape:
   "schema_version": "1",
   "benchmark_schema_version": "5",
   "catalog_revision": "5",
-  "fjgo": {"version": "1.1.0", "source_revision": "abc123"},
+  "fjgo": {"version": "1.2.0", "source_revision": "abc123"},
   "host": {"name": "codex", "version": "2026.7"},
   "model": {"provider": "openai", "name": "gpt-5", "version": ""},
   "scenario": {

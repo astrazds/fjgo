@@ -1,6 +1,6 @@
 {
   "name": "fjgo",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Agent-first CLI and API client for Forgejo",
   "license": "MIT",
   "type": "module",

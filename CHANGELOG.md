@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.2.0 - 2026-07-17
+
 - Expanded the deterministic black-box benchmark from one tracer into a
   46-scenario offline catalog covering discovery and context, compact
   inspection, structured recovery, capability behavior, mutations, and

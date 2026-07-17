@@ -11,7 +11,7 @@ func TestImportHostRunConvertsCodexRecordToBenchmarkResult(t *testing.T) {
   "schema_version": "1",
   "benchmark_schema_version": "5",
   "catalog_revision": "5",
-  "fjgo": {"version": "1.1.0", "source_revision": "abc123"},
+  "fjgo": {"version": "1.2.0", "source_revision": "abc123"},
   "host": {"name": "codex", "version": "2026.7"},
   "model": {"provider": "openai", "name": "gpt-5"},
   "scenario": {"id": "discovery.operation-inspect", "status": "passed", "completion_satisfied": true},
@@ -27,7 +27,7 @@ func TestImportHostRunConvertsCodexRecordToBenchmarkResult(t *testing.T) {
 	if result.SchemaVersion != SchemaVersion || result.CatalogRevision != CatalogRevision || result.SourceRevision != "abc123" {
 		t.Fatalf("versions = schema %q catalog %q source %q", result.SchemaVersion, result.CatalogRevision, result.SourceRevision)
 	}
-	if result.Execution.Mode != "agent_host" || result.Execution.FJGOVersion != "1.1.0" || result.Execution.Host.Name != "codex" || result.Execution.Model.Name != "gpt-5" {
+	if result.Execution.Mode != "agent_host" || result.Execution.FJGOVersion != "1.2.0" || result.Execution.Host.Name != "codex" || result.Execution.Model.Name != "gpt-5" {
 		t.Fatalf("execution = %+v", result.Execution)
 	}
 	if result.Scenario.ID != "discovery.operation-inspect" || result.Scenario.Category != "operation-discovery" || result.Scenario.Status != StatusPassed || !result.Scenario.Completion.Satisfied {
@@ -178,7 +178,7 @@ func portableRecord(status, completion, metrics, safety, host string) []byte {
   "schema_version":"1",
   "benchmark_schema_version":"5",
   "catalog_revision":"5",
-  "fjgo":{"version":"1.1.0","source_revision":"abc123"},
+  "fjgo":{"version":"1.2.0","source_revision":"abc123"},
   "host":{"name":%q,"version":"host-version"},
   "model":{"provider":"provider","name":"model","version":"model-version"},
   "scenario":{"id":"discovery.operation-inspect","status":%q,"completion_satisfied":%s},

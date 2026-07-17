@@ -179,7 +179,7 @@ report format.
 Build all default release archives and checksums:
 
 ```sh
-VERSION=v1.1.0 ./scripts/release.sh
+VERSION=v1.2.0 ./scripts/release.sh
 ```
 
 Build one target while testing:
@@ -191,7 +191,7 @@ VERSION=0.0.0-test TARGETS=linux/amd64 ./scripts/release.sh
 Smoke-test a published release:
 
 ```sh
-VERSION=v1.1.0 ./scripts/smoke-release.sh
+VERSION=v1.2.0 ./scripts/smoke-release.sh
 ```
 
 Pushing a `v*` tag runs verification, builds archives, and creates a Forgejo
@@ -200,7 +200,7 @@ release. Release notes belong in `CHANGELOG.md`.
 ## Publish the npm launcher
 
 The version in `package.json` must match the release tag without its leading
-`v`. For example, tag `v1.1.0` uses npm version `1.1.0`.
+`v`. For example, tag `v1.2.0` uses npm version `1.2.0`.
 
 Tag releases publish automatically when the Forgejo Actions secret `NPM_TOKEN`
 is configured. To publish manually after the matching Forgejo release exists:

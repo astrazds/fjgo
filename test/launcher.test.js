@@ -33,7 +33,7 @@ test("maps supported release targets", () => {
 });
 
 test("finds checksums by archive basename", () => {
-  const name = "fjgo_v1.1.0_linux_amd64.tar.gz";
+  const name = "fjgo_v1.2.0_linux_amd64.tar.gz";
   assert.equal(checksumFor(`${"a".repeat(64)}  ./${name}\n`, name), "a".repeat(64));
   assert.throws(() => checksumFor("", name), /do not contain/);
 });
