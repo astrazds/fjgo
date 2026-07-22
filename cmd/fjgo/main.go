@@ -863,9 +863,16 @@ func runRepo(ctx context.Context, client *forgejo.Client, cfg runConfig, args []
 		}
 		return writeTopics(stdout, ref, out.TopicNames, jsonOut)
 	case "avatar":
-		ref, rest, err := repoFromArgs(cfg, args[1:])
-		if err != nil {
-			return newUsageError("usage: fjgo repo avatar <owner/repo> <png> --yes", "Pass `owner/repo` or use `-R origin`")
+		ref := repoRef{}
+		rest := args[1:]
+		if cfg.RemoteRepo != nil {
+			ref = *cfg.RemoteRepo
+		} else {
+			var err error
+			ref, rest, err = repoFromArgs(cfg, rest)
+			if err != nil {
+				return newUsageError("usage: fjgo repo avatar <owner/repo> <png> --yes", "Pass `owner/repo` or use `-R origin`")
+			}
 		}
 		if err := rejectUnknownFlags(rest, "repo avatar", []string{"--yes", "--dry-run", "--print-request"}, nil); err != nil {
 			return err

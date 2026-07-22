@@ -1536,6 +1536,37 @@ func TestRepoAvatarAlias(t *testing.T) {
 	}
 }
 
+func TestRepoAvatarUsesExplicitRepoWithNestedPath(t *testing.T) {
+	dir := t.TempDir()
+	icon := dir + "/assets/icon.png"
+	if err := os.Mkdir(filepath.Dir(icon), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(icon, []byte("png"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/repos/astra/fjgo/avatar" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		var body map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body["image"] != "cG5n" {
+			t.Fatalf("image = %q", body["image"])
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "--repo", "astra/fjgo", "repo", "avatar", icon, "--yes"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+}
+
 func TestRepoAvatarRequiresYes(t *testing.T) {
 	dir := t.TempDir()
 	icon := dir + "/icon.png"
@@ -1578,6 +1609,57 @@ func TestRepoAvatarDryRunDoesNotReadFileOrCallServer(t *testing.T) {
 	}
 	got := stdout.String()
 	if !strings.Contains(got, "operation: repoUpdateAvatar") || strings.Contains(got, "cG5n") {
+		t.Fatalf("preview = %s", got)
+	}
+}
+
+func TestRepoAvatarDryRunUsesExplicitRepoWithNestedPath(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "--repo", "astra/fjgo", "repo", "avatar", "/no/such/icon.png", "--yes", "--dry-run"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	if called {
+		t.Fatal("server was called")
+	}
+	got := stdout.String()
+	if !strings.Contains(got, "path: /repos/astra/fjgo/avatar") || !strings.Contains(got, "image_file: /no/such/icon.png") {
+		t.Fatalf("preview = %s", got)
+	}
+}
+
+func TestRepoAvatarDryRunUsesRemoteRepoWithNestedPath(t *testing.T) {
+	dir := t.TempDir()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("server was called")
+	}))
+	defer server.Close()
+
+	cmd := exec.Command("git", "init")
+	cmd.Dir = dir
+	if err := cmd.Run(); err != nil {
+		t.Skipf("git init unavailable: %v", err)
+	}
+	cmd = exec.Command("git", "remote", "add", "origin", server.URL+"/astra/fjgo.git")
+	cmd.Dir = dir
+	if err := cmd.Run(); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+
+	var stdout, stderr bytes.Buffer
+	err := run(t.Context(), []string{"-base-url", server.URL + "/api/v1", "-R", "origin", "repo", "avatar", "assets/icon.png", "--yes", "--dry-run"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
+	}
+	got := stdout.String()
+	if !strings.Contains(got, "path: /repos/astra/fjgo/avatar") || !strings.Contains(got, "image_file: assets/icon.png") {
 		t.Fatalf("preview = %s", got)
 	}
 }
