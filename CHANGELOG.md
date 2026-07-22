@@ -2,9 +2,20 @@
 
 ## Unreleased
 
+## v1.3.0 - 2026-07-22
+
 - Fixed `run watch` so its polling timeout is independent from the root HTTP
   timeout; `-timeout` now bounds each request without capping long-running
   commands, including self-update requests.
+- Added the new fjgo icon throughout the project and set its light presentation
+  as the Forgejo repository avatar.
+- Fixed `repo avatar` context parsing for explicit repositories and `-R` remote
+  resolution while preserving positional repository arguments and safe request
+  previews.
+- Enabled and published a repository-backed Forgejo wiki manual, exercised the
+  wider wiki lifecycle, and expanded the deterministic benchmark to cover it.
+- Made generic API request previews honor root `--json` mode while preserving
+  compact TOON defaults and token-safe base64 content redaction.
 
 ## v1.2.0 - 2026-07-17
 
