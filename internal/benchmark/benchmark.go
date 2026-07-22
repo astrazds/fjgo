@@ -689,7 +689,7 @@ var catalogScenarios = []catalogScenario{
 		expectedExit: 1,
 		outputOracles: []outputOracle{
 			{format: outputFormatTOONShape, contains: []string{"method: PATCH", "has_wiki: true"}, maxBytes: 2048},
-			{format: outputFormatTOONShape, contains: []string{"operation: repoCreateWikiPage", "content_base64: redacted"}, excludes: []string{"IyBXaWtpIERvZ2Zvb2QK"}, maxBytes: 2048},
+			{format: outputFormatJSON, contains: []string{`"operation": "repoCreateWikiPage"`, `"content_base64": "redacted"`}, excludes: []string{"IyBXaWtpIERvZ2Zvb2QK"}, maxBytes: 2048},
 			{format: outputFormatJSON, maxBytes: 2048, exitCode: 1},
 		},
 		expectedState: map[string]string{"wiki_enabled": "true", "wiki_exists": "false", "wiki_content": "IyBXaWtpIERvZ2Zvb2QKClVwZGF0ZWQuCg==", "wiki_revisions": "2", "wiki_deleted": "true"},

@@ -579,7 +579,7 @@ func callOperation(ctx context.Context, client *forgejo.Client, cfg runConfig, a
 	}
 	previewBody := apiBodyPreview(input)
 	if dryRun {
-		return writeRequestPreview(stdout, requestPreview{
+		preview := requestPreview{
 			Operation:   op.ID,
 			Method:      op.Method,
 			Path:        previewPath(op, pathValues),
@@ -591,7 +591,11 @@ func callOperation(ctx context.Context, client *forgejo.Client, cfg runConfig, a
 			AuthPresent: clientHasAuth(client),
 			RequiresYes: op.Method != http.MethodGet,
 			YesProvided: yes,
-		})
+		}
+		if jsonOut {
+			return writeJSON(stdout, preview)
+		}
+		return writeRequestPreview(stdout, preview)
 	}
 	opts := forgejo.RequestOptions{
 		Query:       query,

@@ -343,6 +343,63 @@ func TestAPICallJSONEscapeHatch(t *testing.T) {
 	}
 }
 
+func TestAPICallJSONDryRunEmitsJSONWithoutSendingRequest(t *testing.T) {
+	assertJSONAPIPreview(t, []string{
+		"api", "--json", "call", "repoEditWikiPage",
+		"owner=astra", "repo=fjgo", "pageName=Home", "-body", `{"title":"Home","content_base64":"cHJpdmF0ZSBwYWdl"}`,
+		"--dry-run", "--yes",
+	})
+}
+
+func TestAPICallJSONPrintRequestEmitsJSONWithoutSendingRequest(t *testing.T) {
+	assertJSONAPIPreview(t, []string{
+		"api", "call", "repoEditWikiPage", "owner=astra", "repo=fjgo", "pageName=Home",
+		"-body", `{"title":"Home","content_base64":"cHJpdmF0ZSBwYWdl"}`, "--print-request", "--yes", "--json",
+	})
+}
+
+func assertJSONAPIPreview(t *testing.T, args []string) {
+	t.Helper()
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		http.Error(w, "preview sent a request", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	args = append([]string{"-base-url", server.URL + "/api/v1"}, args...)
+	var stdout, stderr bytes.Buffer
+	code := runCLI(t.Context(), args, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("code = %d, stdout = %s, stderr = %s", code, stdout.String(), stderr.String())
+	}
+	var preview map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &preview); err != nil {
+		t.Fatalf("stdout is not JSON: %v\n%s", err, stdout.String())
+	}
+	body, ok := preview["body"].(map[string]any)
+	if !ok || preview["operation"] != "repoEditWikiPage" || preview["method"] != http.MethodPatch || body["content_base64"] != "redacted" {
+		t.Fatalf("preview = %#v", preview)
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
+	}
+}
+
+func TestAPICallDryRunKeepsDefaultTOONOutput(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := runCLI(t.Context(), []string{
+		"api", "call", "repoEditWikiPage", "owner=astra", "repo=fjgo", "pageName=Home",
+		"-body", `{"title":"Home"}`, "--dry-run", "--yes",
+	}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("code = %d, stdout = %s, stderr = %s", code, stdout.String(), stderr.String())
+	}
+	if got := stdout.String(); !strings.HasPrefix(got, "operation: repoEditWikiPage\n") || json.Valid(stdout.Bytes()) {
+		t.Fatalf("stdout = %q, want TOON preview", got)
+	}
+}
+
 func TestAPICallTruncatesLongStringsByDefault(t *testing.T) {
 	longBody := strings.Repeat("a", defaultTruncateChars+20)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
