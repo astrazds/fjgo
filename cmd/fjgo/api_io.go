@@ -26,9 +26,32 @@ type apiBodyInput struct {
 
 func apiBodyPreview(input apiBodyInput) any {
 	if input.Raw == nil {
-		return input.JSON
+		return redactAPIBodyPreview(input.JSON)
 	}
 	return truncateString(string(input.Raw), defaultTruncateChars, "body", &truncateReport{})
+}
+
+func redactAPIBodyPreview(value any) any {
+	switch value := value.(type) {
+	case map[string]any:
+		redacted := make(map[string]any, len(value))
+		for key, item := range value {
+			if key == "content_base64" {
+				redacted[key] = "redacted"
+				continue
+			}
+			redacted[key] = redactAPIBodyPreview(item)
+		}
+		return redacted
+	case []any:
+		redacted := make([]any, len(value))
+		for index, item := range value {
+			redacted[index] = redactAPIBodyPreview(item)
+		}
+		return redacted
+	default:
+		return value
+	}
 }
 
 func takeAPIBodyInput(args []string) ([]string, apiBodyInput, error) {

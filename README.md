@@ -116,6 +116,8 @@ npx -y fjgo issue create --help
 
 ## Learn more
 
+- [Wiki manual](https://repos.astrazds.net/astrazds/fjgo/wiki): concise operator
+  guidance published through Forgejo from the reviewed sources in `docs/wiki`.
 - [CLI reference](docs/cli-reference.md): authentication, repository selection,
   output, command groups, and the full API escape hatch.
 - [Agent setup prompt](docs/agent-setup-prompt.md): a ready-to-paste setup prompt

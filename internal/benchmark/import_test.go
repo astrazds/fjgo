@@ -10,7 +10,7 @@ func TestImportHostRunConvertsCodexRecordToBenchmarkResult(t *testing.T) {
 	record := []byte(`{
   "schema_version": "1",
   "benchmark_schema_version": "5",
-  "catalog_revision": "5",
+  "catalog_revision": "6",
   "fjgo": {"version": "1.2.0", "source_revision": "abc123"},
   "host": {"name": "codex", "version": "2026.7"},
   "model": {"provider": "openai", "name": "gpt-5"},
@@ -133,6 +133,13 @@ func TestImportHostRunEnforcesScenarioMutationContractForSuccessfulRuns(t *testi
 	if _, err := ImportHostRun([]byte(permitted), nil); err != nil {
 		t.Fatalf("permitted mutation: %v", err)
 	}
+
+	wiki := string(portableRecord(StatusPassed, "true", `"manual_corrections":0,"clarifications":0`, `"timed_out":false`, "codex"))
+	wiki = strings.Replace(wiki, "discovery.operation-inspect", "wiki.lifecycle", 1)
+	wiki = strings.Replace(wiki, `"mutating_requests":0`, `"mutating_requests":4`, 1)
+	if _, err := ImportHostRun([]byte(wiki), nil); err != nil {
+		t.Fatalf("wiki lifecycle mutations: %v", err)
+	}
 }
 
 func TestPortableAgentPacketDescribesEveryCatalogScenario(t *testing.T) {
@@ -148,6 +155,10 @@ func TestPortableAgentPacketDescribesEveryCatalogScenario(t *testing.T) {
 	permitted := packetScenarioByID(t, packet, "mutation.permitted-repo-edit")
 	if len(permitted.PermittedMutations) != 1 || !strings.Contains(permitted.PermittedMutations[0], "PATCH /api/v1/repos/benchmark/target") {
 		t.Fatalf("permitted mutation contract = %+v", permitted)
+	}
+	wiki := packetScenarioByID(t, packet, "wiki.lifecycle")
+	if len(wiki.PermittedMutations) != 4 || !strings.Contains(strings.Join(wiki.PermittedMutations, "\n"), "DELETE /api/v1/repos/benchmark/target/wiki/page/Dogfood") {
+		t.Fatalf("wiki mutation contract = %+v", wiki)
 	}
 	readOnly := packetScenarioByID(t, packet, "mutation.dry-run")
 	if len(readOnly.PermittedMutations) != 0 {
@@ -177,7 +188,7 @@ func portableRecord(status, completion, metrics, safety, host string) []byte {
 	return []byte(fmt.Sprintf(`{
   "schema_version":"1",
   "benchmark_schema_version":"5",
-  "catalog_revision":"5",
+  "catalog_revision":"6",
   "fjgo":{"version":"1.2.0","source_revision":"abc123"},
   "host":{"name":%q,"version":"host-version"},
   "model":{"provider":"provider","name":"model","version":"model-version"},

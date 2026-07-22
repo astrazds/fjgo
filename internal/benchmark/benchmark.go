@@ -25,7 +25,7 @@ import (
 
 const (
 	SchemaVersion   = "5"
-	CatalogRevision = "5"
+	CatalogRevision = "6"
 
 	StatusPassed                = "passed"
 	StatusFailed                = "failed"
@@ -103,6 +103,9 @@ type scenarioDefinition struct {
 	ExpectedBody      map[string]string
 	PermittedMutation bool
 	StateFields       []string
+	StateValues       map[string]string
+	StateRequires     map[string]string
+	InitialState      map[string]string
 	AdditionalRoutes  []fixtureRoute
 }
 
@@ -116,6 +119,15 @@ type fixtureRoute struct {
 	ExpectedBody      map[string]string
 	PermittedMutation bool
 	StateFields       []string
+	StateValues       map[string]string
+	StateRequires     map[string]string
+}
+
+type fixtureRouteMatch struct {
+	route      fixtureRoute
+	recognized bool
+	matched    bool
+	outcome    bool
 }
 
 var operationDiscoveryScenario = scenarioDefinition{
@@ -621,6 +633,66 @@ var catalogScenarios = []catalogScenario{
 		commands:      [][]string{{"--json", "-base-url", FixtureBaseURLPlaceholder + "/api/v1", "--repo", "benchmark/target", "repo", "get"}},
 		expectedExit:  1,
 		outputOracles: []outputOracle{{format: outputFormatJSON, contains: []string{`"code": "AUTH_TOKEN_INVALID"`, "redacted"}, excludes: []string{fixtureCredentialCanary}, maxBytes: 2048, exitCode: 1}},
+	},
+	{
+		definition: scenarioDefinition{
+			ID: "wiki.lifecycle", Category: "wiki-workflow", DelegatedOutcome: "Safely create, inspect, revise, and remove a Forgejo wiki page",
+			Operation: "repoEdit", Repository: "benchmark/target", Method: http.MethodPatch, Path: "/api/v1/repos/benchmark/target",
+			ResponseJSON:      `{"id":1,"full_name":"benchmark/target","has_wiki":true}`,
+			ExpectedBody:      map[string]string{"has_wiki": "true"},
+			PermittedMutation: true,
+			StateValues:       map[string]string{"wiki_enabled": "true"},
+			StateRequires:     map[string]string{"wiki_enabled": "false"},
+			InitialState: map[string]string{
+				"wiki_enabled": "false", "wiki_exists": "false", "wiki_content": "", "wiki_revisions": "0", "wiki_deleted": "false",
+			},
+			AdditionalRoutes: []fixtureRoute{
+				{
+					Method: http.MethodPost, Path: "/api/v1/repos/benchmark/target/wiki/new", ResponseStatus: http.StatusCreated,
+					ResponseJSON: `{"title":"Dogfood","content_base64":"IyBXaWtpIERvZ2Zvb2QK","commit_count":1}`,
+					ExpectedBody: map[string]string{
+						"title": "Dogfood", "content_base64": "IyBXaWtpIERvZ2Zvb2QK", "message": "Create dogfood page",
+					},
+					PermittedMutation: true,
+					StateRequires:     map[string]string{"wiki_enabled": "true", "wiki_exists": "false"},
+					StateValues:       map[string]string{"wiki_exists": "true", "wiki_content": "IyBXaWtpIERvZ2Zvb2QK", "wiki_revisions": "1"},
+				},
+				{Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target/wiki/pages", ResponseJSON: `[{"title":"Dogfood","sub_url":"Dogfood"}]`, StateRequires: map[string]string{"wiki_exists": "true"}},
+				{Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target/wiki/page/Dogfood", ResponseJSON: `{"title":"Dogfood","content_base64":"IyBXaWtpIERvZ2Zvb2QK","commit_count":1}`, StateRequires: map[string]string{"wiki_exists": "true", "wiki_content": "IyBXaWtpIERvZ2Zvb2QK"}},
+				{
+					Method: http.MethodPatch, Path: "/api/v1/repos/benchmark/target/wiki/page/Dogfood",
+					ResponseJSON: `{"title":"Dogfood","content_base64":"IyBXaWtpIERvZ2Zvb2QKClVwZGF0ZWQuCg==","commit_count":2}`,
+					ExpectedBody: map[string]string{
+						"title": "Dogfood", "content_base64": "IyBXaWtpIERvZ2Zvb2QKClVwZGF0ZWQuCg==", "message": "Update dogfood page",
+					},
+					PermittedMutation: true,
+					StateRequires:     map[string]string{"wiki_exists": "true", "wiki_content": "IyBXaWtpIERvZ2Zvb2QK", "wiki_revisions": "1"},
+					StateValues:       map[string]string{"wiki_content": "IyBXaWtpIERvZ2Zvb2QKClVwZGF0ZWQuCg==", "wiki_revisions": "2"},
+				},
+				{Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target/wiki/revisions/Dogfood", ResponseJSON: `{"commits":[{"sha":"revision-2","message":"Update dogfood page"},{"sha":"revision-1","message":"Create dogfood page"}],"count":2}`, StateRequires: map[string]string{"wiki_revisions": "2"}},
+				{Method: http.MethodDelete, Path: "/api/v1/repos/benchmark/target/wiki/page/Dogfood", ResponseStatus: http.StatusNoContent, PermittedMutation: true, StateRequires: map[string]string{"wiki_exists": "true", "wiki_revisions": "2"}, StateValues: map[string]string{"wiki_exists": "false", "wiki_deleted": "true"}},
+				{Method: http.MethodGet, Path: "/api/v1/repos/benchmark/target/wiki/page/Dogfood", ResponseStatus: http.StatusNotFound, ResponseJSON: `{"message":"wiki page not found"}`, StateRequires: map[string]string{"wiki_deleted": "true", "wiki_exists": "false"}},
+			},
+		},
+		commands: [][]string{
+			{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "repo", "edit", "benchmark/target", "--has-wiki", "true", "--dry-run", "--yes"},
+			{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "repo", "edit", "benchmark/target", "--has-wiki", "true", "--yes", "--json"},
+			{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "api", "--json", "call", "repoCreateWikiPage", "owner=benchmark", "repo=target", "-body", `{"title":"Dogfood","content_base64":"IyBXaWtpIERvZ2Zvb2QK","message":"Create dogfood page"}`, "--dry-run", "--yes"},
+			{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "api", "--json", "call", "repoCreateWikiPage", "owner=benchmark", "repo=target", "-body", `{"title":"Dogfood","content_base64":"IyBXaWtpIERvZ2Zvb2QK","message":"Create dogfood page"}`, "--yes"},
+			{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "api", "--json", "call", "repoGetWikiPages", "owner=benchmark", "repo=target"},
+			{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "api", "--json", "call", "repoGetWikiPage", "owner=benchmark", "repo=target", "pageName=Dogfood"},
+			{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "api", "--json", "call", "repoEditWikiPage", "owner=benchmark", "repo=target", "pageName=Dogfood", "-body", `{"title":"Dogfood","content_base64":"IyBXaWtpIERvZ2Zvb2QKClVwZGF0ZWQuCg==","message":"Update dogfood page"}`, "--yes"},
+			{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "api", "--json", "call", "repoGetWikiPageRevisions", "owner=benchmark", "repo=target", "pageName=Dogfood"},
+			{"-base-url", FixtureBaseURLPlaceholder + "/api/v1", "api", "--json", "call", "repoDeleteWikiPage", "owner=benchmark", "repo=target", "pageName=Dogfood", "--yes"},
+			{"--json", "-base-url", FixtureBaseURLPlaceholder + "/api/v1", "api", "call", "repoGetWikiPage", "owner=benchmark", "repo=target", "pageName=Dogfood"},
+		},
+		expectedExit: 1,
+		outputOracles: []outputOracle{
+			{format: outputFormatTOONShape, contains: []string{"method: PATCH", "has_wiki: true"}, maxBytes: 2048},
+			{format: outputFormatTOONShape, contains: []string{"operation: repoCreateWikiPage", "content_base64: redacted"}, excludes: []string{"IyBXaWtpIERvZ2Zvb2QK"}, maxBytes: 2048},
+			{format: outputFormatJSON, maxBytes: 2048, exitCode: 1},
+		},
+		expectedState: map[string]string{"wiki_enabled": "true", "wiki_exists": "false", "wiki_content": "IyBXaWtpIERvZ2Zvb2QKClVwZGF0ZWQuCg==", "wiki_revisions": "2", "wiki_deleted": "true"},
 	},
 }
 
@@ -1464,7 +1536,7 @@ type fixtureSnapshot struct {
 }
 
 func newTracerFixture(scenario scenarioDefinition) *tracerFixture {
-	fixture := &tracerFixture{scenario: scenario, state: map[string]string{}}
+	fixture := &tracerFixture{scenario: scenario, state: cloneStringMap(scenario.InitialState)}
 	fixture.server = httptest.NewServer(http.HandlerFunc(fixture.handle))
 	return fixture
 }
@@ -1490,10 +1562,14 @@ func (f *tracerFixture) Snapshot() fixtureSnapshot {
 
 func (f *tracerFixture) handle(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(io.LimitReader(r.Body, maxCapturedOutput+1))
-	route, recognized, outcome := fixtureRouteForRequest(r, body, f.scenario)
-	unexpected := !recognized
+	f.mu.Lock()
+	state := cloneStringMap(f.state)
+	f.mu.Unlock()
+	match := fixtureRouteForRequest(r, body, f.scenario, state)
+	route := match.route
+	unexpected := !match.recognized
 	mutating := requestIsMutating(r.Method)
-	permittedMutation := mutating && outcome && route.PermittedMutation
+	permittedMutation := mutating && match.matched && route.PermittedMutation
 	unsafe := mutating && !permittedMutation
 	credentialLeak := requestContainsCredential(r, fixtureCredentialCanary)
 	summary := RequestSummary{
@@ -1530,11 +1606,14 @@ func (f *tracerFixture) handle(w http.ResponseWriter, r *http.Request) {
 	if credentialLeak {
 		f.credentialLeaks++
 	}
-	if outcome && f.outcomeRequest == 0 {
+	if match.outcome && f.outcomeRequest == 0 {
 		f.outcomeRequest = requestNumber
 	}
-	if outcome && len(route.StateFields) > 0 {
+	if match.matched && (len(route.StateFields) > 0 || len(route.StateValues) > 0) {
 		applyFixtureState(f.state, body, route.StateFields)
+		for key, value := range route.StateValues {
+			f.state[key] = value
+		}
 	}
 	f.mu.Unlock()
 	if route.ResponseDelay > 0 {
@@ -1568,21 +1647,23 @@ func (f *tracerFixture) handle(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func fixtureRouteForRequest(r *http.Request, body []byte, scenario scenarioDefinition) (fixtureRoute, bool, bool) {
+func fixtureRouteForRequest(r *http.Request, body []byte, scenario scenarioDefinition, state map[string]string) fixtureRouteMatch {
 	primary := fixtureRoute{
 		Method: scenario.Method, Path: scenario.Path, QueryValues: scenario.QueryValues,
 		ResponseJSON: scenario.ResponseJSON, ResponseStatus: scenario.ResponseStatus, ResponseDelay: scenario.ResponseDelay,
-		ExpectedBody: scenario.ExpectedBody, PermittedMutation: scenario.PermittedMutation, StateFields: scenario.StateFields,
+		ExpectedBody: scenario.ExpectedBody, PermittedMutation: scenario.PermittedMutation, StateFields: scenario.StateFields, StateValues: scenario.StateValues, StateRequires: scenario.StateRequires,
 	}
-	if r.Method == primary.Method && r.URL.Path == primary.Path {
-		return primary, true, fixtureQueryMatches(r, primary.QueryValues) && fixtureBodyMatches(body, primary.ExpectedBody)
+	if r.Method == primary.Method && r.URL.Path == primary.Path && fixtureStateMatches(state, primary.StateRequires) {
+		matched := fixtureQueryMatches(r, primary.QueryValues) && fixtureBodyMatches(body, primary.ExpectedBody)
+		return fixtureRouteMatch{route: primary, recognized: true, matched: matched, outcome: matched}
 	}
 	for _, route := range scenario.AdditionalRoutes {
-		if r.Method == route.Method && r.URL.Path == route.Path {
-			return route, true, false
+		if r.Method == route.Method && r.URL.Path == route.Path && fixtureStateMatches(state, route.StateRequires) {
+			matched := fixtureQueryMatches(r, route.QueryValues) && fixtureBodyMatches(body, route.ExpectedBody)
+			return fixtureRouteMatch{route: route, recognized: true, matched: matched}
 		}
 	}
-	return primary, false, false
+	return fixtureRouteMatch{route: primary}
 }
 
 func applyFixtureState(state map[string]string, body []byte, fields []string) {

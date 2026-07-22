@@ -32,7 +32,7 @@ Run the complete deterministic black-box benchmark from the repository root:
 go run ./cmd/fjgo-benchmark
 ```
 
-The command builds `fjgo` once, runs all 46 scenarios against isolated offline
+The command builds `fjgo` once, runs all 47 scenarios against isolated offline
 Forgejo fixtures, and writes versioned deterministic result JSON to stdout. The
 catalog covers operation and model discovery, repository and host context,
 compact inspection and output recovery, structured errors and capability

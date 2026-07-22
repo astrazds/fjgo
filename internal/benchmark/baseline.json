@@ -1,12 +1,12 @@
 {
   "schema_version": "5",
   "source_revision": "{source_revision}",
-  "catalog_revision": "5",
+  "catalog_revision": "6",
   "results": [
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -63,7 +63,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -120,7 +120,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -178,7 +178,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -245,7 +245,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -312,7 +312,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -379,7 +379,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -444,7 +444,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -511,7 +511,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -576,7 +576,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -643,7 +643,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -710,7 +710,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -776,7 +776,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -841,7 +841,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -906,7 +906,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -977,7 +977,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -1068,7 +1068,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -1140,7 +1140,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -1214,7 +1214,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -1285,7 +1285,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -1355,7 +1355,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -1426,7 +1426,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -1498,7 +1498,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -1571,7 +1571,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -1650,7 +1650,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -1729,7 +1729,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -1791,7 +1791,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -1884,7 +1884,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -1964,7 +1964,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -2044,7 +2044,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -2124,7 +2124,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -2204,7 +2204,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -2284,7 +2284,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -2361,7 +2361,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -2438,7 +2438,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -2512,7 +2512,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -2608,7 +2608,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -2687,7 +2687,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -2788,7 +2788,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -2853,7 +2853,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -2929,7 +2929,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -2991,7 +2991,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -3057,7 +3057,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -3120,7 +3120,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -3181,7 +3181,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -3263,7 +3263,7 @@
     {
       "schema_version": "5",
       "source_revision": "{source_revision}",
-      "catalog_revision": "5",
+      "catalog_revision": "6",
       "execution": {
         "mode": "deterministic"
       },
@@ -3330,6 +3330,299 @@
         }
       ],
       "evidence": [
+        {
+          "id": "request-1",
+          "kind": "completion-oracle"
+        },
+        {
+          "id": "process-output",
+          "kind": "completion-oracle"
+        }
+      ]
+    },
+    {
+      "schema_version": "5",
+      "source_revision": "{source_revision}",
+      "catalog_revision": "6",
+      "execution": {
+        "mode": "deterministic"
+      },
+      "scenario": {
+        "id": "wiki.lifecycle",
+        "category": "wiki-workflow",
+        "delegated_outcome": "Safely create, inspect, revise, and remove a Forgejo wiki page",
+        "status": "passed",
+        "correction_status": "autonomous",
+        "completion": {
+          "satisfied": true,
+          "repository": "benchmark/target",
+          "evidence": [
+            "fixture observed requested Forgejo outcome",
+            "process output satisfied bounded format and content oracles",
+            "fixture observed the expected state transition"
+          ]
+        }
+      },
+      "metrics": {
+        "cli_invocations": 10,
+        "api_requests": 8,
+        "stdout_bytes": 1356,
+        "stderr_bytes": 0,
+        "manual_corrections": 0,
+        "clarifications": 0
+      },
+      "safety": {
+        "unexpected_requests": 0,
+        "mutating_requests": 4,
+        "unsafe_requests": 0,
+        "credential_leaks": 0,
+        "timed_out": false
+      },
+      "commands": [
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "repo",
+            "edit",
+            "benchmark/target",
+            "--has-wiki",
+            "true",
+            "--dry-run",
+            "--yes"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 143,
+          "stderr_bytes": 0,
+          "stdout_sha256": "299cb138ced722b3ddfe995f29aa24bee879012c8b6523c93a09df094ec089d9"
+        },
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "repo",
+            "edit",
+            "benchmark/target",
+            "--has-wiki",
+            "true",
+            "--yes",
+            "--json"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 55,
+          "stderr_bytes": 0,
+          "stdout_sha256": "b73c5e221ad3d9d72f7d47ef15d2aac05c26732d0285078cf17fbd0f6640aa22"
+        },
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "api",
+            "--json",
+            "call",
+            "repoCreateWikiPage",
+            "owner=benchmark",
+            "repo=target",
+            "-body",
+            "redacted",
+            "--dry-run",
+            "--yes"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 288,
+          "stderr_bytes": 0,
+          "stdout_sha256": "7fb7313932675d597cd30f31f161544a99bbb1b6451f22b871d49d9f61618f6d"
+        },
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "api",
+            "--json",
+            "call",
+            "repoCreateWikiPage",
+            "owner=benchmark",
+            "repo=target",
+            "-body",
+            "redacted",
+            "--yes"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 76,
+          "stderr_bytes": 0,
+          "stdout_sha256": "7e28d953a51b24395411805e29547b49db5aa262effdf5d4a7ee3e9c0d89d45a"
+        },
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "api",
+            "--json",
+            "call",
+            "repoGetWikiPages",
+            "owner=benchmark",
+            "repo=target"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 41,
+          "stderr_bytes": 0,
+          "stdout_sha256": "e563a7a709958d5ed3dcd82032930b8559defcc1d3cb4e2efb7d1f965cf944ab"
+        },
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "api",
+            "--json",
+            "call",
+            "repoGetWikiPage",
+            "owner=benchmark",
+            "repo=target",
+            "pageName=Dogfood"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 76,
+          "stderr_bytes": 0,
+          "stdout_sha256": "7e28d953a51b24395411805e29547b49db5aa262effdf5d4a7ee3e9c0d89d45a"
+        },
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "api",
+            "--json",
+            "call",
+            "repoEditWikiPage",
+            "owner=benchmark",
+            "repo=target",
+            "pageName=Dogfood",
+            "-body",
+            "redacted",
+            "--yes"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 92,
+          "stderr_bytes": 0,
+          "stdout_sha256": "5e36314622c7adc553654b40ca3b09809ed8573ecb45bd4c4b0da403d02e0a43"
+        },
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "api",
+            "--json",
+            "call",
+            "repoGetWikiPageRevisions",
+            "owner=benchmark",
+            "repo=target",
+            "pageName=Dogfood"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 129,
+          "stderr_bytes": 0,
+          "stdout_sha256": "9fed68877fddd0f607f218d80c2c7f07112c450400a7f46f79c8acd36b231ff1"
+        },
+        {
+          "arguments": [
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "api",
+            "--json",
+            "call",
+            "repoDeleteWikiPage",
+            "owner=benchmark",
+            "repo=target",
+            "pageName=Dogfood",
+            "--yes"
+          ],
+          "exit_code": 0,
+          "stdout_bytes": 21,
+          "stderr_bytes": 0,
+          "stdout_sha256": "a0dc537f108d6a486c9ae6289236224929ffb224403bed4bafea854f309732a6"
+        },
+        {
+          "arguments": [
+            "--json",
+            "-base-url",
+            "{fixture_base_url}/api/v1",
+            "api",
+            "call",
+            "repoGetWikiPage",
+            "owner=benchmark",
+            "repo=target",
+            "pageName=Dogfood"
+          ],
+          "exit_code": 1,
+          "stdout_bytes": 435,
+          "stderr_bytes": 0,
+          "stdout_sha256": "a7ae0d645a636d7076bbf8816e5bbd889ff350a185bed840b7d35f6e9e864199",
+          "structured_error": {
+            "kind": "forgejo_api",
+            "code": "NOT_FOUND",
+            "error": "forgejo api: status 404: wiki page not found",
+            "help": [
+              "Check the owner/repo, issue number, pull request number, release ID, tag, or base URL"
+            ]
+          }
+        }
+      ],
+      "requests": [
+        {
+          "method": "PATCH",
+          "path": "/api/v1/repos/benchmark/target",
+          "auth_present": true,
+          "body_bytes": 17,
+          "body_summary": "has_wiki=true",
+          "permitted_mutation": true
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/repos/benchmark/target/wiki/new",
+          "auth_present": true,
+          "body_bytes": 91,
+          "body_summary": "content_base64=IyBXaWtpIERvZ2Zvb2QK,message=Create dogfood page,title=Dogfood",
+          "permitted_mutation": true
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target/wiki/pages",
+          "auth_present": true
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target/wiki/page/Dogfood",
+          "auth_present": true
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/v1/repos/benchmark/target/wiki/page/Dogfood",
+          "auth_present": true,
+          "body_bytes": 107,
+          "body_summary": "content_base64=IyBXaWtpIERvZ2Zvb2QKClVwZGF0ZWQuCg==,message=Update dogfood page,title=Dogfood",
+          "permitted_mutation": true
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target/wiki/revisions/Dogfood",
+          "auth_present": true
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/repos/benchmark/target/wiki/page/Dogfood",
+          "auth_present": true,
+          "permitted_mutation": true
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/repos/benchmark/target/wiki/page/Dogfood",
+          "auth_present": true
+        }
+      ],
+      "evidence": [
+        {
+          "id": "fixture-state",
+          "kind": "completion-oracle"
+        },
         {
           "id": "request-1",
           "kind": "completion-oracle"

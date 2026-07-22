@@ -85,12 +85,12 @@ func portableScenarioContract(scenario catalogScenario) AgentScenarioContract {
 
 	permitted := []string{}
 	if scenario.definition.PermittedMutation {
-		fields := make([]string, 0, len(scenario.definition.ExpectedBody))
-		for key, value := range scenario.definition.ExpectedBody {
-			fields = append(fields, key+"="+value)
+		permitted = append(permitted, packetMutationAllowance(scenario.definition.Method, scenario.definition.Path, scenario.definition.ExpectedBody))
+	}
+	for _, route := range scenario.definition.AdditionalRoutes {
+		if route.PermittedMutation {
+			permitted = append(permitted, packetMutationAllowance(route.Method, route.Path, route.ExpectedBody))
 		}
-		sort.Strings(fields)
-		permitted = append(permitted, fmt.Sprintf("%s %s with %s", scenario.definition.Method, scenario.definition.Path, strings.Join(fields, ", ")))
 	}
 
 	evidence := []string{fmt.Sprintf("expected final process exit code: %d", scenario.expectedExit)}
@@ -126,6 +126,14 @@ func portableScenarioContract(scenario catalogScenario) AgentScenarioContract {
 		ForbiddenMutations: []string{"every HTTP mutation not listed in permitted_mutations"},
 		CompletionEvidence: evidence,
 	}
+}
+
+func packetMutationAllowance(method, path string, expectedBody map[string]string) string {
+	fields := sortedPacketAssignments(expectedBody)
+	if fields == "" {
+		return fmt.Sprintf("%s %s", method, path)
+	}
+	return fmt.Sprintf("%s %s with %s", method, path, fields)
 }
 
 func sortedPacketAssignments(values map[string]string) string {

@@ -204,7 +204,7 @@ func TestCommandRunsCompleteCatalogByDefault(t *testing.T) {
 	if err := json.Unmarshal(stdout, &result); err != nil {
 		t.Fatalf("decode result: %v\n%s", err, stdout)
 	}
-	if result.SourceRevision != "command-test" || result.SchemaVersion != "5" || result.CatalogRevision != "5" || len(result.Results) != 46 {
+	if result.SourceRevision != "command-test" || result.SchemaVersion != "5" || result.CatalogRevision != "6" || len(result.Results) != 47 {
 		t.Fatalf("catalog = %+v", result)
 	}
 	statuses := map[string]int{}
@@ -212,7 +212,7 @@ func TestCommandRunsCompleteCatalogByDefault(t *testing.T) {
 		statuses[scenario.Scenario.Status]++
 	}
 	wantStatuses := map[string]int{
-		benchmark.StatusPassed:    38,
+		benchmark.StatusPassed:    39,
 		benchmark.StatusRecovered: 5,
 		benchmark.StatusTimedOut:  1,
 		benchmark.StatusFailed:    2,
@@ -290,7 +290,7 @@ func TestCommandImportsBoundedPortableHostRunWithoutLaunchingFJGO(t *testing.T) 
 
 	recordPath := filepath.Join(tempDir, "host-run.json")
 	record := []byte(`{
-  "schema_version":"1","benchmark_schema_version":"5","catalog_revision":"5",
+  "schema_version":"1","benchmark_schema_version":"5","catalog_revision":"6",
   "fjgo":{"version":"1.2.0","source_revision":"host-source"},
   "host":{"name":"claude_code","version":"1"},
   "model":{"provider":"anthropic","name":"claude"},
@@ -344,7 +344,7 @@ func TestCommandEmitsPortableScenarioPacketWithoutLaunchingFJGO(t *testing.T) {
 	if err := json.Unmarshal(stdout, &packet); err != nil {
 		t.Fatalf("decode packet: %v\n%s", err, stdout)
 	}
-	if packet.SchemaVersion != benchmark.AgentPacketSchemaVersion || len(packet.Scenarios) != 46 {
+	if packet.SchemaVersion != benchmark.AgentPacketSchemaVersion || len(packet.Scenarios) != 47 {
 		t.Fatalf("packet = %+v", packet)
 	}
 }

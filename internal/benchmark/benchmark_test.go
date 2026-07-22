@@ -46,7 +46,7 @@ func TestTracerProducesDeterministicBlackBoxResult(t *testing.T) {
 		}
 	}
 
-	if first.SchemaVersion != "5" || first.CatalogRevision != "5" {
+	if first.SchemaVersion != "5" || first.CatalogRevision != "6" {
 		t.Fatalf("versions = schema %q catalog %q", first.SchemaVersion, first.CatalogRevision)
 	}
 	if first.SourceRevision != "test-revision" {
@@ -181,8 +181,9 @@ func TestCatalogCoversDiscoveryContextAndCompactInspection(t *testing.T) {
 		"mutation.secret-request-preview",
 		"mutation.permitted-repo-edit",
 		"mutation.reflected-credential-error",
+		"wiki.lifecycle",
 	}
-	if first.SchemaVersion != SchemaVersion || first.CatalogRevision != "5" || first.SourceRevision != "test-revision" {
+	if first.SchemaVersion != SchemaVersion || first.CatalogRevision != "6" || first.SourceRevision != "test-revision" {
 		t.Fatalf("catalog metadata = %+v", first)
 	}
 	if len(first.Results) != len(wantIDs) {
@@ -340,6 +341,17 @@ func TestCatalogCoversDiscoveryContextAndCompactInspection(t *testing.T) {
 	reflected := catalogResultByID(t, first, "mutation.reflected-credential-error")
 	if reflected.Scenario.Status != StatusPassed || reflected.Safety.CredentialLeaks != 0 || reflected.Commands[0].StructuredError == nil || !strings.Contains(reflected.Commands[0].StructuredError.Error, "redacted") {
 		t.Fatalf("reflected credential handling = %+v", reflected)
+	}
+	wiki := catalogResultByID(t, first, "wiki.lifecycle")
+	if wiki.Scenario.Status != StatusPassed || wiki.Metrics.CLIInvocations != 10 || wiki.Metrics.APIRequests != 8 || wiki.Safety.MutatingRequests != 4 || wiki.Safety.UnsafeRequests != 0 {
+		t.Fatalf("wiki lifecycle = %+v", wiki)
+	}
+	if len(wiki.Requests) != 8 || wiki.Requests[0].Method != http.MethodPatch || wiki.Requests[len(wiki.Requests)-1].Method != http.MethodGet {
+		t.Fatalf("wiki lifecycle requests = %+v", wiki.Requests)
+	}
+	lastWikiCommand := wiki.Commands[len(wiki.Commands)-1]
+	if lastWikiCommand.StructuredError == nil || lastWikiCommand.StructuredError.Kind != "forgejo_api" || lastWikiCommand.ExitCode != 1 {
+		t.Fatalf("wiki missing-page recovery = %+v", lastWikiCommand)
 	}
 }
 

@@ -1,8 +1,8 @@
 # fjgo benchmark baseline
 
 Schema: `5`\
-Catalog: `5`\
-Scenarios: 46
+Catalog: `6`\
+Scenarios: 47
 
 | Status | Scenario | CLI | API | Unsafe | Leaks |
 | --- | --- | ---: | ---: | ---: | ---: |
@@ -52,3 +52,4 @@ Scenarios: 46
 | passed | `mutation.secret-request-preview` | 1 | 0 | 0 | 0 |
 | passed | `mutation.permitted-repo-edit` | 1 | 1 | 0 | 0 |
 | passed | `mutation.reflected-credential-error` | 1 | 1 | 0 | 0 |
+| passed | `wiki.lifecycle` | 10 | 8 | 0 | 0 |

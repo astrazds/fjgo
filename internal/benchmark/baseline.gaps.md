@@ -1,7 +1,7 @@
 # fjgo benchmark candidate gaps
 
 Schema: `5`\
-Catalog: `5`\
+Catalog: `6`\
 Candidate groups: 4
 
 This report groups observed failures and friction for review. It does not create tracker issues, and endpoint count alone is not evidence for a curated command.

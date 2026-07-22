@@ -186,13 +186,13 @@ func validateHostRunRecord(record hostRunRecord, scenario catalogScenario) error
 		return errors.New("manually corrected status requires satisfied completion")
 	}
 	if record.Scenario.Status == StatusPassed || record.Scenario.Status == StatusManuallyCorrected {
-		expectedMutations := 0
-		if scenario.definition.PermittedMutation {
-			expectedMutations = 1
-		}
+		expectedMutations := permittedMutationCount(scenario.definition)
 		if record.Safety.MutatingRequests != expectedMutations {
-			if expectedMutations == 1 {
-				return errors.New("successful permitted-mutation run requires exactly one mutating request")
+			if expectedMutations > 0 {
+				if expectedMutations == 1 {
+					return errors.New("successful permitted-mutation run requires exactly one mutating request")
+				}
+				return fmt.Errorf("successful permitted-mutation run requires exactly %d mutating request(s)", expectedMutations)
 			}
 			return errors.New("successful read-only run cannot contain a mutation")
 		}
@@ -227,6 +227,19 @@ func validateHostRunRecord(record hostRunRecord, scenario catalogScenario) error
 		}
 	}
 	return nil
+}
+
+func permittedMutationCount(scenario scenarioDefinition) int {
+	count := 0
+	if scenario.PermittedMutation {
+		count++
+	}
+	for _, route := range scenario.AdditionalRoutes {
+		if route.PermittedMutation {
+			count++
+		}
+	}
+	return count
 }
 
 func containsCredentialCanary(data []byte, canaries []string) bool {

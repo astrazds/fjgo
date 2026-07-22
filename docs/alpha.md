@@ -183,3 +183,31 @@ Also include:
 Diagnostics are intended to be shareable: token presence may be shown, but token
 values are redacted from `doctor`, `auth status`, dry runs, request previews,
 structured errors, root `--json` errors, and Forgejo API error text.
+
+## Forgejo wiki dogfood receipt
+
+Validated against the public `astrazds/fjgo` repository on 2026-07-22:
+
+- previewed and enabled the built-in wiki with `repo edit --has-wiki true`, while
+  confirming `globally_editable_wiki` remained false;
+- published exactly `Home`, `Getting-Started`, and `_Sidebar` from the reviewed
+  Markdown sources in `docs/wiki`;
+- fetched the rendered [wiki manual](https://repos.astrazds.net/astrazds/fjgo/wiki)
+  without credentials and verified its sidebar links and published content;
+- exercised a unique temporary page through `repoCreateWikiPage`,
+  `repoGetWikiPages`, `repoGetWikiPage`, `repoEditWikiPage`,
+  `repoGetWikiPageRevisions`, and `repoDeleteWikiPage`;
+- observed two revisions for the temporary page, deleted it, and confirmed a
+  subsequent get returned 404;
+- cloned `https://repos.astrazds.net/astrazds/fjgo.wiki.git` without credentials,
+  confirmed its default branch was `main`, and confirmed the clone contained
+  only the three permanent Markdown pages;
+- inspected the cloned Git history and observed the temporary page's create,
+  update, and delete commits, confirming revision visibility after cleanup.
+
+Dogfooding found two small interface quirks. A literal API title of
+`Getting-Started` produced the unexpected slug `Getting-Started.-`; using the
+display title `Getting Started` produced the intended `Getting-Started` page.
+Also, generic API dry runs currently render TOON preview output even when
+`api --json` is selected. Neither blocked the workflow, and no live token or
+private response field is retained in this receipt.

@@ -46,7 +46,7 @@ behavior and hook/install contracts are covered in `cmd/fjgo/main_test.go` and
 `internal/benchmark` additionally exercises operation and model discovery,
 explicit repository and host context, compact inspection and output recovery,
 structured errors and capability recovery, and mutation and credential safety
-through the compiled `fjgo` process. Run all 46 scenarios with:
+through the compiled `fjgo` process. Run all 47 scenarios with:
 
 ```sh
 go run ./cmd/fjgo-benchmark
