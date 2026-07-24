@@ -14,12 +14,16 @@ go build ./cmd/fjgo
 Run the complete local verification gate before handing work back:
 
 ```sh
+npm ci
 ./scripts/verify.sh
 ```
 
 The verifier regenerates and formats code, runs Go and Node tests, builds the
 CLI, checks the embedded and public skills, runs public API smoke tests, audits
-Swagger coverage, checks the npm package, and builds a test release archive.
+Swagger coverage, installs the plugin through the pinned Codex CLI, checks that
+Codex discovers its skill, checks the npm package, and builds a test release
+archive. `npm ci` installs development tooling only; the published fjgo launcher
+remains zero-dependency.
 
 Forgejo Actions runs the same script on pushes and pull requests through
 `.forgejo/workflows/verify.yml`.
@@ -199,13 +203,17 @@ release. Release notes belong in `CHANGELOG.md`.
 
 ## Publish the npm launcher
 
-The version in `package.json` must match the release tag without its leading
-`v`. For example, tag `v1.3.0` uses npm version `1.3.0`.
+The versions in `package.json` and the Codex plugin manifest must match the
+release tag without its leading `v`. For example, tag `v1.3.0` uses npm and
+plugin version `1.3.0`. The npm test suite validates the plugin package and
+rejects version drift. The verification and release scripts also reject a
+`v*` tag whose version does not match both manifests.
 
 Tag releases publish automatically when the Forgejo Actions secret `NPM_TOKEN`
 is configured. To publish manually after the matching Forgejo release exists:
 
 ```sh
+npm ci
 npm test
 npm publish
 ```

@@ -1,0 +1,40 @@
+{
+  "name": "fjgo",
+  "version": "1.3.0",
+  "description": "Forgejo repository operations for coding agents through the fjgo CLI.",
+  "author": {
+    "name": "Andrejs Strazds",
+    "url": "https://repos.astrazds.net/astrazds"
+  },
+  "homepage": "https://repos.astrazds.net/astrazds/fjgo",
+  "repository": "https://repos.astrazds.net/astrazds/fjgo",
+  "license": "MIT",
+  "keywords": [
+    "forgejo",
+    "git",
+    "cli",
+    "agents"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "fjgo",
+    "shortDescription": "Work with Forgejo repositories through an agent-first CLI.",
+    "longDescription": "Inspect and manage Forgejo issues, pull requests, Actions, releases, and repository settings with compact output, token-safe previews, and explicit write authorization. Authentication uses locally configured FJGO_HOST and FJGO_TOKEN environment variables; the plugin does not provide OAuth or store credentials.",
+    "developerName": "Andrejs Strazds",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Forgejo Read",
+      "Forgejo Write"
+    ],
+    "websiteURL": "https://repos.astrazds.net/astrazds/fjgo",
+    "defaultPrompt": [
+      "Inspect this Forgejo repository and summarize its open work.",
+      "Triage open Forgejo issues and propose priorities.",
+      "Preview a safe fjgo mutation for this repository."
+    ],
+    "brandColor": "#E95A24",
+    "composerIcon": "./assets/icon-mono.png",
+    "logo": "./assets/icon-light.png",
+    "logoDark": "./assets/icon-dark.png"
+  }
+}

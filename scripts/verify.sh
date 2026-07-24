@@ -1,6 +1,17 @@
 #!/usr/bin/env sh
 set -eu
 
+test -x node_modules/.bin/codex || {
+	echo "missing pinned Codex development dependency; run npm ci" >&2
+	exit 1
+}
+
+release_tag=""
+case "${GITHUB_REF:-}" in
+refs/tags/v*) release_tag="${GITHUB_REF#refs/tags/}" ;;
+esac
+sh ./scripts/check-release-version.sh "$release_tag"
+
 go generate ./internal/forgejo
 gofmt -w cmd/fjgo cmd/fjgo-benchmark internal/benchmark internal/forgejo tools/genapi
 env -u FJGO_HOST -u FJGO_TOKEN go test ./...

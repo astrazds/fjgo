@@ -17,6 +17,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: "24.x"
+      - run: npm ci
       - run: ./scripts/verify.sh
 
   release:
@@ -32,6 +33,7 @@ jobs:
         with:
           node-version: "24.x"
           registry-url: "https://registry.npmjs.org"
+      - run: npm ci
       - name: Build archives
         run: VERSION="${GITHUB_REF_NAME}" ./scripts/release.sh
       - name: Create release and upload assets

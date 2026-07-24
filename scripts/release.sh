@@ -7,6 +7,10 @@ date="${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 out="${OUT:-dist}"
 targets="${TARGETS:-linux/amd64 linux/arm64 darwin/amd64 darwin/arm64}"
 
+case "$version" in
+v*) sh ./scripts/check-release-version.sh "$version" ;;
+esac
+
 rm -rf "$out"
 mkdir -p "$out"
 

@@ -2,4 +2,5 @@
 /bin/*
 !/bin/fjgo.js
 /dist/
+/node_modules/
 skills-lock.json
