@@ -27,6 +27,8 @@ for tasks that need the Forgejo server.
 
 ## Install
 
+### Agent Skill
+
 Install the Agent Skill globally:
 
 ```sh
@@ -41,6 +43,19 @@ run downloads the matching `fjgo` release and saves it in a local cache. Later
 runs reuse that copy.
 
 Requirements: Node.js 20 or newer, on Linux or macOS with an x64 or arm64 CPU.
+
+### Codex plugin
+
+This repository is also a validated Codex plugin package. A marketplace can
+point at the repository root to distribute the existing `fjgo` skill with
+plugin presentation metadata and starter prompts. Until a marketplace lists
+it, the Agent Skill command above remains the shortest public installation
+path.
+
+The plugin still runs `npx -y fjgo`; it does not bundle another API client,
+install ambient hooks automatically, provide OAuth, or store credentials.
+See [Codex plugin](docs/codex-plugin.md) for marketplace installation, local
+testing, authentication, and maintenance details.
 
 ## Connect to Forgejo
 
@@ -122,6 +137,8 @@ npx -y fjgo issue create --help
   output, command groups, and the full API escape hatch.
 - [Agent setup prompt](docs/agent-setup-prompt.md): a ready-to-paste setup prompt
   for another coding agent.
+- [Codex plugin](docs/codex-plugin.md): plugin packaging, marketplace
+  installation, authentication boundaries, and validation.
 - [Development guide](docs/development.md): build, test, generate code, and make
   releases, including the deterministic offline agent-job benchmark and its
   scenario-run record format. CI runs through `.forgejo/workflows/verify.yml`.

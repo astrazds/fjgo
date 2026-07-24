@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Packaged fjgo as a thin Codex plugin with project branding, starter prompts,
+  explicit environment-based authentication metadata, real Codex
+  installation/skill-discovery coverage, and release-version drift checks.
+- Documented the plugin's marketplace installation, local testing, runtime,
+  authentication, optional-hook, and maintenance boundaries.
+
 ## v1.3.0 - 2026-07-22
 
 - Fixed `run watch` so its polling timeout is independent from the root HTTP

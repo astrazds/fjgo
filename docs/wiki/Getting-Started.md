@@ -1,6 +1,8 @@
 # Getting started
 
-## Install the agent skill
+## Choose an installation path
+
+The Agent Skill is the shortest public installation path:
 
 ```sh
 npx skills add https://repos.astrazds.net/astrazds/fjgo.git --skill fjgo -g
@@ -8,6 +10,13 @@ npx skills add https://repos.astrazds.net/astrazds/fjgo.git --skill fjgo -g
 
 The skill teaches an agent to run the released CLI through `npx -y fjgo`.
 Node.js 20 or newer is required.
+
+The repository root is also a validated Codex plugin package. A configured
+marketplace can expose it as `fjgo`, adding plugin metadata and starter prompts
+while reusing the same skill and `npx -y fjgo` runtime. Marketplace publication
+is separate from fjgo releases. The plugin does not provide OAuth or store
+Forgejo credentials; host and token configuration remain local environment
+variables.
 
 ## Connect to Forgejo
 

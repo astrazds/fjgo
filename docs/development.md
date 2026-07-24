@@ -28,6 +28,12 @@ remains zero-dependency.
 Forgejo Actions runs the same script on pushes and pull requests through
 `.forgejo/workflows/verify.yml`.
 
+The black-box plugin test creates a disposable local marketplace and isolated
+Codex configuration, installs the staged repository package with the pinned
+Codex CLI, and checks that the `fjgo` skill enters the model-visible prompt.
+See [Codex plugin](codex-plugin.md) for the package boundary and manual local
+installation workflow.
+
 ## Agent-job benchmark
 
 Run the complete deterministic black-box benchmark from the repository root:
