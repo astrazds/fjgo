@@ -1,6 +1,13 @@
 #!/usr/bin/env sh
 set -eu
 
+# Host executors may mount /tmp noexec. Keep compile-and-run scratch executable.
+if [ -z "${GOTMPDIR:-}" ]; then
+	GOTMPDIR="${PWD}/.gocache/tmp"
+	export GOTMPDIR
+fi
+mkdir -p "$GOTMPDIR"
+
 test -x node_modules/.bin/codex || {
 	echo "missing pinned Codex development dependency; run npm ci" >&2
 	exit 1

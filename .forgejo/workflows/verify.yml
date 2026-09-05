@@ -9,6 +9,8 @@ jobs:
   verify:
     if: github.event_name != 'push' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: srv1-ci
+    env:
+      GOTMPDIR: ${{ github.workspace }}/.gocache/tmp
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
@@ -24,6 +26,8 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: verify
     runs-on: srv1-ci
+    env:
+      GOTMPDIR: ${{ github.workspace }}/.gocache/tmp
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v5

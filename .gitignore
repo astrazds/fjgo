@@ -3,4 +3,5 @@
 !/bin/fjgo.js
 /dist/
 /node_modules/
+/.gocache/
 skills-lock.json
