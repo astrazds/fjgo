@@ -44,11 +44,27 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -eu
-          body='{"tag_name":"'"$TAG"'","name":"'"$TAG"'","body":"Automated fjgo release '"$TAG"'. See CHANGELOG.md for release notes."}'
+          node -e '
+            const fs = require("fs");
+            const tag = process.env.TAG;
+            const md = fs.readFileSync("CHANGELOG.md", "utf8");
+            const start = md.indexOf("## " + tag);
+            if (start < 0) {
+              throw new Error("CHANGELOG.md has no section for " + tag);
+            }
+            const rest = md.slice(start);
+            const end = rest.indexOf("\n## ", 1);
+            const notes = (end < 0 ? rest : rest.slice(0, end)).trim();
+            fs.writeFileSync("/tmp/release-body.json", JSON.stringify({
+              tag_name: tag,
+              name: tag,
+              body: notes + "\n",
+            }));
+          '
           curl -fsS -X POST \
             -H "Authorization: token $TOKEN" \
             -H "Content-Type: application/json" \
-            -d "$body" \
+            --data-binary @/tmp/release-body.json \
             "$API/repos/$REPO/releases" >/tmp/release.json
           id="$(sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p' /tmp/release.json | head -n1)"
           test -n "$id"
@@ -65,8 +81,8 @@ jobs:
         run: |
           set -eu
           if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "NPM_TOKEN is not configured; skipping npm publish"
-            exit 0
+            echo "NPM_TOKEN is not configured; tag releases must publish the npm launcher" >&2
+            exit 1
           fi
           package_version="$(node -p "require('./package.json').version")"
           test "v$package_version" = "$TAG"

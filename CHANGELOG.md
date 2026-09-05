@@ -2,11 +2,15 @@
 
 ## Unreleased
 
+## v1.4.0 - 2026-09-05
+
 - Packaged fjgo as a thin Codex plugin with project branding, starter prompts,
   explicit environment-based authentication metadata, real Codex
   installation/skill-discovery coverage, and release-version drift checks.
 - Documented the plugin's marketplace installation, local testing, runtime,
   authentication, optional-hook, and maintenance boundaries.
+- Made tag releases fail when `NPM_TOKEN` is unset, and post changelog notes
+  as the Forgejo release body.
 
 ## v1.3.0 - 2026-07-22
 

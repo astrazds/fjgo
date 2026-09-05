@@ -189,7 +189,7 @@ report format.
 Build all default release archives and checksums:
 
 ```sh
-VERSION=v1.3.0 ./scripts/release.sh
+VERSION=v1.4.0 ./scripts/release.sh
 ```
 
 Build one target while testing:
@@ -201,7 +201,7 @@ VERSION=0.0.0-test TARGETS=linux/amd64 ./scripts/release.sh
 Smoke-test a published release:
 
 ```sh
-VERSION=v1.3.0 ./scripts/smoke-release.sh
+VERSION=v1.4.0 ./scripts/smoke-release.sh
 ```
 
 Pushing a `v*` tag runs verification, builds archives, and creates a Forgejo
@@ -210,13 +210,14 @@ release. Release notes belong in `CHANGELOG.md`.
 ## Publish the npm launcher
 
 The versions in `package.json` and the Codex plugin manifest must match the
-release tag without its leading `v`. For example, tag `v1.3.0` uses npm and
-plugin version `1.3.0`. The npm test suite validates the plugin package and
+release tag without its leading `v`. For example, tag `v1.4.0` uses npm and
+plugin version `1.4.0`. The npm test suite validates the plugin package and
 rejects version drift. The verification and release scripts also reject a
 `v*` tag whose version does not match both manifests.
 
-Tag releases publish automatically when the Forgejo Actions secret `NPM_TOKEN`
-is configured. To publish manually after the matching Forgejo release exists:
+Tag releases require the Forgejo Actions secret `NPM_TOKEN` and publish the
+npm launcher as part of the release job. To publish manually after the matching
+Forgejo release exists:
 
 ```sh
 npm ci

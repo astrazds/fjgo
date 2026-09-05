@@ -77,7 +77,7 @@ func TestVersionFlagPrintsBinaryVersion(t *testing.T) {
 		t.Fatalf("run error = %v, stderr = %s", err, stderr.String())
 	}
 	got := stdout.String()
-	for _, want := range []string{"version: v1.3.0", "commit: none", "date: unknown"} {
+	for _, want := range []string{"version: v1.4.0", "commit: none", "date: unknown"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("stdout missing %q: %q", want, got)
 		}

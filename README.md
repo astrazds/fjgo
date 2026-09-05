@@ -44,6 +44,31 @@ runs reuse that copy.
 
 Requirements: Node.js 20 or newer, on Linux or macOS with an x64 or arm64 CPU.
 
+Without Node.js, install a native release archive:
+
+```sh
+curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v1.4.0/fjgo_v1.4.0_linux_amd64.tar.gz
+tar -xzf fjgo_v1.4.0_linux_amd64.tar.gz
+install -Dm755 fjgo_v1.4.0_linux_amd64/fjgo ~/.local/bin/fjgo
+```
+
+Use `darwin` instead of `linux`, and `arm64` instead of `amd64`, when that
+matches the machine. Then run `fjgo` directly instead of `npx -y fjgo`.
+
+### Optional ambient hooks
+
+The skill and the native binary are enough for on-demand use. If you want
+Forgejo context injected at the start of every agent session, install the
+optional hooks after the CLI is on PATH:
+
+```sh
+npx -y fjgo setup hooks --check
+npx -y fjgo setup hooks
+```
+
+You only need the skill or the hooks. Installing both is fine; the hooks add
+live session context, and the skill remains available on demand.
+
 ### Codex plugin
 
 This repository is also a validated Codex plugin package. A marketplace can
@@ -144,7 +169,7 @@ npx -y fjgo issue create --help
   scenario-run record format. CI runs through `.forgejo/workflows/verify.yml`.
 - [AXI compliance](docs/axi-compliance.md): the agent-friendly interface rules
   followed by `fjgo`.
-- [Field validation](docs/alpha.md): the v1.3 live-testing checklist.
+- [Field validation](docs/alpha.md): the v1.4 live-testing checklist.
 - [Changelog](CHANGELOG.md): release history.
 
 ## License
