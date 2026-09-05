@@ -746,7 +746,17 @@ func ResolveFJGO(ctx context.Context, repoRoot, selected string) (string, func()
 		return path, func() {}, nil
 	}
 
-	tempDir, err := os.MkdirTemp("", "fjgo-benchmark-binary-")
+	scratch := os.Getenv("GOTMPDIR")
+	if scratch == "" {
+		scratch = os.Getenv("TMPDIR")
+	}
+	if scratch == "" {
+		scratch = filepath.Join(repoRoot, ".gocache", "tmp")
+	}
+	if err := os.MkdirAll(scratch, 0o755); err != nil {
+		return "", nil, err
+	}
+	tempDir, err := os.MkdirTemp(scratch, "fjgo-benchmark-binary-")
 	if err != nil {
 		return "", nil, err
 	}

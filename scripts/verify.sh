@@ -7,6 +7,7 @@ if [ -z "${GOTMPDIR:-}" ]; then
 	export GOTMPDIR
 fi
 mkdir -p "$GOTMPDIR"
+export TMPDIR="$GOTMPDIR"
 
 test -x node_modules/.bin/codex || {
 	echo "missing pinned Codex development dependency; run npm ci" >&2
@@ -24,6 +25,7 @@ gofmt -w cmd/fjgo cmd/fjgo-benchmark internal/benchmark internal/forgejo tools/g
 env -u FJGO_HOST -u FJGO_TOKEN go test ./...
 go build ./cmd/fjgo
 go run ./cmd/fjgo-benchmark \
+	-fjgo ./fjgo \
 	-check-baseline internal/benchmark/baseline.json
 npm test
 npm pack --dry-run >/dev/null
