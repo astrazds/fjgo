@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## v1.4.1 - 2026-09-06
+
+- Published the npm launcher as `@astrazds/fjgo` because unscoped `fjgo` is
+  blocked as too similar to `svgo`. The CLI binary name remains `fjgo`.
+
 ## v1.4.0 - 2026-09-05
 
 - Packaged fjgo as a thin Codex plugin with project branding, starter prompts,

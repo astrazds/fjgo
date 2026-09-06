@@ -98,10 +98,10 @@ Create and upload release assets through the task alias. Always dry-run first:
 ```sh
 fjgo -R origin release list
 fjgo -R origin release latest
-fjgo -R origin release view v1.4.0
-fjgo -R origin release create v1.4.0 --body-file notes.md --dry-run --yes
-fjgo -R origin release create v1.4.0 --notes-file notes.md --dry-run --yes
-fjgo -R origin release create v1.4.0 --body-file notes.md --yes
+fjgo -R origin release view v1.4.1
+fjgo -R origin release create v1.4.1 --body-file notes.md --dry-run --yes
+fjgo -R origin release create v1.4.1 --notes-file notes.md --dry-run --yes
+fjgo -R origin release create v1.4.1 --body-file notes.md --yes
 fjgo -R origin release edit RELEASE_ID --body-file notes.md --dry-run --yes
 fjgo -R origin release assets list RELEASE_ID
 fjgo -R origin release assets delete RELEASE_ID ASSET_ID --dry-run --yes

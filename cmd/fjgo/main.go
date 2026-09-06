@@ -25,7 +25,7 @@ import (
 const defaultBaseURL = "https://v15.next.forgejo.org/api/v1"
 
 var (
-	version = "v1.4.0"
+	version = "v1.4.1"
 	commit  = "none"
 	date    = "unknown"
 )

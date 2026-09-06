@@ -4,7 +4,7 @@ This page covers configuration and advanced use. For the exact arguments and
 flags supported by a command, run:
 
 ```sh
-npx -y fjgo COMMAND --help
+npx -y @astrazds/fjgo COMMAND --help
 ```
 
 ## Server and authentication
@@ -39,8 +39,8 @@ Use only the authentication settings needed by your Forgejo server.
 Check the active server and authentication without printing secrets:
 
 ```sh
-npx -y fjgo auth status
-npx -y fjgo doctor --json
+npx -y @astrazds/fjgo auth status
+npx -y @astrazds/fjgo doctor --json
 ```
 
 Tokens, passwords, and one-time passwords are removed from diagnostics, request
@@ -52,18 +52,18 @@ There are four clear ways to choose a repository:
 
 ```sh
 # Read OWNER/REPO from a Forgejo Git remote.
-npx -y fjgo -R origin repo get
+npx -y @astrazds/fjgo -R origin repo get
 
 # Set it for one command.
-npx -y fjgo --repo OWNER/REPO issue list
-npx -y fjgo issue list --repo OWNER/REPO
+npx -y @astrazds/fjgo --repo OWNER/REPO issue list
+npx -y @astrazds/fjgo issue list --repo OWNER/REPO
 
 # Use the command's positional repository argument.
-npx -y fjgo issue list OWNER/REPO
+npx -y @astrazds/fjgo issue list OWNER/REPO
 
 # Set it for the current shell.
 export FJGO_REPO=OWNER/REPO
-npx -y fjgo repo get
+npx -y @astrazds/fjgo repo get
 ```
 
 An explicit `--repo` or `FJGO_REPO` wins over remote detection. `fjgo` does not
@@ -75,8 +75,8 @@ Normal output uses TOON, a compact format designed for agents. Keep it as the
 default unless a script needs JSON:
 
 ```sh
-npx -y fjgo doctor --json
-npx -y fjgo api --json inspect repoSearch
+npx -y @astrazds/fjgo doctor --json
+npx -y @astrazds/fjgo api --json inspect repoSearch
 ```
 
 Long text is shortened by default. Add `--full` when the output says it was
@@ -87,7 +87,7 @@ Commands that change server state require `--yes`. Preview them first with
 `--dry-run` or `--print-request`:
 
 ```sh
-npx -y fjgo -R origin repo edit \
+npx -y @astrazds/fjgo -R origin repo edit \
   --description "Updated description" \
   --dry-run --yes
 ```
@@ -106,7 +106,7 @@ Long-running commands can have a separate operation timeout. For example,
 bounded by the root HTTP timeout:
 
 ```sh
-npx -y fjgo -timeout 15s -R origin run watch 123 --timeout 2m
+npx -y @astrazds/fjgo -timeout 15s -R origin run watch 123 --timeout 2m
 ```
 
 Use the root flag for slow individual requests and the command-local flag for
@@ -131,12 +131,12 @@ Common work is organized by topic:
 Examples:
 
 ```sh
-npx -y fjgo -R origin repo branches list
-npx -y fjgo -R origin issue view 42 --comments --full
-npx -y fjgo -R origin pr view 12 --reviews
-npx -y fjgo -R origin run view 123 --log-failed
-npx -y fjgo -R origin workflow run verify.yml --ref main --dry-run --yes
-npx -y fjgo -R origin release latest
+npx -y @astrazds/fjgo -R origin repo branches list
+npx -y @astrazds/fjgo -R origin issue view 42 --comments --full
+npx -y @astrazds/fjgo -R origin pr view 12 --reviews
+npx -y @astrazds/fjgo -R origin run view 123 --log-failed
+npx -y @astrazds/fjgo -R origin workflow run verify.yml --ref main --dry-run --yes
+npx -y @astrazds/fjgo -R origin release latest
 ```
 
 ## Full API access
@@ -147,17 +147,17 @@ in the bundled Forgejo Swagger specification.
 Find and inspect an operation before calling it:
 
 ```sh
-npx -y fjgo api list release
-npx -y fjgo api inspect repoSearch
-npx -y fjgo model inspect CreateRepoOption
+npx -y @astrazds/fjgo api list release
+npx -y @astrazds/fjgo api inspect repoSearch
+npx -y @astrazds/fjgo model inspect CreateRepoOption
 ```
 
 Call an operation by its Swagger operation ID:
 
 ```sh
-npx -y fjgo api call repoSearch q=fjgo limit=10
-npx -y fjgo api call repoGet owner=OWNER repo=REPO
-npx -y fjgo api call createCurrentUserRepo \
+npx -y @astrazds/fjgo api call repoSearch q=fjgo limit=10
+npx -y @astrazds/fjgo api call repoGet owner=OWNER repo=REPO
+npx -y @astrazds/fjgo api call createCurrentUserRepo \
   -body '{"name":"demo","private":true}' \
   --dry-run --yes
 ```
@@ -165,8 +165,8 @@ npx -y fjgo api call createCurrentUserRepo \
 Use `api raw` when a direct method and path are simpler:
 
 ```sh
-npx -y fjgo api raw GET /repos/OWNER/REPO
-npx -y fjgo api raw PATCH /repos/OWNER/REPO \
+npx -y @astrazds/fjgo api raw GET /repos/OWNER/REPO
+npx -y @astrazds/fjgo api raw PATCH /repos/OWNER/REPO \
   -body '{"description":"updated"}' \
   --dry-run --yes
 ```
@@ -180,10 +180,10 @@ response options.
 `fjgo` creates readable aliases for API paths that map cleanly to commands:
 
 ```sh
-npx -y fjgo alias list
-npx -y fjgo alias inspect repo issues get
-npx -y fjgo alias collisions
-npx -y fjgo alias omissions
+npx -y @astrazds/fjgo alias list
+npx -y @astrazds/fjgo alias inspect repo issues get
+npx -y @astrazds/fjgo alias collisions
+npx -y @astrazds/fjgo alias omissions
 ```
 
 `alias omissions` explains why an API operation has no alias and shows the
@@ -195,8 +195,8 @@ The Agent Skill loads only when needed. If you want every agent session to
 start with compact Forgejo context, install the optional hooks:
 
 ```sh
-npx -y fjgo setup hooks --check
-npx -y fjgo setup hooks
+npx -y @astrazds/fjgo setup hooks --check
+npx -y @astrazds/fjgo setup hooks
 ```
 
 This configures managed integrations for Claude Code, Codex, and OpenCode.

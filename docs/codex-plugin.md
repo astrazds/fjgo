@@ -60,7 +60,7 @@ the marketplace afterward if it should not remain configured.
 
 ## Runtime and authentication
 
-The bundled skill invokes `npx -y fjgo`. The npm launcher downloads the matching
+The bundled skill invokes `npx -y @astrazds/fjgo`. The npm launcher downloads the matching
 native release, verifies its checksum, and reuses the cached executable on later
 runs. Runtime requirements remain Node.js 20 or newer on Linux or macOS with an
 x64 or arm64 CPU.
@@ -82,8 +82,8 @@ Ambient session hooks also remain optional. Install them only when persistent
 Forgejo context is wanted:
 
 ```sh
-npx -y fjgo setup hooks --check
-npx -y fjgo setup hooks
+npx -y @astrazds/fjgo setup hooks --check
+npx -y @astrazds/fjgo setup hooks
 ```
 
 ## Maintain the package

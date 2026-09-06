@@ -5,8 +5,8 @@ description: Forgejo repository operations through the fjgo CLI for coding agent
 
 # fjgo
 
-Use `npx -y fjgo` for Forgejo-specific work and normal `git` for local commit, branch,
-diff, and remote operations. `npx -y fjgo` is AXI-shaped: stdout is compact TOON by
+Use `npx -y @astrazds/fjgo` for Forgejo-specific work and normal `git` for local commit, branch,
+diff, and remote operations. `npx -y @astrazds/fjgo` is AXI-shaped: stdout is compact TOON by
 default, errors are structured on stdout, mutating commands require `--yes`, and
 dry runs/request previews are token-safe.
 
@@ -17,11 +17,11 @@ then run this before acting on a repo:
 
 ```sh
 export FJGO_HOST=forgejo.example.com
-npx -y fjgo -R origin
-npx -y fjgo -R origin doctor
-npx -y fjgo -R origin issue list --state open
-npx -y fjgo -R origin pr list
-npx -y fjgo -R origin run list
+npx -y @astrazds/fjgo -R origin
+npx -y @astrazds/fjgo -R origin doctor
+npx -y @astrazds/fjgo -R origin issue list --state open
+npx -y @astrazds/fjgo -R origin pr list
+npx -y @astrazds/fjgo -R origin run list
 ```
 
 If there is no git remote, pass `owner/repo` to repo-scoped commands directly,
@@ -32,7 +32,7 @@ request previews do not print token values. API error diagnostics are also
 token-safe, including server-reflected token text.
 
 Use `--json` only when a command explicitly supports it and raw JSON is needed,
-for example `npx -y fjgo doctor --json` or `npx -y fjgo api --json call getVersion`.
+for example `npx -y @astrazds/fjgo doctor --json` or `npx -y @astrazds/fjgo api --json call getVersion`.
 
 ## Optional Ambient Hooks
 
@@ -40,8 +40,8 @@ The installed skill is the complete on-demand setup. Only when the user asks
 for persistent Forgejo context, offer the optional ambient hooks:
 
 ```sh
-npx -y fjgo setup hooks --check
-npx -y fjgo setup hooks
+npx -y @astrazds/fjgo setup hooks --check
+npx -y @astrazds/fjgo setup hooks
 ```
 
 This installs managed SessionStart hooks for Claude Code and Codex plus an
@@ -80,12 +80,12 @@ OpenCode plugin. Restart the agent session after installing hooks.
 Use fjgo for Forgejo-specific API work and normal git for local branch, commit, diff, and remote operations.
 
 First commands:
-  npx -y fjgo --repo OWNER/REPO
-  npx -y fjgo --repo OWNER/REPO doctor
-  npx -y fjgo --repo OWNER/REPO repo get
-  npx -y fjgo --repo OWNER/REPO issue list --state open
-  npx -y fjgo --repo OWNER/REPO pr list
-  npx -y fjgo --repo OWNER/REPO run list
+  npx -y @astrazds/fjgo --repo OWNER/REPO
+  npx -y @astrazds/fjgo --repo OWNER/REPO doctor
+  npx -y @astrazds/fjgo --repo OWNER/REPO repo get
+  npx -y @astrazds/fjgo --repo OWNER/REPO issue list --state open
+  npx -y @astrazds/fjgo --repo OWNER/REPO pr list
+  npx -y @astrazds/fjgo --repo OWNER/REPO run list
 
 Safe mutation pattern:
   inspect the alias or operation first
@@ -93,15 +93,15 @@ Safe mutation pattern:
   rerun without --dry-run only after target repo, path, and body are correct
 
 Useful surfaces:
-  npx -y fjgo setup hooks
-  npx -y fjgo auth status
-  npx -y fjgo api raw GET /repos/OWNER/REPO
-  npx -y fjgo issue view OWNER/REPO 1 --full
-  npx -y fjgo pr view OWNER/REPO 1 --reviews
-  npx -y fjgo pr checks OWNER/REPO 1
-  npx -y fjgo search issues "bug" --repo OWNER/REPO
-  npx -y fjgo release list OWNER/REPO
-  npx -y fjgo release assets list OWNER/REPO 1
-  npx -y fjgo update --check
-  npx -y fjgo model inspect CreateIssueOption
+  npx -y @astrazds/fjgo setup hooks
+  npx -y @astrazds/fjgo auth status
+  npx -y @astrazds/fjgo api raw GET /repos/OWNER/REPO
+  npx -y @astrazds/fjgo issue view OWNER/REPO 1 --full
+  npx -y @astrazds/fjgo pr view OWNER/REPO 1 --reviews
+  npx -y @astrazds/fjgo pr checks OWNER/REPO 1
+  npx -y @astrazds/fjgo search issues "bug" --repo OWNER/REPO
+  npx -y @astrazds/fjgo release list OWNER/REPO
+  npx -y @astrazds/fjgo release assets list OWNER/REPO 1
+  npx -y @astrazds/fjgo update --check
+  npx -y @astrazds/fjgo model inspect CreateIssueOption
 <!-- fjgo:static-guidance:end -->

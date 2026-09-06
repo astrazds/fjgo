@@ -1,6 +1,6 @@
 {
-  "name": "fjgo",
-  "version": "1.4.0",
+  "name": "@astrazds/fjgo",
+  "version": "1.4.1",
   "description": "Agent-first CLI and API client for Forgejo",
   "license": "MIT",
   "type": "module",

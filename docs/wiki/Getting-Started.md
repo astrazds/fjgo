@@ -8,12 +8,12 @@ The Agent Skill is the shortest public installation path:
 npx skills add https://repos.astrazds.net/astrazds/fjgo.git --skill fjgo -g
 ```
 
-The skill teaches an agent to run the released CLI through `npx -y fjgo`.
+The skill teaches an agent to run the released CLI through `npx -y @astrazds/fjgo`.
 Node.js 20 or newer is required.
 
 The repository root is also a validated Codex plugin package. A configured
 marketplace can expose it as `fjgo`, adding plugin metadata and starter prompts
-while reusing the same skill and `npx -y fjgo` runtime. Marketplace publication
+while reusing the same skill and `npx -y @astrazds/fjgo` runtime. Marketplace publication
 is separate from fjgo releases. The plugin does not provide OAuth or store
 Forgejo credentials; host and token configuration remain local environment
 variables.
@@ -40,9 +40,9 @@ as operational data and review it before sharing.
 Run these commands inside a checkout whose Forgejo remote is named `origin`:
 
 ```sh
-npx -y fjgo -R origin
-npx -y fjgo -R origin doctor --json
-npx -y fjgo -R origin issue list --state open
+npx -y @astrazds/fjgo -R origin
+npx -y @astrazds/fjgo -R origin doctor --json
+npx -y @astrazds/fjgo -R origin issue list --state open
 ```
 
 `-R origin` resolves the owner and repository from that Git remote. You can
@@ -54,7 +54,7 @@ Mutating commands require `--yes`. Use `--dry-run` first so the request can be
 checked without sending it:
 
 ```sh
-npx -y fjgo -R origin issue create \
+npx -y @astrazds/fjgo -R origin issue create \
   --title "Document the next task" \
   --body "Describe the work and acceptance criteria." \
   --dry-run --yes
@@ -63,7 +63,7 @@ npx -y fjgo -R origin issue create \
 If the preview is correct, remove `--dry-run` to apply it:
 
 ```sh
-npx -y fjgo -R origin issue create \
+npx -y @astrazds/fjgo -R origin issue create \
   --title "Document the next task" \
   --body "Describe the work and acceptance criteria." \
   --yes

@@ -38,22 +38,24 @@ npx skills add https://repos.astrazds.net/astrazds/fjgo.git --skill fjgo -g
 That is the full setup. You do not need to clone this repository or run
 `npm install`.
 
-The skill teaches your agent to run the CLI through `npx -y fjgo`. The first
-run downloads the matching `fjgo` release and saves it in a local cache. Later
-runs reuse that copy.
+The skill teaches your agent to run the CLI through `npx -y @astrazds/fjgo`.
+The npm package is scoped because unscoped `fjgo` is blocked on the public
+registry. The installed command name remains `fjgo`. The first run downloads
+the matching native release and saves it in a local cache. Later runs reuse
+that copy.
 
 Requirements: Node.js 20 or newer, on Linux or macOS with an x64 or arm64 CPU.
 
 Without Node.js, install a native release archive:
 
 ```sh
-curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v1.4.0/fjgo_v1.4.0_linux_amd64.tar.gz
-tar -xzf fjgo_v1.4.0_linux_amd64.tar.gz
-install -Dm755 fjgo_v1.4.0_linux_amd64/fjgo ~/.local/bin/fjgo
+curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v1.4.1/fjgo_v1.4.1_linux_amd64.tar.gz
+tar -xzf fjgo_v1.4.1_linux_amd64.tar.gz
+install -Dm755 fjgo_v1.4.1_linux_amd64/fjgo ~/.local/bin/fjgo
 ```
 
 Use `darwin` instead of `linux`, and `arm64` instead of `amd64`, when that
-matches the machine. Then run `fjgo` directly instead of `npx -y fjgo`.
+matches the machine. Then run `fjgo` directly instead of `npx -y @astrazds/fjgo`.
 
 ### Optional ambient hooks
 
@@ -62,8 +64,8 @@ Forgejo context injected at the start of every agent session, install the
 optional hooks after the CLI is on PATH:
 
 ```sh
-npx -y fjgo setup hooks --check
-npx -y fjgo setup hooks
+npx -y @astrazds/fjgo setup hooks --check
+npx -y @astrazds/fjgo setup hooks
 ```
 
 You only need the skill or the hooks. Installing both is fine; the hooks add
@@ -77,7 +79,7 @@ plugin presentation metadata and starter prompts. Until a marketplace lists
 it, the Agent Skill command above remains the shortest public installation
 path.
 
-The plugin still runs `npx -y fjgo`; it does not bundle another API client,
+The plugin still runs `npx -y @astrazds/fjgo`; it does not bundle another API client,
 install ambient hooks automatically, provide OAuth, or store credentials.
 See [Codex plugin](docs/codex-plugin.md) for marketplace installation, local
 testing, authentication, and maintenance details.
@@ -101,19 +103,19 @@ Run these commands inside a repository that has a Forgejo Git remote named
 `origin`:
 
 ```sh
-npx -y fjgo -R origin
-npx -y fjgo -R origin doctor
-npx -y fjgo -R origin issue list --state open
-npx -y fjgo -R origin pr list --state open
-npx -y fjgo -R origin run list
+npx -y @astrazds/fjgo -R origin
+npx -y @astrazds/fjgo -R origin doctor
+npx -y @astrazds/fjgo -R origin issue list --state open
+npx -y @astrazds/fjgo -R origin pr list --state open
+npx -y @astrazds/fjgo -R origin run list
 ```
 
 `-R origin` reads the repository owner and name from the Git remote. You can
 also choose a repository directly:
 
 ```sh
-npx -y fjgo --repo OWNER/REPO repo get
-npx -y fjgo issue list OWNER/REPO --state open
+npx -y @astrazds/fjgo --repo OWNER/REPO repo get
+npx -y @astrazds/fjgo issue list OWNER/REPO --state open
 ```
 
 ## Make a change safely
@@ -122,7 +124,7 @@ Commands that change Forgejo require `--yes`. Preview the request with
 `--dry-run` first:
 
 ```sh
-npx -y fjgo -R origin issue create \
+npx -y @astrazds/fjgo -R origin issue create \
   --title "Fix the login page" \
   --body "The login button is not working." \
   --dry-run --yes
@@ -131,7 +133,7 @@ npx -y fjgo -R origin issue create \
 If the preview is correct, remove `--dry-run`:
 
 ```sh
-npx -y fjgo -R origin issue create \
+npx -y @astrazds/fjgo -R origin issue create \
   --title "Fix the login page" \
   --body "The login button is not working." \
   --yes
@@ -140,18 +142,18 @@ npx -y fjgo -R origin issue create \
 More examples:
 
 ```sh
-npx -y fjgo -R origin issue view 42 --comments --full
-npx -y fjgo -R origin pr checks 12
-npx -y fjgo -R origin release list
-npx -y fjgo -R origin workflow list
-npx -y fjgo -R origin search issues "login" --state open
+npx -y @astrazds/fjgo -R origin issue view 42 --comments --full
+npx -y @astrazds/fjgo -R origin pr checks 12
+npx -y @astrazds/fjgo -R origin release list
+npx -y @astrazds/fjgo -R origin workflow list
+npx -y @astrazds/fjgo -R origin search issues "login" --state open
 ```
 
 Every command has focused help:
 
 ```sh
-npx -y fjgo issue --help
-npx -y fjgo issue create --help
+npx -y @astrazds/fjgo issue --help
+npx -y @astrazds/fjgo issue create --help
 ```
 
 ## Learn more
@@ -169,7 +171,7 @@ npx -y fjgo issue create --help
   scenario-run record format. CI runs through `.forgejo/workflows/verify.yml`.
 - [AXI compliance](docs/axi-compliance.md): the agent-friendly interface rules
   followed by `fjgo`.
-- [Field validation](docs/alpha.md): the v1.4 live-testing checklist.
+- [Field validation](docs/alpha.md): the v1.4.1 live-testing checklist.
 - [Changelog](CHANGELOG.md): release history.
 
 ## License
