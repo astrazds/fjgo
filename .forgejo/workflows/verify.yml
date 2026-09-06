@@ -44,7 +44,11 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -eu
-          go run ./scripts/write-release-body.go
+          mkdir -p .gocache/tmp
+          export GOTMPDIR="$PWD/.gocache/tmp"
+          export TMPDIR="$GOTMPDIR"
+          go build -o .gocache/write-release-body ./scripts/write-release-body.go
+          .gocache/write-release-body
           curl -fsS -X POST \
             -H "Authorization: token $TOKEN" \
             -H "Content-Type: application/json" \
