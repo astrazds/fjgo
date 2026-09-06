@@ -1,52 +1,53 @@
+[![fjgo icon](docs/assets/readme/fjgo-icon.png)](docs/assets/readme/fjgo-icon.png)
+
 # fjgo
 
-`fjgo` helps coding agents work with repositories hosted on
-[Forgejo](https://forgejo.org/).
+Agent-first Forgejo CLI for coding agents.
 
-It can read and update issues, pull requests, releases, Actions runs,
-repository settings, labels, secrets, and more. It also gives agents a safe
-way to use the full Forgejo API when there is no shorter command.
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![npm](https://img.shields.io/npm/v/@astrazds/fjgo.svg)](https://www.npmjs.com/package/@astrazds/fjgo)
 
-## Why use it?
+`fjgo` gives coding agents a safe, compact way to work with [Forgejo](https://forgejo.org/) repositories. It covers issues, pull requests, Actions, releases, labels, secrets, and the rest of the bundled Forgejo API, with TOON stdout, structured errors, and token-safe dry runs.
 
-An agent can call the Forgejo API with `curl`, but it has to remember URLs,
-JSON shapes, and authentication rules. That creates extra work and makes
-mistakes more likely.
+Use normal `git` for commits, branches, and local files. Use `fjgo` for work that needs the Forgejo server.
 
-`fjgo` gives the agent:
+```text
+$ npx -y @astrazds/fjgo -R origin issue list --state open
+count: 3 of 3 total
+issues[3]{number,title,state}:
+  12,Redact API diagnostics,open
+  9,Separate watch timeout,closed
+  4,Publish wiki manual,closed
+help[1]{command}:
+  Run `fjgo issue view 12` to see full details
+```
+
+## Why fjgo?
+
+An agent can call the Forgejo API with `curl`, but it has to remember URLs, JSON shapes, and authentication rules. That creates extra work and makes mistakes more likely.
+
+`fjgo` keeps the expensive parts in one tool:
 
 - short commands for common Forgejo jobs;
-- compact output that uses fewer tokens;
-- clear errors and help;
-- safe request previews before making changes;
-- automatic protection against printing passwords or API tokens;
-- access to every operation in the bundled Forgejo API specification.
-
-Use normal `git` commands for commits, branches, and local files. Use `fjgo`
-for tasks that need the Forgejo server.
+- compact TOON output that uses fewer tokens;
+- structured errors and focused `--help`;
+- `--dry-run` / `--print-request` before writes;
+- token, password, and OTP values kept out of stdout;
+- generated coverage of every operation in the pinned Forgejo Swagger.
 
 ## Install
 
-### Agent Skill
+The public npm package is `@astrazds/fjgo` because unscoped `fjgo` is blocked on the npm registry. The command name remains `fjgo`. Node.js 20 or newer is required, on Linux or macOS with an x64 or arm64 CPU.
 
-Install the Agent Skill globally:
+### Agent Skill
 
 ```sh
 npx skills add https://repos.astrazds.net/astrazds/fjgo.git --skill fjgo -g
 ```
 
-That is the full setup. You do not need to clone this repository or run
-`npm install`.
+That is the full setup. You do not need to clone this repository or run `npm install`. The skill runs the CLI through `npx -y @astrazds/fjgo`. The first run downloads the matching native release, verifies its checksum, and caches it.
 
-The skill teaches your agent to run the CLI through `npx -y @astrazds/fjgo`.
-The npm package is scoped because unscoped `fjgo` is blocked on the public
-registry. The installed command name remains `fjgo`. The first run downloads
-the matching native release and saves it in a local cache. Later runs reuse
-that copy.
-
-Requirements: Node.js 20 or newer, on Linux or macOS with an x64 or arm64 CPU.
-
-Without Node.js, install a native release archive:
+### Native archive
 
 ```sh
 curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v1.4.1/fjgo_v1.4.1_linux_amd64.tar.gz
@@ -54,127 +55,99 @@ tar -xzf fjgo_v1.4.1_linux_amd64.tar.gz
 install -Dm755 fjgo_v1.4.1_linux_amd64/fjgo ~/.local/bin/fjgo
 ```
 
-Use `darwin` instead of `linux`, and `arm64` instead of `amd64`, when that
-matches the machine. Then run `fjgo` directly instead of `npx -y @astrazds/fjgo`.
+Use `darwin` instead of `linux`, and `arm64` instead of `amd64`, when that matches the machine. Then run `fjgo` directly.
 
 ### Optional ambient hooks
 
-The skill and the native binary are enough for on-demand use. If you want
-Forgejo context injected at the start of every agent session, install the
-optional hooks after the CLI is on PATH:
+The skill and the native binary are enough for on-demand use. If you want Forgejo context at the start of every agent session:
 
 ```sh
 npx -y @astrazds/fjgo setup hooks --check
 npx -y @astrazds/fjgo setup hooks
 ```
 
-You only need the skill or the hooks. Installing both is fine; the hooks add
-live session context, and the skill remains available on demand.
+You only need the skill or the hooks. Installing both is fine.
 
 ### Codex plugin
 
-This repository is also a validated Codex plugin package. A marketplace can
-point at the repository root to distribute the existing `fjgo` skill with
-plugin presentation metadata and starter prompts. Until a marketplace lists
-it, the Agent Skill command above remains the shortest public installation
-path.
+This repository is also a validated Codex plugin package. A marketplace can point at the repository root to distribute the existing skill with branding and starter prompts. Until a marketplace lists it, the Agent Skill command above remains the shortest public path. See [Codex plugin](docs/codex-plugin.md).
 
-The plugin still runs `npx -y @astrazds/fjgo`; it does not bundle another API
-client, install ambient hooks automatically, provide OAuth, or store
-credentials.
-See [Codex plugin](docs/codex-plugin.md) for marketplace installation, local
-testing, authentication, and maintenance details.
+## Use
 
-## Connect to Forgejo
-
-Set your Forgejo host and access token:
+Set the Forgejo host. Add a token for private repos or writes. Do not paste the token into an agent prompt.
 
 ```sh
 export FJGO_HOST=forgejo.example.com
 export FJGO_TOKEN=your_access_token
 ```
 
-Create the token in your Forgejo account settings. Give it only the permissions
-needed for your task. Do not paste the token into an agent prompt or commit it
-to a file.
+1. Orient inside a checkout whose Forgejo remote is `origin`: `npx -y @astrazds/fjgo -R origin`
+2. Inspect work with `doctor`, `issue list`, `pr list`, and `run list`.
+3. Preview a write with `--dry-run --yes`. Apply it by dropping `--dry-run`.
 
-## First use
+```mermaid
+flowchart LR
+  A[Agent] --> S[Skill or session hook]
+  S --> H["fjgo / doctor"]
+  H --> C["issue / pr / run"]
+  C --> D["dry-run --yes"]
+  D --> M["mutation --yes"]
+  H --> G["api inspect / call / raw"]
+```
 
-Run these commands inside a repository that has a Forgejo Git remote named
-`origin`:
+`-R origin` reads `OWNER/REPO` from the Git remote. You can also pass `--repo OWNER/REPO` or `FJGO_REPO`. Every command has focused `--help`.
 
 ```sh
-npx -y @astrazds/fjgo -R origin
-npx -y @astrazds/fjgo -R origin doctor
 npx -y @astrazds/fjgo -R origin issue list --state open
-npx -y @astrazds/fjgo -R origin pr list --state open
-npx -y @astrazds/fjgo -R origin run list
-```
-
-`-R origin` reads the repository owner and name from the Git remote. You can
-also choose a repository directly:
-
-```sh
-npx -y @astrazds/fjgo --repo OWNER/REPO repo get
-npx -y @astrazds/fjgo issue list OWNER/REPO --state open
-```
-
-## Make a change safely
-
-Commands that change Forgejo require `--yes`. Preview the request with
-`--dry-run` first:
-
-```sh
-npx -y @astrazds/fjgo -R origin issue create \
-  --title "Fix the login page" \
-  --body "The login button is not working." \
-  --dry-run --yes
-```
-
-If the preview is correct, remove `--dry-run`:
-
-```sh
-npx -y @astrazds/fjgo -R origin issue create \
-  --title "Fix the login page" \
-  --body "The login button is not working." \
-  --yes
-```
-
-More examples:
-
-```sh
-npx -y @astrazds/fjgo -R origin issue view 42 --comments --full
 npx -y @astrazds/fjgo -R origin pr checks 12
-npx -y @astrazds/fjgo -R origin release list
-npx -y @astrazds/fjgo -R origin workflow list
-npx -y @astrazds/fjgo -R origin search issues "login" --state open
+npx -y @astrazds/fjgo issue create --title "Fix the login page" --dry-run --yes
 ```
 
-Every command has focused help:
+## Privacy
+
+`fjgo` has no backend, analytics, advertising, or telemetry. It does not store Forgejo credentials. Host and token come from the environment or flags on this machine.
+
+| Location | Purpose |
+| --- | --- |
+| `FJGO_TOKEN` / `--token` | User-supplied access token; never written by fjgo |
+| `doctor` / `auth status` | Show whether credentials are present, not their values |
+| `--dry-run` / `--print-request` | Token-safe request previews |
+| npm launcher cache | Checksum-verified native binary only |
+
+See [PRIVACY.md](PRIVACY.md) for the complete data boundary.
+
+## Limitations
+
+- Linux and macOS on x64 or arm64. The npm launcher does not support Windows.
+- Forgejo only. It is not a GitHub or GitLab client.
+- Mutating commands require `--yes`. There are no interactive prompts.
+- Codex marketplace publication is separate from fjgo releases.
+- Ambient `FJGO_TOKEN` is ignored on the public demo API unless the host or base URL is set explicitly.
+
+## Project structure
+
+| Path | Purpose |
+| --- | --- |
+| `cmd/fjgo/` | CLI parsing, AXI output, curated commands, hooks |
+| `internal/forgejo/` | HTTP client and generated Swagger methods/models |
+| `internal/fjgoskill/` | Embedded skill and installer |
+| `internal/benchmark/` | Offline agent-job catalog and baseline |
+| `skills/fjgo/` | Public Agent Skill invoked through `npx -y @astrazds/fjgo` |
+| `docs/` | CLI reference, plugin, development, and wiki sources |
+| `scripts/verify.sh` | Local and CI verification gate |
+
+The [wiki manual](https://repos.astrazds.net/astrazds/fjgo/wiki) is the short operator guide. [CLI reference](docs/cli-reference.md) covers authentication, output, command groups, and the generic API escape hatch.
+
+## Development
+
+Go 1.26 and Node.js 20 or newer are required.
 
 ```sh
-npx -y @astrazds/fjgo issue --help
-npx -y @astrazds/fjgo issue create --help
+npm ci
+./scripts/verify.sh
+go run ./cmd/fjgo-benchmark
 ```
 
-## Learn more
+CI on `main` is the [verify workflow](https://repos.astrazds.net/astrazds/fjgo/actions?workflow=verify.yml). Tag `v*` releases build archives, publish the Forgejo release from `CHANGELOG.md`, and publish `@astrazds/fjgo`. See [Development](docs/development.md).
 
-- [Wiki manual](https://repos.astrazds.net/astrazds/fjgo/wiki): concise operator
-  guidance published through Forgejo from the reviewed sources in `docs/wiki`.
-- [CLI reference](docs/cli-reference.md): authentication, repository selection,
-  output, command groups, and the full API escape hatch.
-- [Agent setup prompt](docs/agent-setup-prompt.md): a ready-to-paste setup prompt
-  for another coding agent.
-- [Codex plugin](docs/codex-plugin.md): plugin packaging, marketplace
-  installation, authentication boundaries, and validation.
-- [Development guide](docs/development.md): build, test, generate code, and make
-  releases, including the deterministic offline agent-job benchmark and its
-  scenario-run record format. CI runs through `.forgejo/workflows/verify.yml`.
-- [AXI compliance](docs/axi-compliance.md): the agent-friendly interface rules
-  followed by `fjgo`.
-- [Field validation](docs/alpha.md): the v1.4.1 live-testing checklist.
-- [Changelog](CHANGELOG.md): release history.
-
-## License
-
-MIT
+Contributions are welcome; read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. fjgo is licensed under [MIT](LICENSE).

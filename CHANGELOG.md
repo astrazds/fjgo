@@ -4,6 +4,7 @@
 
 - Updated operator docs and the Forgejo wiki for the scoped `@astrazds/fjgo`
   launcher, native-archive fallback, and optional ambient hooks.
+- Added portfolio README, contributing, security, and privacy pages.
 
 ## v1.4.1 - 2026-09-06
 

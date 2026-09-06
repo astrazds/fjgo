@@ -1,6 +1,6 @@
 # fjgo manual
 
-`fjgo` is a lightweight Go CLI that helps coding agents work safely with
+`fjgo` is an agent-first Forgejo CLI. It helps coding agents work safely with
 Forgejo repositories and APIs.
 
 Use normal `git` commands for commits, branches, and local files. Use `fjgo`

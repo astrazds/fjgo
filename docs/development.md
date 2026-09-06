@@ -34,7 +34,9 @@ The black-box plugin test creates a disposable local marketplace and isolated
 Codex configuration, installs the staged repository package with the pinned
 Codex CLI, and checks that the `fjgo` skill enters the model-visible prompt.
 See [Codex plugin](codex-plugin.md) for the package boundary and manual local
-installation workflow.
+installation workflow. Contributions follow [CONTRIBUTING.md](../CONTRIBUTING.md).
+Security reports follow [SECURITY.md](../SECURITY.md). The data boundary is
+[PRIVACY.md](../PRIVACY.md).
 
 ## Agent-job benchmark
 
