@@ -2,9 +2,14 @@
 
 ## Unreleased
 
-- Updated operator docs and the Forgejo wiki for the scoped `@astrazds/fjgo`
-  launcher, native-archive fallback, and optional ambient hooks.
-- Added portfolio README, contributing, security, and privacy pages.
+## v1.4.2 - 2026-09-06
+
+- Aligned the public README and npm package listing with the portfolio project
+  shape used by longform, clearspace, nota, and settleup.
+- Restored the `.forgejo/workflows/verify.yml` path in the README so CI
+  documentation checks pass.
+- Added contributing, security, and privacy pages, and updated operator docs
+  and the Forgejo wiki for the scoped `@astrazds/fjgo` launcher.
 
 ## v1.4.1 - 2026-09-06
 

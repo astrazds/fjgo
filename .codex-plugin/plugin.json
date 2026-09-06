@@ -1,6 +1,6 @@
 {
   "name": "fjgo",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "Forgejo repository operations for coding agents through the fjgo CLI.",
   "author": {
     "name": "Andrejs Strazds",

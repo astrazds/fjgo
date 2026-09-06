@@ -16,9 +16,9 @@ blocked on the public registry. The installed command name remains `fjgo`.
 Without Node.js, install a native release archive:
 
 ```sh
-curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v1.4.1/fjgo_v1.4.1_linux_amd64.tar.gz
-tar -xzf fjgo_v1.4.1_linux_amd64.tar.gz
-install -Dm755 fjgo_v1.4.1_linux_amd64/fjgo ~/.local/bin/fjgo
+curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v1.4.2/fjgo_v1.4.2_linux_amd64.tar.gz
+tar -xzf fjgo_v1.4.2_linux_amd64.tar.gz
+install -Dm755 fjgo_v1.4.2_linux_amd64/fjgo ~/.local/bin/fjgo
 ```
 
 Use `darwin` instead of `linux`, and `arm64` instead of `amd64`, when that

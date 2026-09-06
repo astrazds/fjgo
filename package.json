@@ -1,7 +1,7 @@
 {
   "name": "@astrazds/fjgo",
-  "version": "1.4.1",
-  "description": "Agent-first CLI and API client for Forgejo",
+  "version": "1.4.2",
+  "description": "Agent-first Forgejo CLI for coding agents.",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -15,11 +15,27 @@
   "engines": {
     "node": ">=20"
   },
+  "author": {
+    "name": "Andrejs Strazds",
+    "url": "https://repos.astrazds.net/astrazds"
+  },
+  "keywords": [
+    "agents",
+    "api-client",
+    "axi",
+    "cli",
+    "codex",
+    "forgejo",
+    "go",
+    "openapi",
+    "swagger",
+    "toon"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://repos.astrazds.net/astrazds/fjgo.git"
   },
-  "homepage": "https://repos.astrazds.net/astrazds/fjgo",
+  "homepage": "https://repos.astrazds.net/astrazds/fjgo/wiki",
   "bugs": {
     "url": "https://repos.astrazds.net/astrazds/fjgo/issues"
   },
