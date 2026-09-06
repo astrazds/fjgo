@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Updated operator docs and the Forgejo wiki for the scoped `@astrazds/fjgo`
+  launcher, native-archive fallback, and optional ambient hooks.
+
 ## v1.4.1 - 2026-09-06
 
 - Published the npm launcher as `@astrazds/fjgo` because unscoped `fjgo` is

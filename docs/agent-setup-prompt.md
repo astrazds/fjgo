@@ -19,11 +19,15 @@ Rules:
   when there is no suitable Forgejo git remote.
 - Prefer dry runs before any Forgejo write.
 - Keep changes minimal; do not add project files unless setup requires it.
+- If Node.js 20+ is available, use `npx -y @astrazds/fjgo` wherever this prompt
+  says `fjgo`. The public npm package is scoped; the command name remains `fjgo`.
 
 Steps:
-1. Check whether `fjgo` is available:
-   - Run `command -v fjgo`.
-   - If missing, install the current stable release for this machine:
+1. Make `fjgo` runnable:
+   - If Node.js 20+ is available, run `npx -y @astrazds/fjgo --version` and use
+     that command for the rest of this prompt. Do not require a global install.
+   - Otherwise run `command -v fjgo`. If it is missing, install the current
+     stable release for this machine:
      - Detect OS with `uname -s`, mapping Linux to `linux` and Darwin to `darwin`.
      - Detect arch with `uname -m`, mapping `x86_64` to `amd64` and `aarch64`/`arm64` to `arm64`.
      - Download `https://repos.astrazds.net/astrazds/fjgo/releases/download/v1.4.1/fjgo_v1.4.1_${os}_${arch}.tar.gz`.

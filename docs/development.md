@@ -22,11 +22,13 @@ The verifier regenerates and formats code, runs Go and Node tests, builds the
 CLI, checks the embedded and public skills, runs public API smoke tests, audits
 Swagger coverage, installs the plugin through the pinned Codex CLI, checks that
 Codex discovers its skill, checks the npm package, and builds a test release
-archive. `npm ci` installs development tooling only; the published fjgo launcher
-remains zero-dependency.
+archive. `npm ci` installs development tooling only; the published
+`@astrazds/fjgo` launcher remains zero-dependency.
 
-Forgejo Actions runs the same script on pushes and pull requests through
-`.forgejo/workflows/verify.yml`.
+Forgejo Actions runs the same script on pushes to `main`, pull requests, and
+`v*` tags through `.forgejo/workflows/verify.yml` on the `srv1-ci` runner.
+Host executors may mount `/tmp` `noexec`; `scripts/verify.sh` keeps Go
+compile-and-run scratch under `.gocache/`.
 
 The black-box plugin test creates a disposable local marketplace and isolated
 Codex configuration, installs the staged repository package with the pinned
@@ -40,17 +42,18 @@ Run the complete deterministic black-box benchmark from the repository root:
 
 ```sh
 go run ./cmd/fjgo-benchmark
+go run ./cmd/fjgo-benchmark -fjgo ./fjgo
 ```
 
-The command builds `fjgo` once, runs all 47 scenarios against isolated offline
-Forgejo fixtures, and writes versioned deterministic result JSON to stdout. The
-catalog covers operation and model discovery, repository and host context,
-compact inspection and output recovery, structured errors and capability
-recovery, and mutation and credential safety. Use `-fjgo ./fjgo` to select an
-existing binary instead.
-Each result retains token-safe normalized CLI arguments, exit and byte counts,
-structured recovery evidence where available, normalized Forgejo requests, and
-manual-correction accounting without retaining unrestricted process output.
+The command builds `fjgo` once unless `-fjgo` selects an existing binary. It
+runs all 47 scenarios against isolated offline Forgejo fixtures and writes
+versioned deterministic result JSON to stdout. The catalog covers operation
+and model discovery, repository and host context, compact inspection and
+output recovery, structured errors and capability recovery, and mutation and
+credential safety. Each result retains token-safe normalized CLI arguments,
+exit and byte counts, structured recovery evidence where available, normalized
+Forgejo requests, and manual-correction accounting without retaining
+unrestricted process output.
 
 The authoritative current-product baseline is committed as
 `internal/benchmark/baseline.json`. Regenerate its JSON, concise Markdown
@@ -204,25 +207,29 @@ Smoke-test a published release:
 VERSION=v1.4.1 ./scripts/smoke-release.sh
 ```
 
-Pushing a `v*` tag runs verification, builds archives, and creates a Forgejo
-release. Release notes belong in `CHANGELOG.md`.
+Pushing a `v*` tag runs verification, builds archives, creates a Forgejo
+release whose body is the matching `CHANGELOG.md` section, and publishes the
+npm launcher. Release notes belong in `CHANGELOG.md`.
 
 ## Publish the npm launcher
 
+The published package name is `@astrazds/fjgo`. Unscoped `fjgo` is rejected by
+the public registry as too similar to `svgo`. The installed binary name remains
+`fjgo`.
+
 The versions in `package.json` and the Codex plugin manifest must match the
 release tag without its leading `v`. For example, tag `v1.4.1` uses npm and
-plugin version `1.4.1`. The published npm package name is `@astrazds/fjgo`. The npm test suite validates the plugin package and
+plugin version `1.4.1`. The npm test suite validates the plugin package and
 rejects version drift. The verification and release scripts also reject a
 `v*` tag whose version does not match both manifests.
 
-Tag releases require the Forgejo Actions secret `NPM_TOKEN` and publish the
-npm launcher as part of the release job. To publish manually after the matching
-Forgejo release exists:
+Tag releases require the Forgejo Actions secret `NPM_TOKEN` and publish with
+public access. To publish manually after the matching Forgejo release exists:
 
 ```sh
 npm ci
 npm test
-npm publish
+npm publish --access public
 ```
 
 The npm package contains a small zero-dependency Node launcher. It downloads

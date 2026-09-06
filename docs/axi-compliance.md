@@ -12,7 +12,7 @@ implemented and tested.
 | Pre-computed aggregates | List output includes response totals when Forgejo exposes them and page counts otherwise; home output includes cheap issue and pull totals. |
 | Definitive empty states | Successful empty lists state `0` with repository/query context. |
 | Structured errors and exit codes | Data and actionable errors use stdout; exit codes are `0` success/no-op, `1` runtime/API failure, and `2` usage failure. Unknown flags are rejected before requests. Mutations are flag-complete and non-interactive. |
-| Ambient session context | Explicit, idempotent `fjgo setup hooks` support for Claude Code, Codex, and OpenCode, including portable path repair and session-end capture. |
+| Ambient session context | Explicit, idempotent `fjgo setup hooks` support for Claude Code, Codex, and OpenCode, including portable path repair and session-end capture. The installable skill is generated from the same guidance and invokes `npx -y @astrazds/fjgo`. |
 | Content-first home | `fjgo` and `fjgo -R origin` print executable identity, repo state, recent open issues/pulls, and contextual actions. |
 | Contextual disclosure | Lists, empty states, mutations, truncation, and errors use command-carrying help appropriate to their result. |
 | Consistent help | Root and command-family help are concise; leaf commands expose required arguments, valid flags/defaults, and runnable examples through `--help`. |

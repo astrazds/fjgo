@@ -9,9 +9,14 @@ inside a Forgejo-backed checkout.
 ## Install
 
 ```sh
+# Native binary (no Node.js):
 curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v1.4.1/fjgo_v1.4.1_linux_amd64.tar.gz
 tar -xzf fjgo_v1.4.1_linux_amd64.tar.gz
 install -Dm755 fjgo_v1.4.1_linux_amd64/fjgo ~/.local/bin/fjgo
+
+# Or run through the scoped npm launcher (Node.js 20+):
+# npx -y @astrazds/fjgo --version
+
 fjgo setup hooks --check
 fjgo setup hooks
 fjgo skill install --force

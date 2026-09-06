@@ -1,7 +1,9 @@
 # fjgo CLI reference
 
-This page covers configuration and advanced use. For the exact arguments and
-flags supported by a command, run:
+This page covers configuration and advanced use. Run the CLI through
+`npx -y @astrazds/fjgo` or a native `fjgo` binary. The public npm package is
+scoped; the command name remains `fjgo`. For the exact arguments and flags
+supported by a command, run:
 
 ```sh
 npx -y @astrazds/fjgo COMMAND --help

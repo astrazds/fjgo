@@ -60,10 +60,11 @@ the marketplace afterward if it should not remain configured.
 
 ## Runtime and authentication
 
-The bundled skill invokes `npx -y @astrazds/fjgo`. The npm launcher downloads the matching
-native release, verifies its checksum, and reuses the cached executable on later
-runs. Runtime requirements remain Node.js 20 or newer on Linux or macOS with an
-x64 or arm64 CPU.
+The bundled skill invokes `npx -y @astrazds/fjgo`. The npm package is scoped;
+the command name remains `fjgo`. The launcher downloads the matching native
+release, verifies its checksum, and reuses the cached executable on later
+runs. Runtime requirements remain Node.js 20 or newer on Linux or macOS with
+an x64 or arm64 CPU.
 
 Authentication remains local environment configuration:
 
@@ -101,6 +102,6 @@ the pinned Codex CLI to install it in an isolated configuration, and confirms
 that Codex discovers the `fjgo` skill. The plugin-creation reference validator
 is an additional compatibility check when that system skill is available.
 
-The plugin manifest, npm package, and `v*` release tag share one version.
-Verification and release archive creation reject version drift before a
-release is published.
+The plugin manifest, `@astrazds/fjgo` npm package, and `v*` release tag share
+one version. Verification and release archive creation reject version drift
+before a release is published.

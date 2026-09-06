@@ -8,15 +8,39 @@ The Agent Skill is the shortest public installation path:
 npx skills add https://repos.astrazds.net/astrazds/fjgo.git --skill fjgo -g
 ```
 
-The skill teaches an agent to run the released CLI through `npx -y @astrazds/fjgo`.
-Node.js 20 or newer is required.
+The skill teaches an agent to run the released CLI through
+`npx -y @astrazds/fjgo`. Node.js 20 or newer is required, on Linux or macOS
+with an x64 or arm64 CPU. The npm package is scoped because unscoped `fjgo` is
+blocked on the public registry. The installed command name remains `fjgo`.
+
+Without Node.js, install a native release archive:
+
+```sh
+curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v1.4.1/fjgo_v1.4.1_linux_amd64.tar.gz
+tar -xzf fjgo_v1.4.1_linux_amd64.tar.gz
+install -Dm755 fjgo_v1.4.1_linux_amd64/fjgo ~/.local/bin/fjgo
+```
+
+Use `darwin` instead of `linux`, and `arm64` instead of `amd64`, when that
+matches the machine. Then run `fjgo` directly.
 
 The repository root is also a validated Codex plugin package. A configured
 marketplace can expose it as `fjgo`, adding plugin metadata and starter prompts
-while reusing the same skill and `npx -y @astrazds/fjgo` runtime. Marketplace publication
-is separate from fjgo releases. The plugin does not provide OAuth or store
-Forgejo credentials; host and token configuration remain local environment
-variables.
+while reusing the same skill and `npx -y @astrazds/fjgo` runtime. Marketplace
+publication is separate from fjgo releases. The plugin does not provide OAuth
+or store Forgejo credentials.
+
+## Optional ambient hooks
+
+The skill and the native binary are enough for on-demand use. If you want
+Forgejo context injected at the start of every agent session:
+
+```sh
+npx -y @astrazds/fjgo setup hooks --check
+npx -y @astrazds/fjgo setup hooks
+```
+
+You only need the skill or the hooks.
 
 ## Connect to Forgejo
 

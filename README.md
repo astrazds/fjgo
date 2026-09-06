@@ -79,8 +79,9 @@ plugin presentation metadata and starter prompts. Until a marketplace lists
 it, the Agent Skill command above remains the shortest public installation
 path.
 
-The plugin still runs `npx -y @astrazds/fjgo`; it does not bundle another API client,
-install ambient hooks automatically, provide OAuth, or store credentials.
+The plugin still runs `npx -y @astrazds/fjgo`; it does not bundle another API
+client, install ambient hooks automatically, provide OAuth, or store
+credentials.
 See [Codex plugin](docs/codex-plugin.md) for marketplace installation, local
 testing, authentication, and maintenance details.
 
