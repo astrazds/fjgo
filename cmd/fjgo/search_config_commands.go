@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	"repos.astrazds.net/astrazds/fjgo/internal/forgejo"
+	"github.com/astrazds/fjgo/internal/forgejo"
 )
 
 func searchHelp() string {

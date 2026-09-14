@@ -12,7 +12,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"repos.astrazds.net/astrazds/fjgo/internal/forgejo"
+	"github.com/astrazds/fjgo/internal/forgejo"
 )
 
 const maxRequestBodyBytes int64 = 32 << 20

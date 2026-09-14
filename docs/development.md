@@ -25,8 +25,8 @@ Codex discovers its skill, checks the npm package, and builds a test release
 archive. `npm ci` installs development tooling only; the published
 `@astrazds/fjgo` launcher remains zero-dependency.
 
-Forgejo Actions runs the same script on pushes to `main`, pull requests, and
-`v*` tags through `.forgejo/workflows/verify.yml` on the `srv1-ci` runner.
+GitHub Actions runs the same script on pushes to `main`, pull requests, and
+`v*` tags through `.github/workflows/verify.yml` on `ubuntu-latest`.
 Host executors may mount `/tmp` `noexec`; `scripts/verify.sh` keeps Go
 compile-and-run scratch under `.gocache/`.
 
@@ -209,7 +209,7 @@ Smoke-test a published release:
 VERSION=v1.4.2 ./scripts/smoke-release.sh
 ```
 
-Pushing a `v*` tag runs verification, builds archives, creates a Forgejo
+Pushing a `v*` tag runs verification, builds archives, creates a GitHub
 release whose body is the matching `CHANGELOG.md` section, and publishes the
 npm launcher. Release notes belong in `CHANGELOG.md`.
 
@@ -225,8 +225,8 @@ plugin version `1.4.2`. The npm test suite validates the plugin package and
 rejects version drift. The verification and release scripts also reject a
 `v*` tag whose version does not match both manifests.
 
-Tag releases require the Forgejo Actions secret `NPM_TOKEN` and publish with
-public access. To publish manually after the matching Forgejo release exists:
+Tag releases require the GitHub Actions secret `NPM_TOKEN` and publish with
+public access. To publish manually after the matching GitHub release exists:
 
 ```sh
 npm ci

@@ -5,7 +5,7 @@
 The Agent Skill is the shortest public installation path:
 
 ```sh
-npx skills add https://repos.astrazds.net/astrazds/fjgo.git --skill fjgo -g
+npx skills add https://github.com/astrazds/fjgo.git --skill fjgo -g
 ```
 
 The skill teaches an agent to run the released CLI through
@@ -16,7 +16,7 @@ blocked on the public registry. The installed command name remains `fjgo`.
 Without Node.js, install a native release archive:
 
 ```sh
-curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v1.4.2/fjgo_v1.4.2_linux_amd64.tar.gz
+curl -LO https://github.com/astrazds/fjgo/releases/download/v1.4.2/fjgo_v1.4.2_linux_amd64.tar.gz
 tar -xzf fjgo_v1.4.2_linux_amd64.tar.gz
 install -Dm755 fjgo_v1.4.2_linux_amd64/fjgo ~/.local/bin/fjgo
 ```
@@ -93,6 +93,6 @@ npx -y @astrazds/fjgo -R origin issue create \
   --yes
 ```
 
-See the [CLI reference](https://repos.astrazds.net/astrazds/fjgo/src/branch/main/docs/cli-reference.md)
+See the [CLI reference](https://github.com/astrazds/fjgo/blob/main/docs/cli-reference.md)
 for authentication, output formats, command groups, and the generic API escape
 hatch.

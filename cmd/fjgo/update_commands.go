@@ -13,11 +13,11 @@ import (
 	"runtime"
 	"strings"
 
-	"repos.astrazds.net/astrazds/fjgo/internal/forgejo"
+	"github.com/astrazds/fjgo/internal/forgejo"
 )
 
 const (
-	defaultUpdateBaseURL = "https://repos.astrazds.net/api/v1"
+	defaultUpdateBaseURL = "https://api.github.com"
 	defaultUpdateRepo    = "astrazds/fjgo"
 )
 
@@ -110,7 +110,7 @@ flags:
   --check              check the latest fjgo release without changing files
   --dry-run            show the selected release asset without changing files
   --yes                replace the current executable with the selected asset
-  --base-url <url>     Forgejo API base URL that hosts fjgo releases
+  --base-url <url>     API base URL that hosts fjgo releases
   --repo <owner/repo>  repository that publishes fjgo releases
   --json               output JSON instead of TOON
 

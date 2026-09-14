@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"repos.astrazds.net/astrazds/fjgo/internal/benchmark"
+	"github.com/astrazds/fjgo/internal/benchmark"
 )
 
 func main() {

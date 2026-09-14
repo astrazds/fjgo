@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://repos.astrazds.net/astrazds/fjgo/raw/branch/main/docs/assets/readme/fjgo-icon.png" width="112" height="112" alt="fjgo icon">
+  <img src="https://github.com/astrazds/fjgo/raw/main/docs/assets/readme/fjgo-icon.png" width="112" height="112" alt="fjgo icon">
 </p>
 
 <h1 align="center">fjgo</h1>
@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://repos.astrazds.net/astrazds/fjgo/src/branch/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <a href="https://github.com/astrazds/fjgo/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <a href="https://www.npmjs.com/package/@astrazds/fjgo"><img alt="npm" src="https://img.shields.io/npm/v/@astrazds/fjgo.svg"></a>
 </p>
 
@@ -48,7 +48,7 @@ The public npm package is `@astrazds/fjgo` because unscoped `fjgo` is blocked on
 ### Agent Skill
 
 ```sh
-npx skills add https://repos.astrazds.net/astrazds/fjgo.git --skill fjgo -g
+npx skills add https://github.com/astrazds/fjgo.git --skill fjgo -g
 ```
 
 That is the full setup. You do not need to clone this repository or run `npm install`. The skill runs the CLI through `npx -y @astrazds/fjgo`. The first run downloads the matching native release, verifies its checksum, and caches it.
@@ -56,7 +56,7 @@ That is the full setup. You do not need to clone this repository or run `npm ins
 ### Native archive
 
 ```sh
-curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v1.4.2/fjgo_v1.4.2_linux_amd64.tar.gz
+curl -LO https://github.com/astrazds/fjgo/releases/download/v1.4.2/fjgo_v1.4.2_linux_amd64.tar.gz
 tar -xzf fjgo_v1.4.2_linux_amd64.tar.gz
 install -Dm755 fjgo_v1.4.2_linux_amd64/fjgo ~/.local/bin/fjgo
 ```
@@ -76,7 +76,7 @@ You only need the skill or the hooks. Installing both is fine.
 
 ### Codex plugin
 
-This repository is also a validated Codex plugin package. A marketplace can point at the repository root to distribute the existing skill with branding and starter prompts. Until a marketplace lists it, the Agent Skill command above remains the shortest public path. See [Codex plugin](https://repos.astrazds.net/astrazds/fjgo/src/branch/main/docs/codex-plugin.md).
+This repository is also a validated Codex plugin package. A marketplace can point at the repository root to distribute the existing skill with branding and starter prompts. Until a marketplace lists it, the Agent Skill command above remains the shortest public path. See [Codex plugin](https://github.com/astrazds/fjgo/blob/main/docs/codex-plugin.md).
 
 ## Use
 
@@ -120,7 +120,7 @@ npx -y @astrazds/fjgo issue create --title "Fix the login page" --dry-run --yes
 | `--dry-run` / `--print-request` | Token-safe request previews |
 | npm launcher cache | Checksum-verified native binary only |
 
-See [PRIVACY.md](https://repos.astrazds.net/astrazds/fjgo/src/branch/main/PRIVACY.md) for the complete data boundary.
+See [PRIVACY.md](https://github.com/astrazds/fjgo/blob/main/PRIVACY.md) for the complete data boundary.
 
 ## Limitations
 
@@ -142,7 +142,7 @@ See [PRIVACY.md](https://repos.astrazds.net/astrazds/fjgo/src/branch/main/PRIVAC
 | `docs/` | CLI reference, plugin, development, and wiki sources |
 | `scripts/verify.sh` | Local and CI verification gate |
 
-The [wiki manual](https://repos.astrazds.net/astrazds/fjgo/wiki) is the short operator guide. [CLI reference](https://repos.astrazds.net/astrazds/fjgo/src/branch/main/docs/cli-reference.md) covers authentication, output, command groups, and the generic API escape hatch.
+The [wiki manual](https://github.com/astrazds/fjgo/tree/main/docs/wiki) is the short operator guide. [CLI reference](https://github.com/astrazds/fjgo/blob/main/docs/cli-reference.md) covers authentication, output, command groups, and the generic API escape hatch.
 
 ## Development
 
@@ -154,6 +154,6 @@ npm ci
 go run ./cmd/fjgo-benchmark
 ```
 
-CI on `main` is `.forgejo/workflows/verify.yml`. Open the [Actions log](https://repos.astrazds.net/astrazds/fjgo/actions?workflow=verify.yml) for recent runs. Tag `v*` releases build archives, publish the Forgejo release from `CHANGELOG.md`, and publish `@astrazds/fjgo`. See [Development](https://repos.astrazds.net/astrazds/fjgo/src/branch/main/docs/development.md).
+CI on `main` is `.github/workflows/verify.yml`. Open the [Actions log](https://github.com/astrazds/fjgo/actions/workflows/verify.yml) for recent runs. Tag `v*` releases build archives, publish the GitHub release from `CHANGELOG.md`, and publish `@astrazds/fjgo`. See [Development](https://github.com/astrazds/fjgo/blob/main/docs/development.md).
 
-Contributions are welcome; read [CONTRIBUTING.md](https://repos.astrazds.net/astrazds/fjgo/src/branch/main/CONTRIBUTING.md) before opening a pull request. Security reports use [SECURITY.md](https://repos.astrazds.net/astrazds/fjgo/src/branch/main/SECURITY.md). fjgo is licensed under [MIT](https://repos.astrazds.net/astrazds/fjgo/src/branch/main/LICENSE).
+Contributions are welcome; read [CONTRIBUTING.md](https://github.com/astrazds/fjgo/blob/main/CONTRIBUTING.md) before opening a pull request. Security reports use [SECURITY.md](https://github.com/astrazds/fjgo/blob/main/SECURITY.md). fjgo is licensed under [MIT](https://github.com/astrazds/fjgo/blob/main/LICENSE).

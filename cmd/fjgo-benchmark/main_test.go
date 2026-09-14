@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"repos.astrazds.net/astrazds/fjgo/internal/benchmark"
+	"github.com/astrazds/fjgo/internal/benchmark"
 )
 
 func TestCommandWritesAndChecksDeterministicTracerBaseline(t *testing.T) {

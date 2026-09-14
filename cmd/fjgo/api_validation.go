@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"repos.astrazds.net/astrazds/fjgo/internal/forgejo"
+	"github.com/astrazds/fjgo/internal/forgejo"
 )
 
 func validateOperationQuery(op forgejo.Operation, query url.Values) error {

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -30,16 +29,7 @@ func main() {
 	if end >= 0 {
 		notes = rest[:end+1]
 	}
-	out, err := json.Marshal(map[string]string{
-		"tag_name": tag,
-		"name":     tag,
-		"body":     strings.TrimSpace(notes) + "\n",
-	})
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	if err := os.WriteFile("/tmp/release-body.json", out, 0o600); err != nil {
+	if err := os.WriteFile("/tmp/release-notes.md", []byte(strings.TrimSpace(notes)+"\n"), 0o600); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

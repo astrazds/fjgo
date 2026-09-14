@@ -1,21 +1,23 @@
-# Issue tracker: Forgejo
+# Issue tracker: GitHub
 
-Issues and PRDs for this repo live as Forgejo issues at `repos.astrazds.net/astrazds/fjgo`. Use this repository's `fjgo` CLI for tracker operations.
+Issues and PRDs for this repo live as GitHub issues at `github.com/astrazds/fjgo`. Use `gh` for tracker operations.
+
+This project's git remote is GitHub. Do not use `fjgo -R origin` against this clone. `fjgo` remains the Forgejo API client for Forgejo remotes and hosts.
 
 ## Conventions
 
-Run commands inside this clone and use `-R origin` to derive the repository from its Forgejo remote.
+Run commands inside this clone. `gh` uses `github.com/astrazds/fjgo` from the `origin` remote after the GitHub cutover.
 
-- **Create an issue**: `fjgo -R origin issue create --title "..." --body-file issue.md --yes`
-- **Read an issue**: `fjgo -R origin issue view <number> --comments --full`
-- **List issues**: `fjgo -R origin issue list --state open`, with `--labels`, `--assignee`, or `--json` when needed
-- **Comment on an issue**: `fjgo -R origin issue comment <number> --body-file comment.md --yes`
-- **Edit an issue**: `fjgo -R origin issue edit <number> ... --yes`
-- **Close an issue**: `fjgo -R origin issue close <number> --yes`
-- **Reopen an issue**: `fjgo -R origin issue reopen <number> --yes`
-- **Preview mutations**: add `--dry-run --yes` or `--print-request --yes`
+- **Create an issue**: `gh issue create --title "..." --body-file issue.md`
+- **Read an issue**: `gh issue view <number> --comments`
+- **List issues**: `gh issue list --state open`, with `--label`, `--assignee`, or `--json` when needed
+- **Comment on an issue**: `gh issue comment <number> --body-file comment.md`
+- **Edit an issue**: `gh issue edit <number> ...`
+- **Close an issue**: `gh issue close <number>`
+- **Reopen an issue**: `gh issue reopen <number>`
+- **Preview mutations**: `gh` has no `--dry-run`. Draft the body locally, then create or comment.
 
-Use `fjgo api inspect <operation>` and `fjgo api call <operation>` when a tracker operation lacks a curated command. Relevant label operations include `issueAddLabel`, `issueRemoveLabel`, `issueReplaceLabels`, and `issueCreateLabel`.
+Use `gh api` when a tracker operation lacks a curated command. Label operations include `gh issue edit <number> --add-label` and `gh label create`.
 
 ## Pull requests as a triage surface
 
@@ -25,19 +27,19 @@ Pull requests are not included in the issue triage queue unless this flag is cha
 
 ## When a skill says “publish to the issue tracker”
 
-Create a Forgejo issue with `fjgo -R origin issue create`.
+Create a GitHub issue with `gh issue create`.
 
 ## When a skill says “fetch the relevant ticket”
 
-Run `fjgo -R origin issue view <number> --comments --full`.
+Run `gh issue view <number> --comments`.
 
 ## Wayfinding operations
 
-The **map** is one Forgejo issue with linked child issues as tickets.
+The **map** is one GitHub issue with linked child issues as tickets.
 
 - **Map**: an issue labelled `wayfinder:map`, holding Notes, Decisions-so-far, and Fog
 - **Child ticket**: an issue linked from the map and labelled `wayfinder:<type>` (`research`, `prototype`, `grilling`, or `task`)
-- **Blocking**: use Forgejo issue dependencies through `fjgo issue dependencies` and `fjgo issue blocks`
+- **Blocking**: mention the blocking issue in the child body (`Blocked by #N`) and keep that link current
 - **Frontier**: inspect the map's open child issues and select the first unblocked, unclaimed issue in map order
 - **Claim**: assign the issue to the driving developer before beginning work
 - **Resolve**: comment with the answer, close the child issue, and add a context pointer to the map's Decisions-so-far

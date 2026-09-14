@@ -38,7 +38,7 @@ present. They must not print the credential.
 ## Network
 
 The npm launcher downloads a release archive and `checksums.txt` from this
-project's Forgejo releases, then verifies the archive before executing it.
+project's GitHub releases, then verifies the archive before executing it.
 There are no analytics pixels or third-party crash reporters.
 
 ## Contact
@@ -46,4 +46,4 @@ There are no analytics pixels or third-party crash reporters.
 For privacy questions, use the repository issue tracker without including live
 credentials:
 
-https://repos.astrazds.net/astrazds/fjgo/issues
+https://github.com/astrazds/fjgo/issues
