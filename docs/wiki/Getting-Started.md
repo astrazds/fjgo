@@ -95,6 +95,6 @@ npx -y @astrazds/fjgo -R origin issue create \
   --yes
 ```
 
-See the [CLI reference](https://github.com/astrazds/fjgo/blob/main/docs/cli-reference.md)
+See the [CLI reference](../cli-reference.md)
 for authentication, output formats, command groups, and the generic API escape
 hatch.
