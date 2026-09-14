@@ -147,7 +147,7 @@ Do not run `fjgo -R origin` in this clone. `origin` is GitHub. Use `gh` for this
 | `docs/` | CLI reference, plugin, development, and wiki sources |
 | `scripts/verify.sh` | Local and CI verification gate |
 
-The [wiki manual](https://github.com/astrazds/fjgo/tree/main/docs/wiki) is the short operator guide. [CLI reference](https://github.com/astrazds/fjgo/blob/main/docs/cli-reference.md) covers authentication, output, command groups, and the generic API escape hatch.
+The [wiki manual](https://github.com/astrazds/fjgo/blob/main/docs/wiki/Home.md) is the short operator guide. [CLI reference](https://github.com/astrazds/fjgo/blob/main/docs/cli-reference.md) covers authentication, output, command groups, and the generic API escape hatch.
 
 ## Development
 

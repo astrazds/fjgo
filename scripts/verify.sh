@@ -47,6 +47,9 @@ grep -q '\.github/workflows/verify\.yml' README.md
 grep -q '\.github/workflows/verify\.yml' AGENTS.md
 grep -q '^module github.com/astrazds/fjgo$' go.mod
 ! grep -R --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.audit --exclude-dir=.gocache --exclude-dir=dist --exclude=CHANGELOG.md --exclude=alpha.md --exclude=fjgo 'repos\.astrazds\.net/astrazds/fjgo' .
+! grep -n 'fjgo-v1-4-1-preview' docs/alpha.md
+grep -q 'docs/wiki/Home.md' README.md
+! grep -n 'github.com/astrazds/fjgo/blob/main/docs/' docs/wiki/*.md
 ! grep -R 'TODO' internal/fjgoskill/skill/fjgo
 
 ./fjgo --version >/dev/null

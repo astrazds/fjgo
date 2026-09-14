@@ -101,7 +101,7 @@ fjgo -R origin repo branches list
 fjgo -R origin repo collaborators list
 fjgo -R origin repo branch-protection list
 fjgo -R origin repo edit --description "fjgo v1.4.3 validation preview" --dry-run --yes
-fjgo repo create fjgo-v1-4-1-preview --private --dry-run --yes
+fjgo repo create fjgo-v1-4-3-preview --private --dry-run --yes
 ```
 
 5. Validate release workflows:

@@ -9,20 +9,17 @@ Actions, repository settings, and the wider Forgejo API.
 
 The public npm launcher is `@astrazds/fjgo`. The command name remains `fjgo`.
 
-Start with [Getting Started](Getting-Started).
+Start with [Getting Started](Getting-Started.md).
 
 ## Canonical documentation
 
-The wiki is the short operator manual. The versioned files in the main
-repository remain the source of truth:
+The pages in `docs/wiki` are the short operator manual. The versioned files
+next to them remain the source of truth:
 
-- [CLI reference](https://github.com/astrazds/fjgo/blob/main/docs/cli-reference.md)
-- [Agent setup prompt](https://github.com/astrazds/fjgo/blob/main/docs/agent-setup-prompt.md)
-- [Codex plugin](https://github.com/astrazds/fjgo/blob/main/docs/codex-plugin.md)
-- [Development guide](https://github.com/astrazds/fjgo/blob/main/docs/development.md)
-- [AXI compliance](https://github.com/astrazds/fjgo/blob/main/docs/axi-compliance.md)
-- [Field validation](https://github.com/astrazds/fjgo/blob/main/docs/alpha.md)
-- [Changelog](https://github.com/astrazds/fjgo/blob/main/CHANGELOG.md)
-
-Wiki page sources are reviewed with the code under
-[`docs/wiki`](https://github.com/astrazds/fjgo/tree/main/docs/wiki).
+- [CLI reference](../cli-reference.md)
+- [Agent setup prompt](../agent-setup-prompt.md)
+- [Codex plugin](../codex-plugin.md)
+- [Development guide](../development.md)
+- [AXI compliance](../axi-compliance.md)
+- [Field validation](../alpha.md)
+- [Changelog](../../CHANGELOG.md)
