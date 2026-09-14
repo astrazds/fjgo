@@ -3,6 +3,9 @@
 Thanks for taking an interest in fjgo. Small, focused changes are easiest
 to review.
 
+Open issues and pull requests on GitHub at https://github.com/astrazds/fjgo.
+This clone's `origin` is GitHub. Use `gh` for tracker work here. Use `fjgo` only against a Forgejo host.
+
 ## Before opening a pull request
 
 1. Open an issue for behavior changes or substantial new work so the scope can

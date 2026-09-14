@@ -7,6 +7,8 @@ Guidance for agents working in this repository.
 `fjgo` is a small Go AXI-style CLI, optional agent session hook, installable
 Codex skill, and API client for the Forgejo API.
 
+This repository is hosted on GitHub. Do not use `fjgo -R origin` against this clone. Use `gh` for GitHub issues. The smoke commands below target the public Forgejo demo repo `kavemand/.forgejo`.
+
 Keep the project boring:
 
 - stdlib first

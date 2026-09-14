@@ -71,6 +71,8 @@ npx -y @astrazds/fjgo repo get
 An explicit `--repo` or `FJGO_REPO` wins over remote detection. `fjgo` does not
 guess repository context from unrelated files.
 
+Use `-R origin` only when that git remote is a Forgejo remote. GitHub and GitLab remotes are not Forgejo remotes. For those checkouts, pass `--host HOST --repo OWNER/REPO`.
+
 ## Output and safety
 
 Normal output uses TOON, a compact format designed for agents. Keep it as the
