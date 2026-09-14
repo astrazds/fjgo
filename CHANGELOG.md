@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v1.4.3 - 2026-09-14
+
+- Moved the project git remote, CI, skill install URL, native download URLs, and npm package listing to GitHub at `https://github.com/astrazds/fjgo`.
+- Tag releases now create GitHub releases and publish `@astrazds/fjgo`.
+- This repository's issues now live on GitHub. `fjgo` remains the Forgejo API client for Forgejo hosts.
+
 ## v1.4.2 - 2026-09-06
 
 - Aligned the public README and npm package listing with the portfolio project
