@@ -1,6 +1,6 @@
 {
   "name": "@astrazds/fjgo",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "Agent-first Forgejo CLI for coding agents.",
   "license": "MIT",
   "type": "module",

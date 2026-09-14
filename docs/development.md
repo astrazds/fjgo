@@ -194,7 +194,7 @@ report format.
 Build all default release archives and checksums:
 
 ```sh
-VERSION=v1.4.2 ./scripts/release.sh
+VERSION=v1.4.3 ./scripts/release.sh
 ```
 
 Build one target while testing:
@@ -206,7 +206,7 @@ VERSION=0.0.0-test TARGETS=linux/amd64 ./scripts/release.sh
 Smoke-test a published release:
 
 ```sh
-VERSION=v1.4.2 ./scripts/smoke-release.sh
+VERSION=v1.4.3 ./scripts/smoke-release.sh
 ```
 
 Pushing a `v*` tag runs verification, builds archives, creates a GitHub
@@ -220,8 +220,8 @@ the public registry as too similar to `svgo`. The installed binary name remains
 `fjgo`.
 
 The versions in `package.json` and the Codex plugin manifest must match the
-release tag without its leading `v`. For example, tag `v1.4.2` uses npm and
-plugin version `1.4.2`. The npm test suite validates the plugin package and
+release tag without its leading `v`. For example, tag `v1.4.3` uses npm and
+plugin version `1.4.3`. The npm test suite validates the plugin package and
 rejects version drift. The verification and release scripts also reject a
 `v*` tag whose version does not match both manifests.
 

@@ -56,9 +56,9 @@ That is the full setup. You do not need to clone this repository or run `npm ins
 ### Native archive
 
 ```sh
-curl -LO https://github.com/astrazds/fjgo/releases/download/v1.4.2/fjgo_v1.4.2_linux_amd64.tar.gz
-tar -xzf fjgo_v1.4.2_linux_amd64.tar.gz
-install -Dm755 fjgo_v1.4.2_linux_amd64/fjgo ~/.local/bin/fjgo
+curl -LO https://github.com/astrazds/fjgo/releases/download/v1.4.3/fjgo_v1.4.3_linux_amd64.tar.gz
+tar -xzf fjgo_v1.4.3_linux_amd64.tar.gz
+install -Dm755 fjgo_v1.4.3_linux_amd64/fjgo ~/.local/bin/fjgo
 ```
 
 Use `darwin` instead of `linux`, and `arm64` instead of `amd64`, when that matches the machine. Then run `fjgo` directly.
