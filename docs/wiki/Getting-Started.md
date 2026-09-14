@@ -72,6 +72,8 @@ npx -y @astrazds/fjgo -R origin issue list --state open
 `-R origin` resolves the owner and repository from that Git remote. You can
 instead pass `--repo OWNER/REPO` explicitly.
 
+Use `-R origin` only when that git remote is a Forgejo remote. GitHub and GitLab remotes are not Forgejo remotes. For those checkouts, pass `--host HOST --repo OWNER/REPO`.
+
 ## Preview a change
 
 Mutating commands require `--yes`. Use `--dry-run` first so the request can be

@@ -72,6 +72,8 @@ export FJGO_HOST=forgejo.example.com
 `+commandPrefix+` -R origin run list
 `+"```"+`
 
+Use `+"`-R origin`"+` only when that git remote is a Forgejo remote on `+"`FJGO_HOST`"+`. GitHub and GitLab remotes are not Forgejo remotes. For those checkouts, set `+"`FJGO_HOST`"+` and pass `+"`--repo OWNER/REPO`"+`.
+
 If there is no git remote, pass `+"`owner/repo`"+` to repo-scoped commands directly,
 use root or command-local `+"`--repo OWNER/REPO`"+`, or export `+"`FJGO_REPO=OWNER/REPO`"+`.
 For private instances or write tasks, rely on `+"`FJGO_TOKEN`"+` from the environment.

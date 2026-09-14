@@ -130,6 +130,11 @@ See [PRIVACY.md](https://github.com/astrazds/fjgo/blob/main/PRIVACY.md) for the 
 - Codex marketplace publication is separate from fjgo releases.
 - Ambient `FJGO_TOKEN` is ignored on the public demo API unless the host or base URL is set explicitly.
 
+## This repository
+
+Source, issues, and CI live on GitHub at https://github.com/astrazds/fjgo.
+Do not run `fjgo -R origin` in this clone. `origin` is GitHub. Use `gh` for this repo's issues. Use fjgo against a Forgejo host with `--host` and `--repo`.
+
 ## Project structure
 
 | Path | Purpose |

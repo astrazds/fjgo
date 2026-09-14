@@ -6,7 +6,7 @@ This project's git remote is GitHub. Do not use `fjgo -R origin` against this cl
 
 ## Conventions
 
-Run commands inside this clone. `gh` uses `github.com/astrazds/fjgo` from the `origin` remote after the GitHub cutover.
+Run commands inside this clone. `gh` uses `github.com/astrazds/fjgo` from the `origin` remote.
 
 - **Create an issue**: `gh issue create --title "..." --body-file issue.md`
 - **Read an issue**: `gh issue view <number> --comments`
