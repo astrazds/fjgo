@@ -103,7 +103,7 @@ base URL is explicitly configured.
 - `scripts/verify.sh`: full local verification gate
 - `docs/agent-setup-prompt.md`: copy/paste prompt for setting up a fresh coding
   agent with `fjgo`
-- `.forgejo/workflows/verify.yml`: push/PR verification and tag release archive
+- `.github/workflows/verify.yml`: push/PR verification and tag release archive
   upload
 - `CHANGELOG.md`: release notes for tagged versions
 - `swagger.v1.json`: pinned Swagger input for reproducible generation
@@ -210,13 +210,13 @@ real-world usage.
 
 When the `fjgo` CLI itself fails unexpectedly during repository work, do not
 silently work around it. Capture a minimal reproducible command, diagnose far
-enough to provide useful evidence, and create a Forgejo issue labelled
+enough to provide useful evidence, and create a GitHub issue labelled
 `needs-triage`. Continue the original task through a safe escape hatch when one
 exists, and keep the bug fix separate unless the user asks to implement it.
 
 ### Issue tracker
 
-Issues are tracked in this repository's Forgejo Issues using `fjgo`. See `docs/agents/issue-tracker.md`.
+Issues are tracked in this repository's GitHub Issues using `gh`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

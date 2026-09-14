@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/url"
 
-	"repos.astrazds.net/astrazds/fjgo/internal/forgejo"
+	"github.com/astrazds/fjgo/internal/forgejo"
 )
 
 func secretHelp() string {

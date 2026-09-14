@@ -14,8 +14,8 @@ import (
 	"strconv"
 	"strings"
 
-	"repos.astrazds.net/astrazds/fjgo/internal/fjgoskill"
-	"repos.astrazds.net/astrazds/fjgo/internal/forgejo"
+	"github.com/astrazds/fjgo/internal/fjgoskill"
+	"github.com/astrazds/fjgo/internal/forgejo"
 )
 
 const axiDescription = "Inspect and manage Forgejo repositories through a token-safe CLI for coding agents"

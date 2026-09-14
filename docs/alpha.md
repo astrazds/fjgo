@@ -10,7 +10,7 @@ inside a Forgejo-backed checkout.
 
 ```sh
 # Native binary (no Node.js):
-curl -LO https://repos.astrazds.net/astrazds/fjgo/releases/download/v1.4.2/fjgo_v1.4.2_linux_amd64.tar.gz
+curl -LO https://github.com/astrazds/fjgo/releases/download/v1.4.2/fjgo_v1.4.2_linux_amd64.tar.gz
 tar -xzf fjgo_v1.4.2_linux_amd64.tar.gz
 install -Dm755 fjgo_v1.4.2_linux_amd64/fjgo ~/.local/bin/fjgo
 

@@ -1,0 +1,11 @@
+ts	phase	decision	why	evidence	result
+2026-09-14T01:31:28Z	frame	GitHub is canonical host for astrazds/fjgo, Forgejo repo is kept	origin currently points at repos.astrazds.net and github.com/astrazds/fjgo does not exist	git remote -v, gh repo view astrazds/fjgo 404	framed
+2026-09-14T01:31:28Z	frame	skip architect and how explorers	owner, name, visibility, and host-only vs product-API split are already observed	gh auth login=astrazds, fjgo repo get public, grep host URLs	skipped
+2026-09-14T01:31:28Z	frame	do not delete the Forgejo repo or force-push shared branches	those writes are irreversible	poteto-mode autonomy pause	open
+2026-09-14T01:32:00Z	push	created github.com/astrazds/fjgo and pushed main, 7 topic branches, and 16 tags	need a GitHub remote before URL retarget	https://github.com/astrazds/fjgo, git ls-remote github	VERIFIED
+2026-09-14T01:36:37Z	releases	copied 16 Forgejo releases and 80 assets to GitHub	update and npm launcher need GitHub download URLs before the default host changes	gh release view v1.4.2, copied=80 skipped=0	VERIFIED
+2026-09-14T01:40:34Z	retarget	rewrote module path, launcher, update default, CI, and host docs to GitHub	GitHub is the canonical host, so live clone and install URLs must match	git diff --stat, 34 files then plugin.json	tests green
+2026-09-14T01:40:34Z	verify	./scripts/verify.sh and go run ./cmd/fjgo-benchmark passed with Go 1.26.8	prove the retarget on the real gate	mise exec go@1.26.8 -- ./scripts/verify.sh exit 0	tests green
+2026-09-14T01:40:34Z	verify	fjgo update --check and smoke-release used GitHub v1.4.2 assets	self-update and native install must work after the default URL change	asset_url github.com/astrazds/fjgo/releases/download/v1.4.2, HTTP 200	VERIFIED
+2026-09-14T01:40:34Z	review	skip Comment Sicko spawn, tool rejected the listed subagent type	no-comments skill requires it, spawn_subagent returned unknown type	git diff showed no new // comments	skipped
+2026-09-14T01:40:34Z	secrets	NPM_TOKEN is not in GitHub Actions secrets	tag publishes still need it, and Forgejo secrets cannot be read back	gh secret list empty, NPM_TOKEN env missing	open

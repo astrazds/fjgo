@@ -18,8 +18,8 @@ import (
 	"strings"
 	"time"
 
-	"repos.astrazds.net/astrazds/fjgo/internal/fjgoskill"
-	"repos.astrazds.net/astrazds/fjgo/internal/forgejo"
+	"github.com/astrazds/fjgo/internal/fjgoskill"
+	"github.com/astrazds/fjgo/internal/forgejo"
 )
 
 const defaultBaseURL = "https://v15.next.forgejo.org/api/v1"

@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"repos.astrazds.net/astrazds/fjgo/internal/forgejo"
+	"github.com/astrazds/fjgo/internal/forgejo"
 )
 
 func TestMain(m *testing.M) {

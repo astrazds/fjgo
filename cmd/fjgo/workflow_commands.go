@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"repos.astrazds.net/astrazds/fjgo/internal/forgejo"
+	"github.com/astrazds/fjgo/internal/forgejo"
 )
 
 var issueFields = []string{"number", "title", "state", "author", "comments", "labels", "updated", "url", "body"}

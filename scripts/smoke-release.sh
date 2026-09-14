@@ -4,7 +4,7 @@ set -eu
 version="${VERSION:?set VERSION, for example VERSION=v1.4.2}"
 os="${OS:-linux}"
 arch="${ARCH:-amd64}"
-base="${BASE_URL:-https://repos.astrazds.net/astrazds/fjgo/releases/download}"
+base="${BASE_URL:-https://github.com/astrazds/fjgo/releases/download}"
 name="fjgo_${version}_${os}_${arch}"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT

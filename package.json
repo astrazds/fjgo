@@ -17,7 +17,7 @@
   },
   "author": {
     "name": "Andrejs Strazds",
-    "url": "https://repos.astrazds.net/astrazds"
+    "url": "https://github.com/astrazds"
   },
   "keywords": [
     "agents",
@@ -33,11 +33,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://repos.astrazds.net/astrazds/fjgo.git"
+    "url": "git+https://github.com/astrazds/fjgo.git"
   },
-  "homepage": "https://repos.astrazds.net/astrazds/fjgo/wiki",
+  "homepage": "https://github.com/astrazds/fjgo",
   "bugs": {
-    "url": "https://repos.astrazds.net/astrazds/fjgo/issues"
+    "url": "https://github.com/astrazds/fjgo/issues"
   },
   "scripts": {
     "test": "node --test test/*.test.js",

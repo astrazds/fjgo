@@ -37,14 +37,16 @@ fjgo_smoke() {
 	FJGO_HOST="$smoke_host" FJGO_TOKEN= ./fjgo "$@"
 }
 
-test -f .forgejo/workflows/verify.yml
+test -f .github/workflows/verify.yml
 test -f docs/alpha.md
 test -f docs/agent-setup-prompt.md
 test -x scripts/smoke-auth.sh
 sh -n scripts/smoke-auth.sh
-! grep -R '\.forgejo/workflows/release\.yml' README.md AGENTS.md
-grep -q '\.forgejo/workflows/verify\.yml' README.md
-grep -q '\.forgejo/workflows/verify\.yml' AGENTS.md
+! grep -R '\.forgejo/workflows/' README.md AGENTS.md
+grep -q '\.github/workflows/verify\.yml' README.md
+grep -q '\.github/workflows/verify\.yml' AGENTS.md
+grep -q '^module github.com/astrazds/fjgo$' go.mod
+! grep -R --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.audit --exclude-dir=.gocache --exclude-dir=dist --exclude=CHANGELOG.md --exclude=alpha.md --exclude=fjgo 'repos\.astrazds\.net/astrazds/fjgo' .
 ! grep -R 'TODO' internal/fjgoskill/skill/fjgo
 
 ./fjgo --version >/dev/null

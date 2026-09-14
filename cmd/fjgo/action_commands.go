@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"repos.astrazds.net/astrazds/fjgo/internal/forgejo"
+	"github.com/astrazds/fjgo/internal/forgejo"
 )
 
 var runFields = []string{"id", "number", "title", "status", "workflow", "ref", "event", "created", "updated", "url", "sha"}

@@ -5,10 +5,13 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     if: github.event_name != 'push' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
-    runs-on: srv1-ci
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
@@ -23,7 +26,9 @@ jobs:
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: verify
-    runs-on: srv1-ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
@@ -38,9 +43,7 @@ jobs:
         run: VERSION="${GITHUB_REF_NAME}" ./scripts/release.sh
       - name: Create release and upload assets
         env:
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          API: ${{ github.server_url }}/api/v1
-          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
           set -eu
@@ -49,19 +52,7 @@ jobs:
           export TMPDIR="$GOTMPDIR"
           go build -o .gocache/write-release-body ./scripts/write-release-body.go
           .gocache/write-release-body
-          curl -fsS -X POST \
-            -H "Authorization: token $TOKEN" \
-            -H "Content-Type: application/json" \
-            --data-binary @/tmp/release-body.json \
-            "$API/repos/$REPO/releases" >/tmp/release.json
-          id="$(sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p' /tmp/release.json | head -n1)"
-          test -n "$id"
-          for asset in dist/*; do
-            curl -fsS -X POST \
-              -H "Authorization: token $TOKEN" \
-              -F "attachment=@$asset" \
-              "$API/repos/$REPO/releases/$id/assets?name=$(basename "$asset")" >/dev/null
-          done
+          gh release create "$TAG" dist/* --title "$TAG" --notes-file /tmp/release-notes.md
       - name: Publish npm launcher
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

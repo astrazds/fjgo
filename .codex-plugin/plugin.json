@@ -4,10 +4,10 @@
   "description": "Forgejo repository operations for coding agents through the fjgo CLI.",
   "author": {
     "name": "Andrejs Strazds",
-    "url": "https://repos.astrazds.net/astrazds"
+    "url": "https://github.com/astrazds"
   },
-  "homepage": "https://repos.astrazds.net/astrazds/fjgo",
-  "repository": "https://repos.astrazds.net/astrazds/fjgo",
+  "homepage": "https://github.com/astrazds/fjgo",
+  "repository": "https://github.com/astrazds/fjgo",
   "license": "MIT",
   "keywords": [
     "forgejo",
@@ -26,7 +26,7 @@
       "Forgejo Read",
       "Forgejo Write"
     ],
-    "websiteURL": "https://repos.astrazds.net/astrazds/fjgo",
+    "websiteURL": "https://github.com/astrazds/fjgo",
     "defaultPrompt": [
       "Inspect this Forgejo repository and summarize its open work.",
       "Triage open Forgejo issues and propose priorities.",
