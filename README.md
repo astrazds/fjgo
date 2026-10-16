@@ -106,7 +106,7 @@ flowchart LR
 ```sh
 npx -y @astrazds/fjgo -R origin issue list --state open
 npx -y @astrazds/fjgo -R origin pr checks 12
-npx -y @astrazds/fjgo issue create --title "Fix the login page" --dry-run --yes
+npx -y @astrazds/fjgo -R origin issue create --title "Fix the login page" --dry-run --yes
 ```
 
 ## Privacy
