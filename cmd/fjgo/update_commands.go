@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -84,8 +86,20 @@ func runUpdate(ctx context.Context, httpClient *http.Client, args []string, stdo
 	if assetURL == "" {
 		return fmt.Errorf("no release asset found for %s/%s", runtime.GOOS, runtime.GOARCH)
 	}
+	archiveName, _ := status["asset"].(string)
+	checksumsURL := releaseAssetURL(release, "checksums.txt")
+	if checksumsURL == "" {
+		return fmt.Errorf("release does not include checksums.txt")
+	}
+	checksums, err := updateClient.GetExternalRawResponse(ctx, checksumsURL)
+	if err != nil {
+		return err
+	}
 	asset, err := updateClient.GetExternalRawResponse(ctx, assetURL)
 	if err != nil {
+		return err
+	}
+	if err := verifyReleaseArchive(asset.Body, checksums.Body, archiveName); err != nil {
 		return err
 	}
 	exe, err := os.Executable()
@@ -109,7 +123,7 @@ func updateHelp() string {
 flags:
   --check              check the latest fjgo release without changing files
   --dry-run            show the selected release asset without changing files
-  --yes                replace the current executable with the selected asset
+  --yes                replace the current executable after checksums.txt matches
   --base-url <url>     API base URL that hosts fjgo releases
   --repo <owner/repo>  repository that publishes fjgo releases
   --json               output JSON instead of TOON
@@ -146,6 +160,62 @@ func updateStatus(release *forgejo.Release, baseURL, repo string) map[string]any
 		}
 	}
 	return status
+}
+
+func releaseAssetURL(release *forgejo.Release, name string) string {
+	if release == nil {
+		return ""
+	}
+	for _, asset := range release.Attachments {
+		if asset != nil && asset.Name == name {
+			return asset.DownloadURL
+		}
+	}
+	return ""
+}
+
+func verifyReleaseArchive(archive, checksums []byte, archiveName string) error {
+	expected, err := checksumFor(string(checksums), archiveName)
+	if err != nil {
+		return err
+	}
+	sum := sha256.Sum256(archive)
+	if hex.EncodeToString(sum[:]) != expected {
+		return fmt.Errorf("checksum mismatch for %s", archiveName)
+	}
+	return nil
+}
+
+func checksumFor(checksums, archiveName string) (string, error) {
+	for _, line := range strings.Split(checksums, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		hash, rest, ok := strings.Cut(line, " ")
+		if !ok || !isSHA256Hex(hash) {
+			continue
+		}
+		name := strings.TrimPrefix(strings.TrimSpace(rest), "*")
+		if name != "" && filepath.Base(name) == archiveName {
+			return strings.ToLower(hash), nil
+		}
+	}
+	return "", fmt.Errorf("release checksums do not contain %s", archiveName)
+}
+
+func isSHA256Hex(s string) bool {
+	if len(s) != 64 {
+		return false
+	}
+	for _, c := range s {
+		switch {
+		case c >= '0' && c <= '9', c >= 'a' && c <= 'f', c >= 'A' && c <= 'F':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func updateAssetName(tag string) string {
