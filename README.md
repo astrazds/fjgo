@@ -18,14 +18,14 @@
 Use normal `git` for commits, branches, and local files. Use `fjgo` for work that needs the Forgejo server.
 
 ```text
-$ npx -y @astrazds/fjgo -R origin issue list --state open
-count: 3 of 3 total
-issues[3]{number,title,state}:
-  12,Redact API diagnostics,open
-  9,Separate watch timeout,closed
-  4,Publish wiki manual,closed
-help[1]{command}:
-  Run `fjgo issue view 12` to see full details
+$ npx -y @astrazds/fjgo --repo demo/app issue list --state open
+count: 2
+issues[2]{number,title,state,author}:
+  12,Redact API diagnostics,open,ada
+  9,Separate watch timeout,open,grace
+help[2]{command}:
+  Run `fjgo --repo demo/app issue view <number>` to see issue details
+  "Run `fjgo --repo demo/app issue create --title \"...\" --body-file <path> --dry-run --yes` to create an issue"
 ```
 
 ## Why fjgo?
