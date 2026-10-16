@@ -245,6 +245,57 @@ func TestAXIFocusedSubcommandHelp(t *testing.T) {
 	}
 }
 
+func TestSubcommandHelpOmitsRejectedFlags(t *testing.T) {
+	cases := []struct {
+		name     string
+		helpArgs []string
+		probe    []string
+		flag     string
+	}{
+		{
+			name:     "issue edit label",
+			helpArgs: []string{"issue", "edit", "--help"},
+			probe:    []string{"issue", "edit", "1", "--label-id", "9", "--yes"},
+			flag:     "--label-id",
+		},
+		{
+			name:     "pr create assignee",
+			helpArgs: []string{"pr", "create", "--help"},
+			probe:    []string{"pr", "create", "--assignee", "alice", "--title", "t", "--head", "feature", "--yes"},
+			flag:     "--assignee",
+		},
+		{
+			name:     "pr create label",
+			helpArgs: []string{"pr", "create", "--help"},
+			probe:    []string{"pr", "create", "--label-id", "9", "--title", "t", "--head", "feature", "--yes"},
+			flag:     "--label-id",
+		},
+		{
+			name:     "pr create milestone",
+			helpArgs: []string{"pr", "create", "--help"},
+			probe:    []string{"pr", "create", "--milestone", "3", "--title", "t", "--head", "feature", "--yes"},
+			flag:     "--milestone",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			if err := run(t.Context(), tc.helpArgs, &stdout, &stderr); err != nil {
+				t.Fatalf("help error = %v\n%s", err, stderr.String())
+			}
+			if strings.Contains(stdout.String(), tc.flag) {
+				t.Fatalf("help advertises %s:\n%s", tc.flag, stdout.String())
+			}
+			stdout.Reset()
+			stderr.Reset()
+			code := runCLI(t.Context(), tc.probe, &stdout, &stderr)
+			if code != 2 || !strings.Contains(stdout.String(), "unknown flag "+tc.flag) {
+				t.Fatalf("code = %d, stdout = %s, stderr = %s", code, stdout.String(), stderr.String())
+			}
+		})
+	}
+}
+
 func TestAXICommandHelpSpecsAreComplete(t *testing.T) {
 	groups := map[string]map[string]commandHelpSpec{
 		"api":      apiCommandHelps(),
