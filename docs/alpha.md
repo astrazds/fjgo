@@ -213,6 +213,7 @@ Validated against the public `astrazds/fjgo` repository on 2026-07-22:
 Dogfooding found two small interface quirks. A literal API title of
 `Getting-Started` produced the unexpected slug `Getting-Started.-`; using the
 display title `Getting Started` produced the intended `Getting-Started` page.
-Also, generic API dry runs currently render TOON preview output even when
-`api --json` is selected. Neither blocked the workflow, and no live token or
-private response field is retained in this receipt.
+Also, generic API dry runs rendered TOON preview output even when
+`api --json` was selected. Previews now honor `--json`. Neither blocked the
+workflow, and no live token or private response field is retained in this
+receipt.
