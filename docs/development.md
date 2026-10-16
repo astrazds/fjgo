@@ -166,7 +166,7 @@ created, err := client.CreateCurrentUserRepo(ctx, &forgejo.CreateRepoOption{
 }, forgejo.RequestOptions{})
 ```
 
-Response reads are limited to 32 MiB. Multipart uploads stream files from disk.
+Buffered response reads stop at 32 MiB. A successful raw or file stream has no size cap. Error bodies on that stream path stay within the 32 MiB limit. Multipart uploads stream files from disk.
 Raw and streaming client methods are available for text, binary, and file
 responses.
 
