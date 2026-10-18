@@ -1,0 +1,47 @@
+name: Bug
+description: A fjgo command fails, prints the wrong result, or drops data.
+labels:
+  - bug
+  - needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe one bug. For a vulnerability, use the private report path in SECURITY.md. Do not paste tokens, passwords, or one-time codes.
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: The exact fjgo command, with secrets removed.
+      placeholder: fjgo issue list owner/repo --state open
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: What the command should have printed or done.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+      description: What happened, including the error text and the exit code.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `fjgo --version`.
+      placeholder: fjgo 1.4.3
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Operating system, and the Forgejo host version when the bug depends on the server.
+    validations:
+      required: false
