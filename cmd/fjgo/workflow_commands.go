@@ -55,166 +55,12 @@ examples:
   fjgo --repo OWNER/REPO issue time add 42 --seconds 900 --dry-run --yes`
 }
 
-func issueCommandHelps() map[string]commandHelpSpec {
-	helps := map[string]commandHelpSpec{
-		"list": {
-			Usage: "fjgo issue list [owner/repo] [flags]",
-			Flags: []string{
-				"--state <open|closed|all> (default open)",
-				"--labels <a,b>, --assignee <user>, --author <user>, --q <text>, --sort <key>",
-				"--limit <n> (default " + defaultListLimit + "), --page <n>",
-				"--fields <a,b,c>, --json",
-			},
-			Examples: []string{
-				"fjgo -R origin issue list --state open",
-				"fjgo issue list OWNER/REPO --fields number,title,state,author",
-			},
-		},
-		"view": {
-			Usage: "fjgo issue view [owner/repo] <number> [flags]",
-			Flags: []string{"--comments", "--full", "--fields <a,b,c>, --json"},
-			Examples: []string{
-				"fjgo -R origin issue view 42",
-				"fjgo issue view OWNER/REPO 42 --comments --full",
-			},
-		},
-		"create":       {Usage: "fjgo issue create [owner/repo] --title <text> [flags] --yes", Flags: []string{"--body <text>, --body-file <path>", "--assignee <user>, --label-id <id>, --milestone <id>", "--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin issue create --title \"Bug\" --body-file issue.md --dry-run --yes", "fjgo issue create OWNER/REPO --title \"Bug\" --yes"}},
-		"edit":         {Usage: "fjgo issue edit [owner/repo] <number> [flags] --yes", Flags: []string{"--title <text>, --body <text>, --body-file <path>", "--state <open|closed>, --assignee <user>, --milestone <id>", "--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin issue edit 42 --title \"New title\" --dry-run --yes", "fjgo issue edit OWNER/REPO 42 --body-file body.md --yes"}},
-		"close":        {Usage: "fjgo issue close [owner/repo] <number> --yes", Flags: []string{"--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin issue close 42 --dry-run --yes", "fjgo issue close OWNER/REPO 42 --yes"}},
-		"reopen":       {Usage: "fjgo issue reopen [owner/repo] <number> --yes", Flags: []string{"--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin issue reopen 42 --dry-run --yes", "fjgo issue reopen OWNER/REPO 42 --yes"}},
-		"comment":      {Usage: "fjgo issue comment [owner/repo] <number> --body <text> --yes", Flags: []string{"--body <text>, --body-file <path>", "--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin issue comment 42 --body \"done\" --dry-run --yes", "fjgo issue comment OWNER/REPO 42 --body-file comment.md --yes"}},
-		"pinned":       {Usage: "fjgo issue pinned [owner/repo] [--fields <a,b,c>] [--json]", Examples: []string{"fjgo -R origin issue pinned", "fjgo issue pinned OWNER/REPO --fields number,title,state"}},
-		"pin":          {Usage: "fjgo issue pin [owner/repo] <number> [position] --yes", Flags: []string{"--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin issue pin 42 --dry-run --yes", "fjgo issue pin OWNER/REPO 42 1 --yes"}},
-		"unpin":        {Usage: "fjgo issue unpin [owner/repo] <number> --yes", Flags: []string{"--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin issue unpin 42 --dry-run --yes", "fjgo issue unpin OWNER/REPO 42 --yes"}},
-		"move-pin":     {Usage: "fjgo issue move-pin [owner/repo] <number> <position> --yes", Flags: []string{"--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin issue move-pin 42 1 --dry-run --yes", "fjgo issue move-pin OWNER/REPO 42 1 --yes"}},
-		"dependencies": {Usage: "fjgo issue dependencies <list|add|remove> [owner/repo] <number> [other-number] [flags]", Flags: []string{"--limit <n> (default " + defaultListLimit + "), --page <n>, --fields <a,b,c>, --json", "--yes, --dry-run, --print-request"}, Examples: []string{"fjgo -R origin issue dependencies list 42", "fjgo issue dependencies add OWNER/REPO 42 7 --dry-run --yes"}},
-		"deps":         {Usage: "fjgo issue deps <list|add|remove> [owner/repo] <number> [other-number] [flags]", Flags: []string{"--limit <n> (default " + defaultListLimit + "), --page <n>, --fields <a,b,c>, --json", "--yes, --dry-run, --print-request"}, Examples: []string{"fjgo -R origin issue deps list 42", "fjgo issue deps add OWNER/REPO 42 7 --dry-run --yes"}},
-		"blocks":       {Usage: "fjgo issue blocks <add|remove> [owner/repo] <number> <other-number> --yes", Flags: []string{"--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin issue blocks add 42 7 --dry-run --yes", "fjgo issue blocks remove OWNER/REPO 42 7 --yes"}},
-		"reactions":    {Usage: "fjgo issue reactions <list|add|remove> [owner/repo] <number> [reaction] [flags]", Flags: []string{"--limit <n> (default " + defaultListLimit + "), --page <n>, --json", "--yes, --dry-run, --print-request"}, Examples: []string{"fjgo -R origin issue reactions list 42", "fjgo issue reactions add OWNER/REPO 42 +1 --dry-run --yes"}},
-		"react":        {Usage: "fjgo issue react [owner/repo] <number> <reaction> --yes", Flags: []string{"--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin issue react 42 +1 --dry-run --yes", "fjgo issue react OWNER/REPO 42 +1 --yes"}},
-		"deadline":     {Usage: "fjgo issue deadline <set|clear> [owner/repo] <number> [date] --yes", Flags: []string{"--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin issue deadline set 42 2026-08-01 --dry-run --yes", "fjgo issue deadline clear OWNER/REPO 42 --yes"}},
-		"time":         {Usage: "fjgo issue time <list|add|reset|delete> [owner/repo] <number> [flags]", Flags: []string{"--seconds <n>", "--limit <n> (default " + defaultListLimit + "), --page <n>, --json", "--yes, --dry-run, --print-request"}, Examples: []string{"fjgo -R origin issue time list 42", "fjgo issue time add OWNER/REPO 42 --seconds 900 --dry-run --yes"}},
-		"times":        {Usage: "fjgo issue times <list|add|reset|delete> [owner/repo] <number> [flags]", Flags: []string{"--seconds <n>", "--limit <n> (default " + defaultListLimit + "), --page <n>, --json", "--yes, --dry-run, --print-request"}, Examples: []string{"fjgo -R origin issue times list 42", "fjgo issue times add OWNER/REPO 42 --seconds 900 --dry-run --yes"}},
-	}
-	for command, spec := range issueNestedCommandHelps() {
-		helps[command] = spec
-	}
-	return helps
-}
-
-func issueNestedCommandHelps() map[string]commandHelpSpec {
-	listDependencies := commandHelpSpec{Usage: "fjgo issue dependencies list [owner/repo] <number> [flags]", Flags: []string{"--limit <n> (default " + defaultListLimit + "), --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin issue dependencies list 42", "fjgo issue dependencies list OWNER/REPO 42 --fields number,title,state"}}
-	mutateDependency := func(command string) commandHelpSpec {
-		return commandHelpSpec{Usage: "fjgo issue " + command + " [owner/repo] <number> <other-number> --yes", Flags: []string{"--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin issue " + command + " 42 7 --dry-run --yes", "fjgo issue " + command + " OWNER/REPO 42 7 --yes"}}
-	}
-	reactionList := commandHelpSpec{Usage: "fjgo issue reactions list [owner/repo] <number> [flags]", Flags: []string{"--limit <n> (default " + defaultListLimit + "), --page <n>", "--json"}, Examples: []string{"fjgo -R origin issue reactions list 42", "fjgo issue reactions list OWNER/REPO 42 --limit 100"}}
-	reactionMutate := func(action string) commandHelpSpec {
-		command := "reactions " + action
-		return commandHelpSpec{Usage: "fjgo issue " + command + " [owner/repo] <number> <reaction> --yes", Flags: []string{"--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin issue " + command + " 42 +1 --dry-run --yes", "fjgo issue " + command + " OWNER/REPO 42 +1 --yes"}}
-	}
-	deadline := func(action string) commandHelpSpec {
-		date := ""
-		if action == "set" {
-			date = " <YYYY-MM-DD>"
-		}
-		return commandHelpSpec{Usage: "fjgo issue deadline " + action + " [owner/repo] <number>" + date + " --yes", Flags: []string{"--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin issue deadline " + action + " 42" + date + " --dry-run --yes", "fjgo issue deadline " + action + " OWNER/REPO 42" + date + " --yes"}}
-	}
-	timeList := commandHelpSpec{Usage: "fjgo issue time list [owner/repo] <number> [flags]", Flags: []string{"--limit <n> (default " + defaultListLimit + "), --page <n>", "--user <user>, --since <timestamp>, --before <timestamp>", "--json"}, Examples: []string{"fjgo -R origin issue time list 42", "fjgo issue time list OWNER/REPO 42 --user alice"}}
-	timeAdd := commandHelpSpec{Usage: "fjgo issue time add [owner/repo] <number> --seconds <n> --yes", Flags: []string{"--user <user>", "--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin issue time add 42 --seconds 900 --dry-run --yes", "fjgo issue time add OWNER/REPO 42 --seconds 900 --yes"}}
-	timeMutate := func(action string) commandHelpSpec {
-		extra := ""
-		if action == "delete" {
-			extra = " <time-id>"
-		}
-		return commandHelpSpec{Usage: "fjgo issue time " + action + " [owner/repo] <number>" + extra + " --yes", Flags: []string{"--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin issue time " + action + " 42" + extra + " --dry-run --yes", "fjgo issue time " + action + " OWNER/REPO 42" + extra + " --yes"}}
-	}
-	helps := map[string]commandHelpSpec{
-		"dependencies list": listDependencies,
-		"deps list":         renamedCommandHelp(listDependencies, "dependencies", "deps"),
-		"reactions list":    reactionList,
-		"deadline set":      deadline("set"),
-		"deadline clear":    deadline("clear"),
-		"deadline delete":   renamedCommandHelp(deadline("clear"), "deadline clear", "deadline delete"),
-		"time list":         timeList,
-		"times list":        renamedCommandHelp(timeList, "issue time", "issue times"),
-		"time add":          timeAdd,
-		"times add":         renamedCommandHelp(timeAdd, "issue time", "issue times"),
-		"time reset":        timeMutate("reset"),
-		"times reset":       renamedCommandHelp(timeMutate("reset"), "issue time", "issue times"),
-		"time delete":       timeMutate("delete"),
-		"time remove":       renamedCommandHelp(timeMutate("delete"), "time delete", "time remove"),
-		"times delete":      renamedCommandHelp(timeMutate("delete"), "issue time", "issue times"),
-		"times remove":      renamedCommandHelp(renamedCommandHelp(timeMutate("delete"), "issue time", "issue times"), "times delete", "times remove"),
-	}
-	for _, prefix := range []string{"dependencies", "deps", "blocks"} {
-		for _, action := range []string{"add", "remove", "delete"} {
-			canonical := action
-			if canonical == "delete" {
-				canonical = "remove"
-			}
-			spec := mutateDependency(prefix + " " + canonical)
-			if action == "delete" {
-				spec = renamedCommandHelp(spec, prefix+" remove", prefix+" delete")
-			}
-			helps[prefix+" "+action] = spec
-		}
-	}
-	for _, action := range []string{"add", "remove", "delete"} {
-		canonical := action
-		if canonical == "delete" {
-			canonical = "remove"
-		}
-		spec := reactionMutate(canonical)
-		if action == "delete" {
-			spec = renamedCommandHelp(spec, "reactions remove", "reactions delete")
-		}
-		helps["reactions "+action] = spec
-	}
-	return helps
-}
-
 func runIssue(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if help, ok := subcommandHelp(args, issueHelp(), issueCommandHelps()); ok {
-		return writeHelp(stdout, help)
-	}
-	switch args[0] {
-	case "list":
-		return runIssueList(ctx, client, cfg, args[1:], stdout)
-	case "view":
-		return runIssueView(ctx, client, cfg, args[1:], stdout)
-	case "create":
-		return runIssueCreate(ctx, client, cfg, args[1:], stdout)
-	case "edit":
-		return runIssueEdit(ctx, client, cfg, args[1:], stdout)
-	case "close":
-		return runIssueState(ctx, client, cfg, args[1:], stdout, "closed")
-	case "reopen":
-		return runIssueState(ctx, client, cfg, args[1:], stdout, "open")
-	case "comment":
-		return runIssueComment(ctx, client, cfg, args[1:], stdout)
-	case "pinned":
-		return runIssuePinned(ctx, client, cfg, args[1:], stdout)
-	case "pin", "unpin", "move-pin":
-		return runIssuePin(ctx, client, cfg, args[1:], stdout, args[0])
-	case "dependencies", "deps":
-		return runIssueDependencies(ctx, client, cfg, args[1:], stdout, args[0])
-	case "blocks":
-		return runIssueDependencies(ctx, client, cfg, args[1:], stdout, args[0])
-	case "reactions":
-		return runIssueReactions(ctx, client, cfg, args[1:], stdout)
-	case "react":
-		return runIssueReactionMutate(ctx, client, cfg, args[1:], stdout, true)
-	case "deadline":
-		return runIssueDeadline(ctx, client, cfg, args[1:], stdout)
-	case "time", "times":
-		return runIssueTime(ctx, client, cfg, args[1:], stdout)
-	default:
-		return unknownSubcommandError("issue", args[0], []string{"list", "view", "create", "edit", "close", "reopen", "comment", "pinned", "pin", "unpin", "dependencies", "blocks", "reactions", "deadline", "time"})
-	}
+	return dispatchGroup(issueGroup(), ctx, client, cfg, args, stdout)
 }
 
 func runIssueList(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "issue list", []string{"--json", "--fields", "--state", "--labels", "--assignee", "--author", "--q", "--sort", "--limit", "--page"}, []string{"--fields", "--state", "--labels", "--assignee", "--author", "--q", "--sort", "--limit", "--page"}); err != nil {
+	if err := rejectUnknownFlags(args, "issue list", issueListFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -354,7 +200,7 @@ func validateIssueListLabels(ctx context.Context, client *forgejo.Client, ref re
 }
 
 func runIssueView(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "issue view", []string{"--json", "--fields", "--comments", "--full"}, []string{"--fields"}); err != nil {
+	if err := rejectUnknownFlags(args, "issue view", issueViewFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -416,7 +262,7 @@ func runIssueView(ctx context.Context, client *forgejo.Client, cfg runConfig, ar
 }
 
 func runIssueCreate(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "issue create", []string{"--title", "--body", "--body-file", "-body", "--assignee", "--label-id", "--milestone", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--title", "--body", "--body-file", "-body", "--assignee", "--label-id", "--milestone"}); err != nil {
+	if err := rejectUnknownFlags(args, "issue create", issueCreateFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -483,7 +329,7 @@ func runIssueCreate(ctx context.Context, client *forgejo.Client, cfg runConfig, 
 }
 
 func runIssueEdit(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "issue edit", []string{"--title", "--body", "--body-file", "-body", "--state", "--assignee", "--milestone", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--title", "--body", "--body-file", "-body", "--state", "--assignee", "--milestone"}); err != nil {
+	if err := rejectUnknownFlags(args, "issue edit", issueEditFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -553,7 +399,7 @@ func runIssueState(ctx context.Context, client *forgejo.Client, cfg runConfig, a
 	if state == "open" {
 		command = "issue reopen"
 	}
-	if err := rejectUnknownFlags(args, command, []string{"--yes", "--dry-run", "--print-request", "--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, command, issueMutationFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -588,7 +434,7 @@ func runIssueState(ctx context.Context, client *forgejo.Client, cfg runConfig, a
 }
 
 func runIssueComment(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "issue comment", []string{"--body", "--body-file", "-body", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--body", "--body-file", "-body"}); err != nil {
+	if err := rejectUnknownFlags(args, "issue comment", issueCommentFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -787,12 +633,12 @@ func runPR(ctx context.Context, client *forgejo.Client, cfg runConfig, args []st
 	case "patch":
 		return runPRDiffPatch(ctx, client, cfg, args[1:], stdout, "patch")
 	default:
-		return unknownSubcommandError("pr", args[0], []string{"list", "view", "create", "edit", "close", "reopen", "comment", "files", "commits", "checks", "merge", "review", "reviews", "review-requests", "review-comment", "update", "diff", "patch"})
+		return unknownSubcommandError(namedGroup("pr", "list", "view", "create", "edit", "close", "reopen", "comment", "files", "commits", "checks", "merge", "review", "reviews", "review-requests", "review-comment", "update", "diff", "patch"), args[0])
 	}
 }
 
 func runPRList(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "pr list", []string{"--json", "--fields", "--state", "--author", "--sort", "--limit", "--page"}, []string{"--fields", "--state", "--author", "--sort", "--limit", "--page"}); err != nil {
+	if err := rejectUnknownFlags(args, "pr list", newFlagSet([]string{"--json", "--fields", "--state", "--author", "--sort", "--limit", "--page"}, []string{"--fields", "--state", "--author", "--sort", "--limit", "--page"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -862,7 +708,7 @@ func runPRList(ctx context.Context, client *forgejo.Client, cfg runConfig, args 
 }
 
 func runPRView(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "pr view", []string{"--json", "--fields", "--full", "--reviews"}, []string{"--fields"}); err != nil {
+	if err := rejectUnknownFlags(args, "pr view", newFlagSet([]string{"--json", "--fields", "--full", "--reviews"}, []string{"--fields"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -911,7 +757,7 @@ func runPRView(ctx context.Context, client *forgejo.Client, cfg runConfig, args 
 }
 
 func runPREdit(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "pr edit", []string{"--title", "--body", "--body-file", "-body", "--state", "--base", "--assignee", "--label-id", "--milestone", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--title", "--body", "--body-file", "-body", "--state", "--base", "--assignee", "--label-id", "--milestone"}); err != nil {
+	if err := rejectUnknownFlags(args, "pr edit", newFlagSet([]string{"--title", "--body", "--body-file", "-body", "--state", "--base", "--assignee", "--label-id", "--milestone", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--title", "--body", "--body-file", "-body", "--state", "--base", "--assignee", "--label-id", "--milestone"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -993,7 +839,7 @@ func runPRState(ctx context.Context, client *forgejo.Client, cfg runConfig, args
 	if state == "open" {
 		command = "pr reopen"
 	}
-	if err := rejectUnknownFlags(args, command, []string{"--yes", "--dry-run", "--print-request", "--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, command, issueMutationFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -1028,7 +874,7 @@ func runPRState(ctx context.Context, client *forgejo.Client, cfg runConfig, args
 }
 
 func runPRComment(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "pr comment", []string{"--body", "--body-file", "-body", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--body", "--body-file", "-body"}); err != nil {
+	if err := rejectUnknownFlags(args, "pr comment", newFlagSet([]string{"--body", "--body-file", "-body", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--body", "--body-file", "-body"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -1060,7 +906,7 @@ func runPRComment(ctx context.Context, client *forgejo.Client, cfg runConfig, ar
 }
 
 func runPRCreate(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "pr create", []string{"--title", "--body", "--body-file", "-body", "--head", "--base", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--title", "--body", "--body-file", "-body", "--head", "--base"}); err != nil {
+	if err := rejectUnknownFlags(args, "pr create", newFlagSet([]string{"--title", "--body", "--body-file", "-body", "--head", "--base", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--title", "--body", "--body-file", "-body", "--head", "--base"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -1114,7 +960,7 @@ func runPRCreate(ctx context.Context, client *forgejo.Client, cfg runConfig, arg
 }
 
 func runPRFiles(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "pr files", []string{"--json", "--fields"}, []string{"--fields"}); err != nil {
+	if err := rejectUnknownFlags(args, "pr files", newFlagSet([]string{"--json", "--fields"}, []string{"--fields"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -1159,7 +1005,7 @@ func runPRFiles(ctx context.Context, client *forgejo.Client, cfg runConfig, args
 }
 
 func runPRCommits(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "pr commits", []string{"--json", "--fields"}, []string{"--fields"}); err != nil {
+	if err := rejectUnknownFlags(args, "pr commits", newFlagSet([]string{"--json", "--fields"}, []string{"--fields"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -1205,7 +1051,7 @@ func runPRCommits(ctx context.Context, client *forgejo.Client, cfg runConfig, ar
 }
 
 func runPRChecks(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "pr checks", []string{"--json", "--fields"}, []string{"--fields"}); err != nil {
+	if err := rejectUnknownFlags(args, "pr checks", newFlagSet([]string{"--json", "--fields"}, []string{"--fields"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -1263,7 +1109,7 @@ func runPRChecks(ctx context.Context, client *forgejo.Client, cfg runConfig, arg
 }
 
 func runPRMerge(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "pr merge", []string{"--method", "--delete-branch", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--method"}); err != nil {
+	if err := rejectUnknownFlags(args, "pr merge", newFlagSet([]string{"--method", "--delete-branch", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--method"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -1301,7 +1147,7 @@ func runPRMerge(ctx context.Context, client *forgejo.Client, cfg runConfig, args
 }
 
 func runPRReview(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "pr review", []string{"--approve", "--request-changes", "--comment", "--body", "--body-file", "-body", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--body", "--body-file", "-body"}); err != nil {
+	if err := rejectUnknownFlags(args, "pr review", newFlagSet([]string{"--approve", "--request-changes", "--comment", "--body", "--body-file", "-body", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--body", "--body-file", "-body"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)

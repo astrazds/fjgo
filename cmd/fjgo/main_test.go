@@ -300,7 +300,7 @@ func TestAXICommandHelpSpecsAreComplete(t *testing.T) {
 	groups := map[string]map[string]commandHelpSpec{
 		"api":      apiCommandHelps(),
 		"alias":    aliasCommandHelps(),
-		"issue":    issueCommandHelps(),
+		"issue":    issueGroup().helpSpecs(),
 		"label":    labelCommandHelps(),
 		"pr":       prCommandHelps(),
 		"release":  releaseCommandHelps(),
@@ -337,7 +337,7 @@ func TestAXIUnknownSubcommandSuggestsValidSubcommands(t *testing.T) {
 		t.Fatalf("code = %d", code)
 	}
 	got := stdout.String()
-	for _, want := range []string{"code: USAGE", "unknown issue command \\\"lsit\\\"", "valid subcommands for `issue`"} {
+	for _, want := range []string{"code: USAGE", "unknown issue command \\\"lsit\\\"", "valid subcommands for `issue`", "move-pin", "dependencies, deps", "reactions, react", "time, times"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("structured error missing %q:\n%s", want, got)
 		}

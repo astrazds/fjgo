@@ -41,12 +41,12 @@ func runSecret(ctx context.Context, client *forgejo.Client, cfg runConfig, args 
 	case "delete":
 		return runSecretDelete(ctx, client, cfg, args[1:], stdout)
 	default:
-		return unknownSubcommandError("secret", args[0], []string{"list", "set", "delete"})
+		return unknownSubcommandError(namedGroup("secret", "list", "set", "delete"), args[0])
 	}
 }
 
 func runSecretList(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "secret list", []string{"--json", "--fields", "--limit", "--page"}, []string{"--fields", "--limit", "--page"}); err != nil {
+	if err := rejectUnknownFlags(args, "secret list", newFlagSet([]string{"--json", "--fields", "--limit", "--page"}, []string{"--fields", "--limit", "--page"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -101,7 +101,7 @@ func runSecretList(ctx context.Context, client *forgejo.Client, cfg runConfig, a
 }
 
 func runSecretSet(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "secret set", []string{"--yes", "--dry-run", "--print-request", "--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, "secret set", newFlagSet([]string{"--yes", "--dry-run", "--print-request", "--json"}, nil)); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -132,7 +132,7 @@ func runSecretSet(ctx context.Context, client *forgejo.Client, cfg runConfig, ar
 }
 
 func runSecretDelete(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "secret delete", []string{"--yes", "--dry-run", "--print-request", "--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, "secret delete", newFlagSet([]string{"--yes", "--dry-run", "--print-request", "--json"}, nil)); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -191,12 +191,12 @@ func runVariable(ctx context.Context, client *forgejo.Client, cfg runConfig, arg
 	case "delete":
 		return runVariableDelete(ctx, client, cfg, args[1:], stdout)
 	default:
-		return unknownSubcommandError("variable", args[0], []string{"list", "get", "set", "delete"})
+		return unknownSubcommandError(namedGroup("variable", "list", "get", "set", "delete"), args[0])
 	}
 }
 
 func runVariableList(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "variable list", []string{"--json", "--fields", "--limit", "--page"}, []string{"--fields", "--limit", "--page"}); err != nil {
+	if err := rejectUnknownFlags(args, "variable list", newFlagSet([]string{"--json", "--fields", "--limit", "--page"}, []string{"--fields", "--limit", "--page"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -250,7 +250,7 @@ func runVariableList(ctx context.Context, client *forgejo.Client, cfg runConfig,
 }
 
 func runVariableGet(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "variable get", []string{"--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, "variable get", newFlagSet([]string{"--json"}, nil)); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -269,7 +269,7 @@ func runVariableGet(ctx context.Context, client *forgejo.Client, cfg runConfig, 
 }
 
 func runVariableSet(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "variable set", []string{"--body", "-body", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--body", "-body"}); err != nil {
+	if err := rejectUnknownFlags(args, "variable set", newFlagSet([]string{"--body", "-body", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--body", "-body"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -313,7 +313,7 @@ func runVariableSet(ctx context.Context, client *forgejo.Client, cfg runConfig, 
 }
 
 func runVariableDelete(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "variable delete", []string{"--yes", "--dry-run", "--print-request", "--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, "variable delete", newFlagSet([]string{"--yes", "--dry-run", "--print-request", "--json"}, nil)); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)

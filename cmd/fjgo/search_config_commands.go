@@ -50,12 +50,12 @@ func runSearch(ctx context.Context, client *forgejo.Client, cfg runConfig, args 
 	case "topics":
 		return runSearchTopics(ctx, client, args[1:], stdout)
 	default:
-		return unknownSubcommandError("search", args[0], []string{"issues", "prs", "repos", "topics"})
+		return unknownSubcommandError(namedGroup("search", "issues", "prs", "repos", "topics"), args[0])
 	}
 }
 
 func runSearchIssues(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, typ string) error {
-	if err := rejectUnknownFlags(args, "search "+typ, []string{"--repo", "--owner", "--state", "--labels", "--sort", "--limit", "--page", "--fields", "--json"}, []string{"--repo", "--owner", "--state", "--labels", "--sort", "--limit", "--page", "--fields"}); err != nil {
+	if err := rejectUnknownFlags(args, "search "+typ, newFlagSet([]string{"--repo", "--owner", "--state", "--labels", "--sort", "--limit", "--page", "--fields", "--json"}, []string{"--repo", "--owner", "--state", "--labels", "--sort", "--limit", "--page", "--fields"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -166,7 +166,7 @@ func runSearchIssues(ctx context.Context, client *forgejo.Client, cfg runConfig,
 }
 
 func runSearchRepos(ctx context.Context, client *forgejo.Client, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "search repos", []string{"--sort", "--limit", "--page", "--fields", "--json"}, []string{"--sort", "--limit", "--page", "--fields"}); err != nil {
+	if err := rejectUnknownFlags(args, "search repos", newFlagSet([]string{"--sort", "--limit", "--page", "--fields", "--json"}, []string{"--sort", "--limit", "--page", "--fields"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -231,7 +231,7 @@ func runSearchRepos(ctx context.Context, client *forgejo.Client, args []string, 
 }
 
 func runSearchTopics(ctx context.Context, client *forgejo.Client, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "search topics", []string{"--limit", "--page", "--json"}, []string{"--limit", "--page"}); err != nil {
+	if err := rejectUnknownFlags(args, "search topics", newFlagSet([]string{"--limit", "--page", "--json"}, []string{"--limit", "--page"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -300,12 +300,12 @@ func runLabel(ctx context.Context, client *forgejo.Client, cfg runConfig, args [
 	case "delete":
 		return runLabelDelete(ctx, client, cfg, args[1:], stdout)
 	default:
-		return unknownSubcommandError("label", args[0], []string{"list", "create", "edit", "delete"})
+		return unknownSubcommandError(namedGroup("label", "list", "create", "edit", "delete"), args[0])
 	}
 }
 
 func runLabelList(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "label list", []string{"--json", "--fields", "--limit", "--page"}, []string{"--fields", "--limit", "--page"}); err != nil {
+	if err := rejectUnknownFlags(args, "label list", newFlagSet([]string{"--json", "--fields", "--limit", "--page"}, []string{"--fields", "--limit", "--page"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -374,7 +374,7 @@ func runLabelMutate(ctx context.Context, client *forgejo.Client, cfg runConfig, 
 		command = "label edit"
 		operation = "issueEditLabel"
 	}
-	if err := rejectUnknownFlags(args, command, []string{"--name", "--color", "--description", "--exclusive", "--archived", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--name", "--color", "--description", "--exclusive", "--archived"}); err != nil {
+	if err := rejectUnknownFlags(args, command, newFlagSet([]string{"--name", "--color", "--description", "--exclusive", "--archived", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--name", "--color", "--description", "--exclusive", "--archived"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -445,7 +445,7 @@ func runLabelMutate(ctx context.Context, client *forgejo.Client, cfg runConfig, 
 }
 
 func runLabelDelete(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "label delete", []string{"--yes", "--dry-run", "--print-request", "--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, "label delete", newFlagSet([]string{"--yes", "--dry-run", "--print-request", "--json"}, nil)); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)

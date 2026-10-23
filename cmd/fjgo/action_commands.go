@@ -67,12 +67,12 @@ func runActions(ctx context.Context, client *forgejo.Client, cfg runConfig, args
 	case "watch":
 		return runActionWatch(ctx, client, cfg, args[1:], stdout)
 	default:
-		return unknownSubcommandError("run", args[0], []string{"list", "view", "watch"})
+		return unknownSubcommandError(namedGroup("run", "list", "view", "watch"), args[0])
 	}
 }
 
 func runActionList(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "run list", []string{"--json", "--fields", "--status", "--workflow", "--ref", "--event", "--sha", "--limit", "--page"}, []string{"--fields", "--status", "--workflow", "--ref", "--event", "--sha", "--limit", "--page"}); err != nil {
+	if err := rejectUnknownFlags(args, "run list", newFlagSet([]string{"--json", "--fields", "--status", "--workflow", "--ref", "--event", "--sha", "--limit", "--page"}, []string{"--fields", "--status", "--workflow", "--ref", "--event", "--sha", "--limit", "--page"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -137,7 +137,7 @@ func runActionList(ctx context.Context, client *forgejo.Client, cfg runConfig, a
 }
 
 func runActionView(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "run view", []string{"--json", "--fields", "--log-failed", "--full"}, []string{"--fields"}); err != nil {
+	if err := rejectUnknownFlags(args, "run view", newFlagSet([]string{"--json", "--fields", "--log-failed", "--full"}, []string{"--fields"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -176,7 +176,7 @@ func runActionView(ctx context.Context, client *forgejo.Client, cfg runConfig, a
 }
 
 func runActionWatch(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "run watch", []string{"--json", "--fields", "--interval", "--timeout"}, []string{"--fields", "--interval", "--timeout"}); err != nil {
+	if err := rejectUnknownFlags(args, "run watch", newFlagSet([]string{"--json", "--fields", "--interval", "--timeout"}, []string{"--fields", "--interval", "--timeout"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -354,12 +354,12 @@ func runWorkflow(ctx context.Context, client *forgejo.Client, cfg runConfig, arg
 	case "run":
 		return runWorkflowDispatch(ctx, client, cfg, args[1:], stdout)
 	default:
-		return unknownSubcommandError("workflow", args[0], []string{"list", "view", "run"})
+		return unknownSubcommandError(namedGroup("workflow", "list", "view", "run"), args[0])
 	}
 }
 
 func runWorkflowList(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "workflow list", []string{"--ref", "--json"}, []string{"--ref"}); err != nil {
+	if err := rejectUnknownFlags(args, "workflow list", newFlagSet([]string{"--ref", "--json"}, []string{"--ref"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -407,7 +407,7 @@ func runWorkflowList(ctx context.Context, client *forgejo.Client, cfg runConfig,
 }
 
 func runWorkflowView(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "workflow view", []string{"--ref", "--json", "--full"}, []string{"--ref"}); err != nil {
+	if err := rejectUnknownFlags(args, "workflow view", newFlagSet([]string{"--ref", "--json", "--full"}, []string{"--ref"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -445,7 +445,7 @@ func runWorkflowView(ctx context.Context, client *forgejo.Client, cfg runConfig,
 }
 
 func runWorkflowDispatch(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "workflow run", []string{"--ref", "--input", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--ref", "--input"}); err != nil {
+	if err := rejectUnknownFlags(args, "workflow run", newFlagSet([]string{"--ref", "--input", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--ref", "--input"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)

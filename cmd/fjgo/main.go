@@ -225,7 +225,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		if hasHelp(fs.Args()[1:]) {
 			return writeHelp(stdout, "usage: fjgo version\nShow the Forgejo server version.\n\nexamples:\n  fjgo version\n  fjgo --host forgejo.example.com version")
 		}
-		if err := rejectUnknownFlags(fs.Args()[1:], "version", nil, nil); err != nil {
+		if err := rejectUnknownFlags(fs.Args()[1:], "version", newFlagSet(nil, nil)); err != nil {
 			return err
 		}
 		if len(fs.Args()) != 1 {
@@ -240,7 +240,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		if hasHelp(fs.Args()[1:]) {
 			return writeHelp(stdout, "usage: fjgo me\nShow the authenticated Forgejo user summary.\n\nexamples:\n  fjgo me\n  fjgo --host forgejo.example.com me")
 		}
-		if err := rejectUnknownFlags(fs.Args()[1:], "me", nil, nil); err != nil {
+		if err := rejectUnknownFlags(fs.Args()[1:], "me", newFlagSet(nil, nil)); err != nil {
 			return err
 		}
 		if len(fs.Args()) != 1 {
@@ -258,7 +258,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		if hasHelp(cmdArgs) {
 			return writeHelp(stdout, "usage: fjgo get <path> [--json] [--full]\nexamples:\n  fjgo get /version\n  fjgo get /repos/OWNER/REPO --json")
 		}
-		if err := rejectUnknownFlags(cmdArgs, "get", []string{"--json", "--full"}, nil); err != nil {
+		if err := rejectUnknownFlags(cmdArgs, "get", newFlagSet([]string{"--json", "--full"}, nil)); err != nil {
 			return err
 		}
 		cmdArgs, jsonOut := takeJSONFlag(cmdArgs)
@@ -318,7 +318,7 @@ func runAPI(ctx context.Context, client *forgejo.Client, cfg runConfig, args []s
 	args, jsonOut := takeJSONFlag(args)
 	switch args[0] {
 	case "list":
-		if err := rejectUnknownFlags(args[1:], "api list", []string{"--json", "--fields"}, []string{"--fields"}); err != nil {
+		if err := rejectUnknownFlags(args[1:], "api list", newFlagSet([]string{"--json", "--fields"}, []string{"--fields"})); err != nil {
 			return err
 		}
 		var err error
@@ -346,7 +346,7 @@ func runAPI(ctx context.Context, client *forgejo.Client, cfg runConfig, args []s
 		}
 		return writeOperationsList(stdout, out, fields)
 	case "inspect":
-		if err := rejectUnknownFlags(args[1:], "api inspect", []string{"--json"}, nil); err != nil {
+		if err := rejectUnknownFlags(args[1:], "api inspect", newFlagSet([]string{"--json"}, nil)); err != nil {
 			return err
 		}
 		if len(args) != 2 {
@@ -370,7 +370,7 @@ func runAPI(ctx context.Context, client *forgejo.Client, cfg runConfig, args []s
 		rawArgs, full := takeFullFlag(args[1:])
 		return rawRequest(ctx, client, rawArgs, stdout, jsonOut, full)
 	default:
-		return unknownSubcommandError("api", args[0], []string{"list", "inspect", "call", "upload", "raw"})
+		return unknownSubcommandError(namedGroup("api", "list", "inspect", "call", "upload", "raw"), args[0])
 	}
 }
 
@@ -509,7 +509,7 @@ func callOperation(ctx context.Context, client *forgejo.Client, cfg runConfig, a
 	if hasHelp(args) {
 		return writeHelp(stdout, apiHelp())
 	}
-	if err := rejectUnknownFlags(args, "api call", []string{"-body", "-body-raw", "--content-type", "--accept", "--output", "--raw", "--include-response", "--yes", "--dry-run", "--print-request", "--json", "--full"}, []string{"-body", "-body-raw", "--content-type", "--accept", "--output"}); err != nil {
+	if err := rejectUnknownFlags(args, "api call", newFlagSet([]string{"-body", "-body-raw", "--content-type", "--accept", "--output", "--raw", "--include-response", "--yes", "--dry-run", "--print-request", "--json", "--full"}, []string{"-body", "-body-raw", "--content-type", "--accept", "--output"})); err != nil {
 		return err
 	}
 	args, input, err := takeAPIBodyInput(args)
@@ -635,7 +635,7 @@ func uploadOperation(ctx context.Context, client *forgejo.Client, cfg runConfig,
 	if hasHelp(args) {
 		return writeHelp(stdout, apiHelp())
 	}
-	if err := rejectUnknownFlags(args, "api upload", []string{"--include-response", "--yes", "--dry-run", "--print-request", "--json", "--full"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, "api upload", newFlagSet([]string{"--include-response", "--yes", "--dry-run", "--print-request", "--json", "--full"}, nil)); err != nil {
 		return err
 	}
 	args, includeResponse := takeIncludeResponse(args)
@@ -702,7 +702,7 @@ func rawRequest(ctx context.Context, client *forgejo.Client, args []string, stdo
 	if hasHelp(args) {
 		return writeHelp(stdout, apiHelp())
 	}
-	if err := rejectUnknownFlags(args, "api raw", []string{"-body", "-body-raw", "--content-type", "--accept", "--output", "--raw", "--include-response", "--yes", "--dry-run", "--print-request", "--json", "--full"}, []string{"-body", "-body-raw", "--content-type", "--accept", "--output"}); err != nil {
+	if err := rejectUnknownFlags(args, "api raw", newFlagSet([]string{"-body", "-body-raw", "--content-type", "--accept", "--output", "--raw", "--include-response", "--yes", "--dry-run", "--print-request", "--json", "--full"}, []string{"-body", "-body-raw", "--content-type", "--accept", "--output"})); err != nil {
 		return err
 	}
 	args, input, err := takeAPIBodyInput(args)
@@ -791,7 +791,7 @@ func runRepo(ctx context.Context, client *forgejo.Client, cfg runConfig, args []
 	case "create":
 		return runRepoCreate(ctx, client, args[1:], stdout, jsonOut, full)
 	case "get":
-		if err := rejectUnknownFlags(args[1:], "repo get", []string{"--json", "--fields"}, []string{"--fields"}); err != nil {
+		if err := rejectUnknownFlags(args[1:], "repo get", newFlagSet([]string{"--json", "--fields"}, []string{"--fields"})); err != nil {
 			return err
 		}
 		restArgs, fieldsArg, err := takeFieldsFlag(args[1:])
@@ -826,7 +826,7 @@ func runRepo(ctx context.Context, client *forgejo.Client, cfg runConfig, args []
 		if err != nil {
 			return newUsageError("usage: fjgo repo topics <owner/repo> [--set comma,separated,topics]", "Pass `owner/repo` or use `-R origin`")
 		}
-		if err := rejectUnknownFlags(rest, "repo topics", []string{"--set", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--set"}); err != nil {
+		if err := rejectUnknownFlags(rest, "repo topics", newFlagSet([]string{"--set", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--set"})); err != nil {
 			return err
 		}
 		args, yes := takeYesFlag(rest)
@@ -878,7 +878,7 @@ func runRepo(ctx context.Context, client *forgejo.Client, cfg runConfig, args []
 				return newUsageError("usage: fjgo repo avatar <owner/repo> <png> --yes", "Pass `owner/repo` or use `-R origin`")
 			}
 		}
-		if err := rejectUnknownFlags(rest, "repo avatar", []string{"--yes", "--dry-run", "--print-request"}, nil); err != nil {
+		if err := rejectUnknownFlags(rest, "repo avatar", newFlagSet([]string{"--yes", "--dry-run", "--print-request"}, nil)); err != nil {
 			return err
 		}
 		rest, yes := takeYesFlag(rest)
@@ -1047,7 +1047,7 @@ func releaseCommandHelps() map[string]commandHelpSpec {
 }
 
 func runReleaseCreate(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut, full bool) error {
-	if err := rejectUnknownFlags(args, "release create", []string{"--name", "--target", "--body", "--body-file", "--notes", "--notes-file", "-body", "--draft", "--prerelease", "--hide-archive-links", "--yes", "--dry-run", "--print-request", "--json", "--full"}, []string{"--name", "--target", "--body", "--body-file", "--notes", "--notes-file", "-body"}); err != nil {
+	if err := rejectUnknownFlags(args, "release create", newFlagSet([]string{"--name", "--target", "--body", "--body-file", "--notes", "--notes-file", "-body", "--draft", "--prerelease", "--hide-archive-links", "--yes", "--dry-run", "--print-request", "--json", "--full"}, []string{"--name", "--target", "--body", "--body-file", "--notes", "--notes-file", "-body"})); err != nil {
 		return err
 	}
 	args, err := normalizeReleaseNotesArgs(args)
@@ -1147,7 +1147,7 @@ func runReleaseCreate(ctx context.Context, client *forgejo.Client, cfg runConfig
 }
 
 func runReleaseUpload(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut, full bool) error {
-	if err := rejectUnknownFlags(args, "release upload", []string{"--yes", "--dry-run", "--print-request", "--json", "--full"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, "release upload", newFlagSet([]string{"--yes", "--dry-run", "--print-request", "--json", "--full"}, nil)); err != nil {
 		return err
 	}
 	args, yes := takeYesFlag(args)
@@ -1215,7 +1215,7 @@ func runRepoIssue(ctx context.Context, client *forgejo.Client, cfg runConfig, ar
 	}
 	switch args[0] {
 	case "close":
-		if err := rejectUnknownFlags(args[1:], "repo issue close", []string{"--yes", "--dry-run", "--print-request"}, nil); err != nil {
+		if err := rejectUnknownFlags(args[1:], "repo issue close", newFlagSet([]string{"--yes", "--dry-run", "--print-request"}, nil)); err != nil {
 			return err
 		}
 		args, yes := takeYesFlag(args[1:])
@@ -1246,7 +1246,7 @@ func runRepoIssue(ctx context.Context, client *forgejo.Client, cfg runConfig, ar
 		}
 		return writeJSONAsTOON(stdout, out, "issue", false)
 	case "comment":
-		if err := rejectUnknownFlags(args[1:], "repo issue comment", []string{"-body", "--yes", "--dry-run", "--print-request"}, []string{"-body"}); err != nil {
+		if err := rejectUnknownFlags(args[1:], "repo issue comment", newFlagSet([]string{"-body", "--yes", "--dry-run", "--print-request"}, []string{"-body"})); err != nil {
 			return err
 		}
 		args, body, err := takeBodyFlag(args[1:])
@@ -1277,7 +1277,7 @@ func runRepoIssue(ctx context.Context, client *forgejo.Client, cfg runConfig, ar
 		}
 		return writeJSONAsTOON(stdout, out, "comment", false)
 	default:
-		return unknownSubcommandError("repo issue", args[0], []string{"close", "comment"})
+		return unknownSubcommandError(namedGroup("repo issue", "close", "comment"), args[0])
 	}
 }
 
@@ -1285,7 +1285,7 @@ func runDoctor(ctx context.Context, client *forgejo.Client, cfg runConfig, args 
 	if hasHelp(args) {
 		return writeHelp(stdout, "usage: fjgo doctor [owner/repo] [--json]\n\nflags:\n  --json  output deterministic redacted JSON instead of TOON\n\nexamples:\n  fjgo -R origin doctor\n  fjgo doctor OWNER/REPO --json")
 	}
-	if err := rejectUnknownFlags(args, "doctor", []string{"--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, "doctor", newFlagSet([]string{"--json"}, nil)); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -1415,7 +1415,7 @@ func runSkill(args []string, stdout, stderr io.Writer) error {
 	case "generate":
 		return runSkillGenerate(args[1:], stdout)
 	default:
-		return unknownSubcommandError("skill", args[0], []string{"install", "status", "generate"})
+		return unknownSubcommandError(namedGroup("skill", "install", "status", "generate"), args[0])
 	}
 }
 
@@ -1551,7 +1551,7 @@ func runAliasInfo(args []string, stdout io.Writer) error {
 	args, jsonOut := takeJSONFlag(args)
 	switch args[0] {
 	case "list":
-		if err := rejectUnknownFlags(args[1:], "alias list", []string{"--json", "--fields"}, []string{"--fields"}); err != nil {
+		if err := rejectUnknownFlags(args[1:], "alias list", newFlagSet([]string{"--json", "--fields"}, []string{"--fields"})); err != nil {
 			return err
 		}
 		var err error
@@ -1583,7 +1583,7 @@ func runAliasInfo(args []string, stdout io.Writer) error {
 		}
 		return writeAliasList(stdout, aliases, fields)
 	case "collisions":
-		if err := rejectUnknownFlags(args[1:], "alias collisions", []string{"--json"}, nil); err != nil {
+		if err := rejectUnknownFlags(args[1:], "alias collisions", newFlagSet([]string{"--json"}, nil)); err != nil {
 			return err
 		}
 		if len(args) > 2 {
@@ -1617,7 +1617,7 @@ func runAliasInfo(args []string, stdout io.Writer) error {
 		}
 		return writeTOON(stdout, tableBlock("collisions", []string{"command", "kept", "skipped", "reason"}, rows))
 	case "omissions":
-		if err := rejectUnknownFlags(args[1:], "alias omissions", []string{"--json"}, nil); err != nil {
+		if err := rejectUnknownFlags(args[1:], "alias omissions", newFlagSet([]string{"--json"}, nil)); err != nil {
 			return err
 		}
 		if len(args) > 2 {
@@ -1653,7 +1653,7 @@ func runAliasInfo(args []string, stdout io.Writer) error {
 			tableBlock("omissions", []string{"operation", "reason", "use"}, rows),
 		})
 	case "inspect":
-		if err := rejectUnknownFlags(args[1:], "alias inspect", []string{"--json"}, nil); err != nil {
+		if err := rejectUnknownFlags(args[1:], "alias inspect", newFlagSet([]string{"--json"}, nil)); err != nil {
 			return err
 		}
 		if len(args) < 2 {
@@ -1668,7 +1668,7 @@ func runAliasInfo(args []string, stdout io.Writer) error {
 		}
 		return writeTOON(stdout, aliasBlocks(alias))
 	default:
-		return unknownSubcommandError("alias", args[0], []string{"list", "inspect", "collisions", "omissions"})
+		return unknownSubcommandError(namedGroup("alias", "list", "inspect", "collisions", "omissions"), args[0])
 	}
 }
 
@@ -1685,7 +1685,7 @@ func runModel(args []string, stdout io.Writer) error {
 	if len(args) == 0 || hasHelp(args) {
 		return writeHelp(stdout, "usage: fjgo model inspect <Model> [--json]\nexamples:\n  fjgo model inspect CreateIssueOption\n  fjgo model --json inspect CreateIssueOption")
 	}
-	if err := rejectUnknownFlags(args, "model inspect", []string{"--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, "model inspect", newFlagSet([]string{"--json"}, nil)); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -1720,7 +1720,7 @@ func runAlias(ctx context.Context, client *forgejo.Client, cfg runConfig, args [
 	if hasHelp(rest) {
 		return writeHelp(stdout, generatedAliasHelp(alias))
 	}
-	if err := rejectUnknownFlags(rest, strings.Join(alias.Command, " "), []string{"--json", "--full", "-body", "-body-raw", "--content-type", "--accept", "--output", "--raw", "--include-response", "--yes", "--dry-run", "--print-request"}, []string{"-body", "-body-raw", "--content-type", "--accept", "--output"}); err != nil {
+	if err := rejectUnknownFlags(rest, strings.Join(alias.Command, " "), newFlagSet([]string{"--json", "--full", "-body", "-body-raw", "--content-type", "--accept", "--output", "--raw", "--include-response", "--yes", "--dry-run", "--print-request"}, []string{"-body", "-body-raw", "--content-type", "--accept", "--output"})); err != nil {
 		return err
 	}
 	rest, jsonOut := takeJSONFlag(rest)
@@ -1974,7 +1974,7 @@ func runAuth(ctx context.Context, client *forgejo.Client, cfg runConfig, args []
 	if hasHelp(args) {
 		return writeHelp(stdout, "usage: fjgo auth status [--json]\nexamples:\n  fjgo auth status\n  fjgo -R origin auth status --json")
 	}
-	if err := rejectUnknownFlags(args, "auth status", []string{"--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, "auth status", newFlagSet([]string{"--json"}, nil)); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)

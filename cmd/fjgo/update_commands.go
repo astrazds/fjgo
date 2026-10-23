@@ -27,7 +27,7 @@ func runUpdate(ctx context.Context, httpClient *http.Client, args []string, stdo
 	if len(args) != 0 && hasHelp(args) {
 		return writeHelp(stdout, updateHelp())
 	}
-	if err := rejectUnknownFlags(args, "update", []string{"--check", "--yes", "--dry-run", "--print-request", "--json", "--base-url", "--repo"}, []string{"--base-url", "--repo"}); err != nil {
+	if err := rejectUnknownFlags(args, "update", newFlagSet([]string{"--check", "--yes", "--dry-run", "--print-request", "--json", "--base-url", "--repo"}, []string{"--base-url", "--repo"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)

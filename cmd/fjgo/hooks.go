@@ -454,7 +454,7 @@ func runHook(args []string, stdout io.Writer) error {
 	if len(args) == 0 || args[0] != "capture" {
 		return newUsageError("usage: fjgo hook capture")
 	}
-	if err := rejectUnknownFlags(args[1:], "hook capture", nil, nil); err != nil {
+	if err := rejectUnknownFlags(args[1:], "hook capture", newFlagSet(nil, nil)); err != nil {
 		return err
 	}
 	if len(args) != 1 {

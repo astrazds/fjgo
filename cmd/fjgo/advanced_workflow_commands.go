@@ -18,7 +18,7 @@ func runIssuePin(ctx context.Context, client *forgejo.Client, cfg runConfig, arg
 	if action == "move-pin" {
 		operation = "moveIssuePin"
 	}
-	if err := rejectUnknownFlags(args, command, []string{"--yes", "--dry-run", "--print-request", "--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, command, issueMutationFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -56,7 +56,7 @@ func runIssuePin(ctx context.Context, client *forgejo.Client, cfg runConfig, arg
 }
 
 func runIssuePinned(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "issue pinned", []string{"--json", "--fields"}, []string{"--fields"}); err != nil {
+	if err := rejectUnknownFlags(args, "issue pinned", issuePinnedFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -88,27 +88,8 @@ func runIssuePinned(ctx context.Context, client *forgejo.Client, cfg runConfig, 
 	return writeRows(stdout, "pinned_issues", rowsSelect(rows, fields), fields, 0, fmt.Sprintf("0 pinned issues found for %s/%s", ref.Owner, ref.Repo), nil)
 }
 
-func runIssueDependencies(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, kind string) error {
-	if len(args) == 0 || hasHelp(args) {
-		return writeHelp(stdout, "usage: fjgo issue "+kind+" <list|add|remove> [owner/repo] <number> [other-number] [flags]\nexamples:\n  fjgo --repo OWNER/REPO issue "+kind+" list 42\n  fjgo --repo OWNER/REPO issue "+kind+" add 42 7 --dry-run --yes\n  fjgo --repo OWNER/REPO issue "+kind+" remove 42 7 --dry-run --yes")
-	}
-	switch args[0] {
-	case "list":
-		if kind != "dependencies" && kind != "deps" {
-			return newUsageError("issue blocks does not support list", "Run `fjgo issue dependencies list <number>` to list issues that block a target")
-		}
-		return runIssueDependencyList(ctx, client, cfg, args[1:], stdout)
-	case "add":
-		return runIssueDependencyMutate(ctx, client, cfg, args[1:], stdout, kind, true)
-	case "remove", "delete":
-		return runIssueDependencyMutate(ctx, client, cfg, args[1:], stdout, kind, false)
-	default:
-		return unknownSubcommandError("issue "+kind, args[0], []string{"list", "add", "remove", "delete"})
-	}
-}
-
 func runIssueDependencyList(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "issue dependencies list", []string{"--json", "--fields", "--limit", "--page"}, []string{"--fields", "--limit", "--page"}); err != nil {
+	if err := rejectUnknownFlags(args, "issue dependencies list", issueDependencyListFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -160,7 +141,7 @@ func runIssueDependencyMutate(ctx context.Context, client *forgejo.Client, cfg r
 		action = "remove"
 	}
 	command := "issue " + kind + " " + action
-	if err := rejectUnknownFlags(args, command, []string{"--yes", "--dry-run", "--print-request", "--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, command, issueMutationFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -206,24 +187,8 @@ func runIssueDependencyMutate(ctx context.Context, client *forgejo.Client, cfg r
 	return writeJSONAsTOON(stdout, out, "issue", false)
 }
 
-func runIssueReactions(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if len(args) == 0 || hasHelp(args) {
-		return writeHelp(stdout, "usage: fjgo issue reactions <list|add|remove> [owner/repo] <number> [reaction] [flags]\nexamples:\n  fjgo --repo OWNER/REPO issue reactions list 42\n  fjgo --repo OWNER/REPO issue reactions add 42 +1 --dry-run --yes\n  fjgo --repo OWNER/REPO issue reactions remove 42 +1 --dry-run --yes")
-	}
-	switch args[0] {
-	case "list":
-		return runIssueReactionList(ctx, client, cfg, args[1:], stdout)
-	case "add":
-		return runIssueReactionMutate(ctx, client, cfg, args[1:], stdout, true)
-	case "remove", "delete":
-		return runIssueReactionMutate(ctx, client, cfg, args[1:], stdout, false)
-	default:
-		return unknownSubcommandError("issue reactions", args[0], []string{"list", "add", "remove", "delete"})
-	}
-}
-
 func runIssueReactionList(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "issue reactions list", []string{"--json", "--limit", "--page"}, []string{"--limit", "--page"}); err != nil {
+	if err := rejectUnknownFlags(args, "issue reactions list", issueReactionListFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -270,7 +235,7 @@ func runIssueReactionMutate(ctx context.Context, client *forgejo.Client, cfg run
 		operation = "issueDeleteIssueReaction"
 	}
 	command := "issue reactions " + action
-	if err := rejectUnknownFlags(args, command, []string{"--yes", "--dry-run", "--print-request", "--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, command, issueMutationFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -301,27 +266,20 @@ func runIssueReactionMutate(ctx context.Context, client *forgejo.Client, cfg run
 	return writeJSONAsTOON(stdout, out, "reaction", false)
 }
 
-func runIssueDeadline(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if len(args) == 0 || hasHelp(args) {
-		return writeHelp(stdout, "usage: fjgo issue deadline <set|clear> [owner/repo] <number> [date] --yes\nexamples:\n  fjgo --repo OWNER/REPO issue deadline set 42 2026-08-01 --dry-run --yes\n  fjgo --repo OWNER/REPO issue deadline clear 42 --dry-run --yes")
-	}
-	clear := args[0] == "clear" || args[0] == "delete"
-	if args[0] != "set" && !clear {
-		return unknownSubcommandError("issue deadline", args[0], []string{"set", "clear", "delete"})
-	}
-	restArgs := args[1:]
-	if err := rejectUnknownFlags(restArgs, "issue deadline "+args[0], []string{"--yes", "--dry-run", "--print-request", "--json"}, nil); err != nil {
+func runIssueDeadline(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, action string) error {
+	clear := action == "clear" || action == "delete"
+	if err := rejectUnknownFlags(args, "issue deadline "+action, issueMutationFlags); err != nil {
 		return err
 	}
-	restArgs, jsonOut := takeJSONFlag(restArgs)
-	restArgs, yes := takeYesFlag(restArgs)
-	restArgs, dryRun := takeDryRunFlag(restArgs)
-	ref, rest, err := repoFromArgs(cfg, restArgs)
+	args, jsonOut := takeJSONFlag(args)
+	args, yes := takeYesFlag(args)
+	args, dryRun := takeDryRunFlag(args)
+	ref, rest, err := repoFromArgs(cfg, args)
 	if err != nil || (!clear && len(rest) != 2) || (clear && len(rest) != 1) {
-		return newUsageError("usage: fjgo issue deadline " + args[0] + " [owner/repo] <number> [date] --yes")
+		return newUsageError("usage: fjgo issue deadline " + action + " [owner/repo] <number> [date] --yes")
 	}
 	if !yes {
-		return newUsageError("issue deadline " + args[0] + " requires --yes")
+		return newUsageError("issue deadline " + action + " requires --yes")
 	}
 	var due any
 	if !clear {
@@ -342,26 +300,8 @@ func runIssueDeadline(ctx context.Context, client *forgejo.Client, cfg runConfig
 	return writeJSONAsTOON(stdout, out, "deadline", false)
 }
 
-func runIssueTime(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if len(args) == 0 || hasHelp(args) {
-		return writeHelp(stdout, "usage: fjgo issue time <list|add|reset|delete> [owner/repo] <number> [flags]\nexamples:\n  fjgo --repo OWNER/REPO issue time list 42\n  fjgo --repo OWNER/REPO issue time add 42 --seconds 900 --dry-run --yes\n  fjgo --repo OWNER/REPO issue time reset 42 --dry-run --yes")
-	}
-	switch args[0] {
-	case "list":
-		return runIssueTimeList(ctx, client, cfg, args[1:], stdout)
-	case "add":
-		return runIssueTimeAdd(ctx, client, cfg, args[1:], stdout)
-	case "reset":
-		return runIssueTimeReset(ctx, client, cfg, args[1:], stdout)
-	case "delete", "remove":
-		return runIssueTimeDelete(ctx, client, cfg, args[1:], stdout)
-	default:
-		return unknownSubcommandError("issue time", args[0], []string{"list", "add", "reset", "delete", "remove"})
-	}
-}
-
 func runIssueTimeList(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "issue time list", []string{"--json", "--limit", "--page", "--user", "--since", "--before"}, []string{"--limit", "--page", "--user", "--since", "--before"}); err != nil {
+	if err := rejectUnknownFlags(args, "issue time list", issueTimeListFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -401,7 +341,7 @@ func runIssueTimeList(ctx context.Context, client *forgejo.Client, cfg runConfig
 }
 
 func runIssueTimeAdd(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "issue time add", []string{"--seconds", "--user", "--created", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--seconds", "--user", "--created"}); err != nil {
+	if err := rejectUnknownFlags(args, "issue time add", issueTimeAddFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -459,7 +399,7 @@ func runIssueTimeDelete(ctx context.Context, client *forgejo.Client, cfg runConf
 }
 
 func runIssueTimeDeleteLike(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, operation, command string, needsID bool) error {
-	if err := rejectUnknownFlags(args, command, []string{"--yes", "--dry-run", "--print-request", "--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, command, issueMutationFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -494,7 +434,7 @@ func runIssueTimeDeleteLike(ctx context.Context, client *forgejo.Client, cfg run
 }
 
 func runPRReviews(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "pr reviews", []string{"--json", "--limit", "--page"}, []string{"--limit", "--page"}); err != nil {
+	if err := rejectUnknownFlags(args, "pr reviews", newFlagSet([]string{"--json", "--limit", "--page"}, []string{"--limit", "--page"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -577,7 +517,7 @@ func runPRReviewRequests(ctx context.Context, client *forgejo.Client, cfg runCon
 		operation = "repoDeletePullReviewRequests"
 	}
 	command := "pr review-requests " + action
-	if err := rejectUnknownFlags(args, command, []string{"--reviewer", "--team", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--reviewer", "--team"}); err != nil {
+	if err := rejectUnknownFlags(args, command, newFlagSet([]string{"--reviewer", "--team", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--reviewer", "--team"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -620,7 +560,7 @@ func runPRReviewRequests(ctx context.Context, client *forgejo.Client, cfg runCon
 }
 
 func runPRReviewComment(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "pr review-comment", []string{"--body", "--body-file", "-body", "--path", "--new-line", "--old-line", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--body", "--body-file", "-body", "--path", "--new-line", "--old-line"}); err != nil {
+	if err := rejectUnknownFlags(args, "pr review-comment", newFlagSet([]string{"--body", "--body-file", "-body", "--path", "--new-line", "--old-line", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--body", "--body-file", "-body", "--path", "--new-line", "--old-line"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -669,7 +609,7 @@ func runPRReviewComment(ctx context.Context, client *forgejo.Client, cfg runConf
 }
 
 func runPRUpdate(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "pr update", []string{"--style", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--style"}); err != nil {
+	if err := rejectUnknownFlags(args, "pr update", newFlagSet([]string{"--style", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--style"})); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -710,7 +650,7 @@ func runPRUpdate(ctx context.Context, client *forgejo.Client, cfg runConfig, arg
 }
 
 func runPRDiffPatch(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, diffType string) error {
-	if err := rejectUnknownFlags(args, "pr "+diffType, []string{"--binary", "--full", "--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, "pr "+diffType, newFlagSet([]string{"--binary", "--full", "--json"}, nil)); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
