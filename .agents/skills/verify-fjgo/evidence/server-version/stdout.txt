@@ -1,0 +1,1 @@
+version: 15.0.10-1-efd3322a8e+gitea-1.22.0
