@@ -18,7 +18,7 @@ var branchProtectionFields = []string{"name", "branch", "required_approvals", "s
 var collaboratorFields = []string{"login", "full_name", "active", "admin", "url"}
 
 func runRepoList(ctx context.Context, client *forgejo.Client, args []string, stdout io.Writer, jsonOut bool) error {
-	if err := rejectUnknownFlags(args, "repo list", []string{"--json", "--fields", "--limit", "--page", "--user", "--org", "--q", "--sort", "--private"}, []string{"--fields", "--limit", "--page", "--user", "--org", "--q", "--sort", "--private"}); err != nil {
+	if err := rejectUnknownFlags(args, "repo list", repoListFlags); err != nil {
 		return err
 	}
 	args, fieldsArg, err := takeFieldsFlag(args)
@@ -105,10 +105,10 @@ func runRepoList(ctx context.Context, client *forgejo.Client, args []string, std
 }
 
 func runRepoCreate(ctx context.Context, client *forgejo.Client, args []string, stdout io.Writer, jsonOut, full bool) error {
-	if err := rejectUnknownFlags(args, "repo create", []string{"--org", "--name", "--description", "--website", "--default-branch", "--gitignores", "--license", "--readme", "--object-format", "--private", "--auto-init", "--template", "--yes", "--dry-run", "--print-request", "--json", "--full"}, []string{"--org", "--name", "--description", "--website", "--default-branch", "--gitignores", "--license", "--readme", "--object-format"}); err != nil {
+	if err := rejectUnknownFlags(args, "repo create", repoCreateFlags); err != nil {
 		return err
 	}
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	body := map[string]any{}
 	var org, name string
@@ -149,7 +149,7 @@ func runRepoCreate(ctx context.Context, client *forgejo.Client, args []string, s
 	if len(args) != 0 || name == "" {
 		return newUsageError("usage: fjgo repo create <name> [--org org] [flags] --yes")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError("repo create requires --yes")
 	}
 	body["name"] = name
@@ -161,7 +161,7 @@ func runRepoCreate(ctx context.Context, client *forgejo.Client, args []string, s
 	}
 	if dryRun {
 		op, _ := forgejo.OperationByID(operation)
-		return writeRequestPreview(stdout, requestPreview{Operation: op.ID, Method: op.Method, Path: previewPath(op, pathValues), Body: body, AuthPresent: clientHasAuth(client), RequiresYes: true, YesProvided: yes})
+		return writeRequestPreview(stdout, requestPreview{Operation: op.ID, Method: op.Method, Path: previewPath(op, pathValues), Body: body, AuthPresent: clientHasAuth(client), RequiresYes: true, YesProvided: yes.command != ""})
 	}
 	op, _ := forgejo.OperationByID(operation)
 	out, err := client.DoOperationRaw(ctx, op, pathValues, forgejo.RequestOptions{Body: body})
@@ -175,10 +175,10 @@ func runRepoCreate(ctx context.Context, client *forgejo.Client, args []string, s
 }
 
 func runRepoEdit(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut, full bool) error {
-	if err := rejectUnknownFlags(args, "repo edit", []string{"--name", "--description", "--website", "--default-branch", "--private", "--archived", "--has-issues", "--has-pulls", "--has-wiki", "--has-actions", "--yes", "--dry-run", "--print-request", "--json", "--full"}, []string{"--name", "--description", "--website", "--default-branch", "--private", "--archived", "--has-issues", "--has-pulls", "--has-wiki", "--has-actions"}); err != nil {
+	if err := rejectUnknownFlags(args, "repo edit", repoEditFlags); err != nil {
 		return err
 	}
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	body := map[string]any{}
 	var err error
@@ -213,7 +213,7 @@ func runRepoEdit(ctx context.Context, client *forgejo.Client, cfg runConfig, arg
 	if len(body) == 0 {
 		return newUsageError("repo edit requires at least one change")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError("repo edit requires --yes")
 	}
 	if dryRun {
@@ -231,10 +231,10 @@ func runRepoEdit(ctx context.Context, client *forgejo.Client, cfg runConfig, arg
 }
 
 func runRepoFork(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut, full bool) error {
-	if err := rejectUnknownFlags(args, "repo fork", []string{"--name", "--org", "--organization", "--yes", "--dry-run", "--print-request", "--json", "--full"}, []string{"--name", "--org", "--organization"}); err != nil {
+	if err := rejectUnknownFlags(args, "repo fork", repoForkFlags); err != nil {
 		return err
 	}
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	body := map[string]any{}
 	var name, org string
@@ -263,7 +263,7 @@ func runRepoFork(ctx context.Context, client *forgejo.Client, cfg runConfig, arg
 	if err != nil || len(rest) != 0 {
 		return newUsageError("usage: fjgo repo fork [owner/repo] [--name name] [--org org] --yes")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError("repo fork requires --yes")
 	}
 	if dryRun {
@@ -280,26 +280,8 @@ func runRepoFork(ctx context.Context, client *forgejo.Client, cfg runConfig, arg
 	return writeJSONAsTOON(stdout, out, "repository", full)
 }
 
-func runRepoBranches(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut bool) error {
-	if len(args) == 0 || hasHelp(args) {
-		return writeHelp(stdout, "usage: fjgo repo branches <list|get|create|delete> [owner/repo] [flags]\nexamples:\n  fjgo --repo OWNER/REPO repo branches list\n  fjgo --repo OWNER/REPO repo branches create --name feature --from main --dry-run --yes\n  fjgo --repo OWNER/REPO repo branches delete feature --dry-run --yes")
-	}
-	switch args[0] {
-	case "list":
-		return runRepoBranchesList(ctx, client, cfg, args[1:], stdout, jsonOut)
-	case "get":
-		return runRepoBranchGet(ctx, client, cfg, args[1:], stdout, jsonOut)
-	case "create":
-		return runRepoBranchCreate(ctx, client, cfg, args[1:], stdout, jsonOut)
-	case "delete", "remove":
-		return runRepoBranchDelete(ctx, client, cfg, args[1:], stdout, jsonOut)
-	default:
-		return unknownSubcommandError("repo branches", args[0], []string{"list", "get", "create", "delete", "remove"})
-	}
-}
-
 func runRepoBranchesList(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut bool) error {
-	if err := rejectUnknownFlags(args, "repo branches list", []string{"--json", "--fields", "--limit", "--page"}, []string{"--fields", "--limit", "--page"}); err != nil {
+	if err := rejectUnknownFlags(args, "repo branches list", repoBranchListFlags); err != nil {
 		return err
 	}
 	args, fieldsArg, err := takeFieldsFlag(args)
@@ -345,7 +327,7 @@ func runRepoBranchesList(ctx context.Context, client *forgejo.Client, cfg runCon
 }
 
 func runRepoBranchGet(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut bool) error {
-	if err := rejectUnknownFlags(args, "repo branches get", []string{"--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, "repo branches get", repoBranchGetFlags); err != nil {
 		return err
 	}
 	ref, rest, err := repoFromArgs(cfg, args)
@@ -363,10 +345,10 @@ func runRepoBranchGet(ctx context.Context, client *forgejo.Client, cfg runConfig
 }
 
 func runRepoBranchCreate(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut bool) error {
-	if err := rejectUnknownFlags(args, "repo branches create", []string{"--name", "--from", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--name", "--from"}); err != nil {
+	if err := rejectUnknownFlags(args, "repo branches create", repoBranchCreateFlags); err != nil {
 		return err
 	}
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	var name, from string
 	var err error
@@ -389,7 +371,7 @@ func runRepoBranchCreate(ctx context.Context, client *forgejo.Client, cfg runCon
 	if len(rest) != 0 || name == "" {
 		return newUsageError("usage: fjgo repo branches create [owner/repo] --name <branch> [--from ref] --yes")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError("repo branches create requires --yes")
 	}
 	body := map[string]any{"new_branch_name": name}
@@ -411,16 +393,16 @@ func runRepoBranchCreate(ctx context.Context, client *forgejo.Client, cfg runCon
 }
 
 func runRepoBranchDelete(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut bool) error {
-	if err := rejectUnknownFlags(args, "repo branches delete", []string{"--yes", "--dry-run", "--print-request", "--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, "repo branches delete", issueMutationFlags); err != nil {
 		return err
 	}
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	ref, rest, err := repoFromArgs(cfg, args)
 	if err != nil || len(rest) != 1 {
 		return newUsageError("usage: fjgo repo branches delete [owner/repo] <branch> --yes")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError("repo branches delete requires --yes")
 	}
 	if dryRun {
@@ -435,28 +417,8 @@ func runRepoBranchDelete(ctx context.Context, client *forgejo.Client, cfg runCon
 	return writeTOON(stdout, map[string]any{"branch": rest[0] + " deleted"})
 }
 
-func runRepoCollaborators(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut bool) error {
-	if len(args) == 0 || hasHelp(args) {
-		return writeHelp(stdout, "usage: fjgo repo collaborators <list|check|permission|add|remove> [owner/repo] [flags]\nexamples:\n  fjgo --repo OWNER/REPO repo collaborators list\n  fjgo --repo OWNER/REPO repo collaborators add alice --permission write --dry-run --yes\n  fjgo --repo OWNER/REPO repo collaborators permission alice")
-	}
-	switch args[0] {
-	case "list":
-		return runRepoCollaboratorsList(ctx, client, cfg, args[1:], stdout, jsonOut)
-	case "check", "get":
-		return runRepoCollaboratorCheck(ctx, client, cfg, args[1:], stdout, jsonOut)
-	case "permission":
-		return runRepoCollaboratorPermission(ctx, client, cfg, args[1:], stdout, jsonOut)
-	case "add":
-		return runRepoCollaboratorAdd(ctx, client, cfg, args[1:], stdout, jsonOut)
-	case "remove", "delete":
-		return runRepoCollaboratorRemove(ctx, client, cfg, args[1:], stdout, jsonOut)
-	default:
-		return unknownSubcommandError("repo collaborators", args[0], []string{"list", "check", "get", "permission", "add", "remove", "delete"})
-	}
-}
-
 func runRepoCollaboratorsList(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut bool) error {
-	if err := rejectUnknownFlags(args, "repo collaborators list", []string{"--json", "--fields", "--limit", "--page"}, []string{"--fields", "--limit", "--page"}); err != nil {
+	if err := rejectUnknownFlags(args, "repo collaborators list", repoCollabListFlags); err != nil {
 		return err
 	}
 	args, fieldsArg, err := takeFieldsFlag(args)
@@ -502,7 +464,7 @@ func runRepoCollaboratorsList(ctx context.Context, client *forgejo.Client, cfg r
 }
 
 func runRepoCollaboratorCheck(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut bool) error {
-	if err := rejectUnknownFlags(args, "repo collaborators check", []string{"--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, "repo collaborators check", repoCollabGetFlags); err != nil {
 		return err
 	}
 	ref, rest, err := repoFromArgs(cfg, args)
@@ -520,7 +482,7 @@ func runRepoCollaboratorCheck(ctx context.Context, client *forgejo.Client, cfg r
 }
 
 func runRepoCollaboratorPermission(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut bool) error {
-	if err := rejectUnknownFlags(args, "repo collaborators permission", []string{"--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, "repo collaborators permission", repoCollabGetFlags); err != nil {
 		return err
 	}
 	ref, rest, err := repoFromArgs(cfg, args)
@@ -544,10 +506,10 @@ func runRepoCollaboratorPermission(ctx context.Context, client *forgejo.Client, 
 }
 
 func runRepoCollaboratorAdd(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut bool) error {
-	if err := rejectUnknownFlags(args, "repo collaborators add", []string{"--permission", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--permission"}); err != nil {
+	if err := rejectUnknownFlags(args, "repo collaborators add", repoCollabAddFlags); err != nil {
 		return err
 	}
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	permission := "write"
 	var ok bool
@@ -563,7 +525,7 @@ func runRepoCollaboratorAdd(ctx context.Context, client *forgejo.Client, cfg run
 	if err != nil || len(rest) != 1 {
 		return newUsageError("usage: fjgo repo collaborators add [owner/repo] <user> [--permission read|write|admin] --yes")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError("repo collaborators add requires --yes")
 	}
 	body := map[string]any{"permission": permission}
@@ -580,16 +542,16 @@ func runRepoCollaboratorAdd(ctx context.Context, client *forgejo.Client, cfg run
 }
 
 func runRepoCollaboratorRemove(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut bool) error {
-	if err := rejectUnknownFlags(args, "repo collaborators remove", []string{"--yes", "--dry-run", "--print-request", "--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, "repo collaborators remove", issueMutationFlags); err != nil {
 		return err
 	}
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	ref, rest, err := repoFromArgs(cfg, args)
 	if err != nil || len(rest) != 1 {
 		return newUsageError("usage: fjgo repo collaborators remove [owner/repo] <user> --yes")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError("repo collaborators remove requires --yes")
 	}
 	if dryRun {
@@ -604,28 +566,8 @@ func runRepoCollaboratorRemove(ctx context.Context, client *forgejo.Client, cfg 
 	return writeTOON(stdout, map[string]any{"collaborator": rest[0] + " removed"})
 }
 
-func runRepoBranchProtection(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut, full bool) error {
-	if len(args) == 0 || hasHelp(args) {
-		return writeHelp(stdout, "usage: fjgo repo branch-protection <list|get|create|edit|delete> [owner/repo] [flags]\nexamples:\n  fjgo --repo OWNER/REPO repo branch-protection list\n  fjgo --repo OWNER/REPO repo branch-protection create --name main --required-approvals 1 --dry-run --yes\n  fjgo --repo OWNER/REPO repo branch-protection delete main --dry-run --yes")
-	}
-	switch args[0] {
-	case "list":
-		return runRepoBranchProtectionList(ctx, client, cfg, args[1:], stdout, jsonOut)
-	case "get":
-		return runRepoBranchProtectionGet(ctx, client, cfg, args[1:], stdout, jsonOut)
-	case "create":
-		return runRepoBranchProtectionMutate(ctx, client, cfg, args[1:], stdout, jsonOut, full, false)
-	case "edit":
-		return runRepoBranchProtectionMutate(ctx, client, cfg, args[1:], stdout, jsonOut, full, true)
-	case "delete", "remove":
-		return runRepoBranchProtectionDelete(ctx, client, cfg, args[1:], stdout, jsonOut)
-	default:
-		return unknownSubcommandError("repo branch-protection", args[0], []string{"list", "get", "create", "edit", "delete", "remove"})
-	}
-}
-
 func runRepoBranchProtectionList(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut bool) error {
-	if err := rejectUnknownFlags(args, "repo branch-protection list", []string{"--json", "--fields"}, []string{"--fields"}); err != nil {
+	if err := rejectUnknownFlags(args, "repo branch-protection list", repoProtectionListFlags); err != nil {
 		return err
 	}
 	args, fieldsArg, err := takeFieldsFlag(args)
@@ -661,7 +603,7 @@ func runRepoBranchProtectionList(ctx context.Context, client *forgejo.Client, cf
 }
 
 func runRepoBranchProtectionGet(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut bool) error {
-	if err := rejectUnknownFlags(args, "repo branch-protection get", []string{"--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, "repo branch-protection get", repoProtectionGetFlags); err != nil {
 		return err
 	}
 	ref, rest, err := repoFromArgs(cfg, args)
@@ -685,10 +627,10 @@ func runRepoBranchProtectionMutate(ctx context.Context, client *forgejo.Client, 
 		command = "repo branch-protection edit"
 		operation = "repoEditBranchProtection"
 	}
-	if err := rejectUnknownFlags(args, command, []string{"--name", "--required-approvals", "--status-check", "--enable-status-check", "--require-signed-commits", "--enable-push", "--apply-to-admins", "--yes", "--dry-run", "--print-request", "--json", "--full"}, []string{"--name", "--required-approvals", "--status-check", "--enable-status-check", "--require-signed-commits", "--enable-push", "--apply-to-admins"}); err != nil {
+	if err := rejectUnknownFlags(args, command, repoProtectionMutateFlags); err != nil {
 		return err
 	}
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	body := map[string]any{}
 	var name string
@@ -730,7 +672,7 @@ func runRepoBranchProtectionMutate(ctx context.Context, client *forgejo.Client, 
 	if len(rest) != 0 || name == "" {
 		return newUsageError("usage: fjgo " + command + " [owner/repo] <name> [flags] --yes")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError(command + " requires --yes")
 	}
 	extra := map[string]string{}
@@ -762,16 +704,16 @@ func runRepoBranchProtectionMutate(ctx context.Context, client *forgejo.Client, 
 }
 
 func runRepoBranchProtectionDelete(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut bool) error {
-	if err := rejectUnknownFlags(args, "repo branch-protection delete", []string{"--yes", "--dry-run", "--print-request", "--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, "repo branch-protection delete", issueMutationFlags); err != nil {
 		return err
 	}
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	ref, rest, err := repoFromArgs(cfg, args)
 	if err != nil || len(rest) != 1 {
 		return newUsageError("usage: fjgo repo branch-protection delete [owner/repo] <name> --yes")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError("repo branch-protection delete requires --yes")
 	}
 	if dryRun {

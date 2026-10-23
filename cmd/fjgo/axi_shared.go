@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -348,7 +349,10 @@ func repoPath(ref repoRef) map[string]string {
 	return map[string]string{"owner": ref.Owner, "repo": ref.Repo}
 }
 
-func writeMutationPreview(stdout io.Writer, client *forgejo.Client, operation string, ref repoRef, extraPath map[string]string, body any, yes bool) error {
+func writeMutationPreview(stdout io.Writer, client *forgejo.Client, operation string, ref repoRef, extraPath map[string]string, body any, yes yesToken) error {
+	if yes.command == "" {
+		return errors.New("mutation preview requires --yes")
+	}
 	op, ok := forgejo.OperationByID(operation)
 	if !ok {
 		return fmt.Errorf("unknown operation %q", operation)
@@ -364,6 +368,6 @@ func writeMutationPreview(stdout io.Writer, client *forgejo.Client, operation st
 		Body:        body,
 		AuthPresent: clientHasAuth(client),
 		RequiresYes: op.Method != http.MethodGet,
-		YesProvided: yes,
+		YesProvided: true,
 	})
 }

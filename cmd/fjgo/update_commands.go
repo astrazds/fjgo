@@ -27,12 +27,12 @@ func runUpdate(ctx context.Context, httpClient *http.Client, args []string, stdo
 	if len(args) != 0 && hasHelp(args) {
 		return writeHelp(stdout, updateHelp())
 	}
-	if err := rejectUnknownFlags(args, "update", []string{"--check", "--yes", "--dry-run", "--print-request", "--json", "--base-url", "--repo"}, []string{"--base-url", "--repo"}); err != nil {
+	if err := rejectUnknownFlags(args, "update", updateFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
 	args, check := boolFlag(args, "--check")
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	baseURL := getenv("FJGO_UPDATE_BASE_URL", defaultUpdateBaseURL)
 	repo := defaultUpdateRepo
@@ -79,7 +79,7 @@ func runUpdate(ctx context.Context, httpClient *http.Client, args []string, stdo
 		}
 		return writeTOON(stdout, map[string]any{"update": status})
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError("update requires --yes", "Run `fjgo update --check` to inspect the latest release first")
 	}
 	assetURL, _ := status["asset_url"].(string)

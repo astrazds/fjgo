@@ -17,7 +17,7 @@ var releaseListDefaultFields = []string{"id", "tag", "title", "draft", "prerelea
 var releaseViewDefaultFields = []string{"id", "tag", "title", "draft", "prerelease", "target", "body"}
 
 func runReleaseList(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut bool) error {
-	if err := rejectUnknownFlags(args, "release list", []string{"--json", "--fields", "--limit", "--page", "--draft", "--prerelease", "--q"}, []string{"--fields", "--limit", "--page", "--draft", "--prerelease", "--q"}); err != nil {
+	if err := rejectUnknownFlags(args, "release list", releaseListFlags); err != nil {
 		return err
 	}
 	args, fieldsArg, err := takeFieldsFlag(args)
@@ -74,7 +74,7 @@ func runReleaseList(ctx context.Context, client *forgejo.Client, cfg runConfig, 
 }
 
 func runReleaseView(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut, full bool) error {
-	if err := rejectUnknownFlags(args, "release view", []string{"--json", "--full", "--tag", "--fields"}, []string{"--fields"}); err != nil {
+	if err := rejectUnknownFlags(args, "release view", releaseViewFlags); err != nil {
 		return err
 	}
 	args, byTag := boolFlag(args, "--tag")
@@ -113,7 +113,7 @@ func runReleaseView(ctx context.Context, client *forgejo.Client, cfg runConfig, 
 }
 
 func runReleaseLatest(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut, full bool) error {
-	if err := rejectUnknownFlags(args, "release latest", []string{"--json", "--full", "--fields"}, []string{"--fields"}); err != nil {
+	if err := rejectUnknownFlags(args, "release latest", releaseLatestFlags); err != nil {
 		return err
 	}
 	args, fieldsArg, err := takeFieldsFlag(args)
@@ -143,14 +143,14 @@ func runReleaseLatest(ctx context.Context, client *forgejo.Client, cfg runConfig
 }
 
 func runReleaseEdit(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut, full bool) error {
-	if err := rejectUnknownFlags(args, "release edit", []string{"--tag-name", "--name", "--target", "--body", "--body-file", "--notes", "--notes-file", "-body", "--draft", "--prerelease", "--hide-archive-links", "--yes", "--dry-run", "--print-request", "--json", "--full"}, []string{"--tag-name", "--name", "--target", "--body", "--body-file", "--notes", "--notes-file", "-body", "--draft", "--prerelease", "--hide-archive-links"}); err != nil {
+	if err := rejectUnknownFlags(args, "release edit", releaseEditFlags); err != nil {
 		return err
 	}
 	args, err := normalizeReleaseNotesArgs(args)
 	if err != nil {
 		return err
 	}
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	args, bodyText, bodySet, err := takeBodyText(args, false)
 	if err != nil {
@@ -187,7 +187,7 @@ func runReleaseEdit(ctx context.Context, client *forgejo.Client, cfg runConfig, 
 	if len(body) == 0 {
 		return newUsageError("release edit requires at least one change")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError("release edit requires --yes")
 	}
 	if dryRun {
@@ -207,17 +207,17 @@ func runReleaseEdit(ctx context.Context, client *forgejo.Client, cfg runConfig, 
 }
 
 func runReleaseDelete(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut bool) error {
-	if err := rejectUnknownFlags(args, "release delete", []string{"--tag", "--yes", "--dry-run", "--print-request", "--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, "release delete", releaseDeleteFlags); err != nil {
 		return err
 	}
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	args, byTag := boolFlag(args, "--tag")
 	ref, rest, err := repoFromArgs(cfg, args)
 	if err != nil || len(rest) != 1 {
 		return newUsageError("usage: fjgo release delete [owner/repo] <id|tag> --yes")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError("release delete requires --yes")
 	}
 	operation := "repoDeleteRelease"
@@ -247,22 +247,8 @@ func runReleaseDelete(ctx context.Context, client *forgejo.Client, cfg runConfig
 	return writeTOON(stdout, map[string]any{"release": rest[0] + " deleted"})
 }
 
-func runReleaseAssets(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut bool) error {
-	if len(args) == 0 || hasHelp(args) {
-		return writeHelp(stdout, "usage: fjgo release assets <list|delete> [owner/repo] <release-id> [asset-id] [flags]\nexamples:\n  fjgo --repo OWNER/REPO release assets list 123\n  fjgo --repo OWNER/REPO release assets delete 123 456 --dry-run --yes")
-	}
-	switch args[0] {
-	case "list":
-		return runReleaseAssetsList(ctx, client, cfg, args[1:], stdout, jsonOut)
-	case "delete", "remove":
-		return runReleaseAssetDelete(ctx, client, cfg, args[1:], stdout, jsonOut)
-	default:
-		return unknownSubcommandError("release assets", args[0], []string{"list", "delete", "remove"})
-	}
-}
-
 func runReleaseAssetsList(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut bool) error {
-	if err := rejectUnknownFlags(args, "release assets list", []string{"--json", "--fields"}, []string{"--fields"}); err != nil {
+	if err := rejectUnknownFlags(args, "release assets list", releaseAssetListFlags); err != nil {
 		return err
 	}
 	args, fieldsArg, err := takeFieldsFlag(args)
@@ -298,16 +284,16 @@ func runReleaseAssetsList(ctx context.Context, client *forgejo.Client, cfg runCo
 }
 
 func runReleaseAssetDelete(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, jsonOut bool) error {
-	if err := rejectUnknownFlags(args, "release assets delete", []string{"--yes", "--dry-run", "--print-request", "--json"}, nil); err != nil {
+	if err := rejectUnknownFlags(args, "release assets delete", releaseAssetDeleteFlags); err != nil {
 		return err
 	}
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	ref, rest, err := repoFromArgs(cfg, args)
 	if err != nil || len(rest) != 2 {
 		return newUsageError("usage: fjgo release assets delete [owner/repo] <release-id> <asset-id> --yes")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError("release assets delete requires --yes")
 	}
 	extra := map[string]string{"id": rest[0], "attachment_id": rest[1]}

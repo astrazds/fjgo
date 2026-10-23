@@ -113,13 +113,6 @@ func unknownFlagError(command, flag string, valid []string) error {
 	return newUsageError(fmt.Sprintf("unknown flag %s for `%s`", flag, command), help)
 }
 
-func unknownSubcommandError(command, got string, valid []string) error {
-	return newUsageError(
-		fmt.Sprintf("unknown %s command %q", command, got),
-		fmt.Sprintf("valid subcommands for `%s`: %s", command, strings.Join(valid, ", ")),
-	)
-}
-
 func unknownCommandError(got string, valid []string) error {
 	return newUsageError(
 		fmt.Sprintf("unknown command %q", got),
@@ -133,15 +126,6 @@ func rootFlags() []string {
 
 func rootValueFlags() []string {
 	return []string{"-R", "-base-url", "-timeout", "-token", "--host", "--otp", "--password", "--repo", "--repo-from-remote", "--sudo", "--username"}
-}
-
-func rootCommands() []string {
-	return []string{
-		"setup", "hook", "doctor", "context", "version", "me", "auth", "whoami",
-		"get", "api", "alias", "model", "repo", "issue", "pr", "pull", "run",
-		"workflow", "search", "label", "secret", "variable", "release", "update",
-		"skill", "install",
-	}
 }
 
 func rejectUnknownRootFlags(args []string) error {
@@ -179,41 +163,8 @@ func rejectUnknownRootFlags(args []string) error {
 	return nil
 }
 
-func rejectUnknownFlags(args []string, command string, allowed, valueFlags []string) error {
-	allowedSet := map[string]bool{"--help": true}
-	valueSet := map[string]bool{}
-	for _, flag := range allowed {
-		allowedSet[flag] = true
-	}
-	for _, flag := range valueFlags {
-		valueSet[flag] = true
-	}
-	valid := slices.Clone(allowed)
-	sortFlags(valid)
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		if arg == "--" {
-			return nil
-		}
-		if !strings.HasPrefix(arg, "-") || arg == "-" {
-			continue
-		}
-		name := arg
-		if before, _, ok := strings.Cut(arg, "="); ok {
-			name = before
-		}
-		if !allowedSet[name] {
-			return unknownFlagError(command, name, valid)
-		}
-		if valueSet[name] && !strings.Contains(arg, "=") {
-			i++
-		}
-	}
-	return nil
-}
-
-func parseKnownFlagSet(fs *flag.FlagSet, args []string, command string, allowed, valueFlags []string) error {
-	if err := rejectUnknownFlags(args, command, allowed, valueFlags); err != nil {
+func parseKnownFlagSet(fs *flag.FlagSet, args []string, command string, flags flagSet) error {
+	if err := rejectUnknownFlags(args, command, flags); err != nil {
 		return err
 	}
 	if err := fs.Parse(args); err != nil {
