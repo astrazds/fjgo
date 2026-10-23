@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
@@ -135,6 +136,29 @@ func dispatchGroup(g commandGroup, ctx context.Context, client *forgejo.Client, 
 	return unknownSubcommandError(g, matched)
 }
 
+func deferBoolFlags(args []string, names ...string) []string {
+	set := map[string]bool{}
+	for _, name := range names {
+		set[name] = true
+	}
+	rest := make([]string, 0, len(args))
+	flags := make([]string, 0, len(names))
+	for _, arg := range args {
+		if set[arg] {
+			flags = append(flags, arg)
+			continue
+		}
+		rest = append(rest, arg)
+	}
+	return append(rest, flags...)
+}
+
+func peelJSONFull(args []string) ([]string, bool, bool) {
+	args, jsonOut := takeJSONFlag(args)
+	args, full := takeFullFlag(args)
+	return args, jsonOut, full
+}
+
 func runLeaf(fn func(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error) leafFunc {
 	return func(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, matched string) error {
 		return fn(ctx, client, cfg, args, stdout)
@@ -148,12 +172,39 @@ func unknownSubcommandError(g commandGroup, got string) error {
 	)
 }
 
-func namedGroup(name string, names ...string) commandGroup {
-	leaves := make([]commandLeaf, 0, len(names))
-	for _, n := range names {
-		leaves = append(leaves, commandLeaf{names: []string{n}})
+func dropYesFlag(args []string) ([]string, bool) {
+	out := make([]string, 0, len(args))
+	seen := false
+	for _, arg := range args {
+		if arg == "--yes" {
+			seen = true
+			continue
+		}
+		out = append(out, arg)
 	}
-	return commandGroup{name: name, leaves: leaves}
+	return out, seen
+}
+
+func takeCuratedYes(args []string, policy mutationPolicy) ([]string, yesToken, error) {
+	rest, seen := dropYesFlag(args)
+	if policy == mutationRequired && !seen {
+		return nil, yesToken{}, errors.New("requires --yes")
+	}
+	if !seen {
+		return rest, yesToken{}, nil
+	}
+	return rest, yesToken{command: "yes"}, nil
+}
+
+func takeGeneratedYes(args []string, alias forgejo.Alias) ([]string, yesToken, error) {
+	rest, seen := dropYesFlag(args)
+	if alias.Unsafe && !seen {
+		return nil, yesToken{}, fmt.Errorf("%s requires --yes", strings.Join(alias.Command, " "))
+	}
+	if !seen {
+		return rest, yesToken{}, nil
+	}
+	return rest, yesToken{command: strings.Join(alias.Command, " ")}, nil
 }
 
 func rejectUnknownFlags(args []string, command string, flags flagSet) error {

@@ -128,15 +128,6 @@ func rootValueFlags() []string {
 	return []string{"-R", "-base-url", "-timeout", "-token", "--host", "--otp", "--password", "--repo", "--repo-from-remote", "--sudo", "--username"}
 }
 
-func rootCommands() []string {
-	return []string{
-		"setup", "hook", "doctor", "context", "version", "me", "auth", "whoami",
-		"get", "api", "alias", "model", "repo", "issue", "pr", "pull", "run",
-		"workflow", "search", "label", "secret", "variable", "release", "update",
-		"skill", "install",
-	}
-}
-
 func rejectUnknownRootFlags(args []string) error {
 	allowed := rootFlags()
 	valueFlags := rootValueFlags()
@@ -172,8 +163,8 @@ func rejectUnknownRootFlags(args []string) error {
 	return nil
 }
 
-func parseKnownFlagSet(fs *flag.FlagSet, args []string, command string, allowed, valueFlags []string) error {
-	if err := rejectUnknownFlags(args, command, newFlagSet(allowed, valueFlags)); err != nil {
+func parseKnownFlagSet(fs *flag.FlagSet, args []string, command string, flags flagSet) error {
+	if err := rejectUnknownFlags(args, command, flags); err != nil {
 		return err
 	}
 	if err := fs.Parse(args); err != nil {

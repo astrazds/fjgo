@@ -22,13 +22,13 @@ func runIssuePin(ctx context.Context, client *forgejo.Client, cfg runConfig, arg
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	ref, rest, err := repoFromArgs(cfg, args)
 	if err != nil || (action != "move-pin" && len(rest) != 1) || (action == "move-pin" && len(rest) != 2) {
 		return newUsageError("usage: fjgo " + command + " [owner/repo] <number> [position] --yes")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError(command + " requires --yes")
 	}
 	extra := map[string]string{"index": rest[0]}
@@ -145,13 +145,13 @@ func runIssueDependencyMutate(ctx context.Context, client *forgejo.Client, cfg r
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	ref, rest, err := repoFromArgs(cfg, args)
 	if err != nil || len(rest) != 2 {
 		return newUsageError("usage: fjgo " + command + " [owner/repo] <number> <other-number> --yes")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError(command + " requires --yes")
 	}
 	other, err := parseInt64Value("other-number", rest[1])
@@ -239,13 +239,13 @@ func runIssueReactionMutate(ctx context.Context, client *forgejo.Client, cfg run
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	ref, rest, err := repoFromArgs(cfg, args)
 	if err != nil || len(rest) != 2 {
 		return newUsageError("usage: fjgo " + command + " [owner/repo] <number> <reaction> --yes")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError(command + " requires --yes")
 	}
 	body := map[string]any{"content": rest[1]}
@@ -272,13 +272,13 @@ func runIssueDeadline(ctx context.Context, client *forgejo.Client, cfg runConfig
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	ref, rest, err := repoFromArgs(cfg, args)
 	if err != nil || (!clear && len(rest) != 2) || (clear && len(rest) != 1) {
 		return newUsageError("usage: fjgo issue deadline " + action + " [owner/repo] <number> [date] --yes")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError("issue deadline " + action + " requires --yes")
 	}
 	var due any
@@ -345,7 +345,7 @@ func runIssueTimeAdd(ctx context.Context, client *forgejo.Client, cfg runConfig,
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	body := map[string]any{}
 	var secondsRaw string
@@ -373,7 +373,7 @@ func runIssueTimeAdd(ctx context.Context, client *forgejo.Client, cfg runConfig,
 	if err != nil || len(rest) != 1 {
 		return newUsageError("usage: fjgo issue time add [owner/repo] <number> --seconds <n> --yes")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError("issue time add requires --yes")
 	}
 	if dryRun {
@@ -403,13 +403,13 @@ func runIssueTimeDeleteLike(ctx context.Context, client *forgejo.Client, cfg run
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	ref, rest, err := repoFromArgs(cfg, args)
 	if err != nil || (!needsID && len(rest) != 1) || (needsID && len(rest) != 2) {
 		return newUsageError("usage: fjgo " + command + " [owner/repo] <number> [time-id] --yes")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError(command + " requires --yes")
 	}
 	extra := map[string]string{"index": rest[0]}
@@ -434,7 +434,7 @@ func runIssueTimeDeleteLike(ctx context.Context, client *forgejo.Client, cfg run
 }
 
 func runPRReviews(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "pr reviews", newFlagSet([]string{"--json", "--limit", "--page"}, []string{"--limit", "--page"})); err != nil {
+	if err := rejectUnknownFlags(args, "pr reviews", prReviewsFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -517,11 +517,11 @@ func runPRReviewRequests(ctx context.Context, client *forgejo.Client, cfg runCon
 		operation = "repoDeletePullReviewRequests"
 	}
 	command := "pr review-requests " + action
-	if err := rejectUnknownFlags(args, command, newFlagSet([]string{"--reviewer", "--team", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--reviewer", "--team"})); err != nil {
+	if err := rejectUnknownFlags(args, command, prReviewRequestFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	args, reviewers, err := takeAllValueFlags(args, "--reviewer")
 	if err != nil {
@@ -538,7 +538,7 @@ func runPRReviewRequests(ctx context.Context, client *forgejo.Client, cfg runCon
 	if len(reviewers) == 0 && len(teams) == 0 {
 		return newUsageError(command + " requires --reviewer or --team")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError(command + " requires --yes")
 	}
 	body := map[string]any{"reviewers": flattenCSV(reviewers), "team_reviewers": flattenCSV(teams)}
@@ -560,11 +560,11 @@ func runPRReviewRequests(ctx context.Context, client *forgejo.Client, cfg runCon
 }
 
 func runPRReviewComment(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "pr review-comment", newFlagSet([]string{"--body", "--body-file", "-body", "--path", "--new-line", "--old-line", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--body", "--body-file", "-body", "--path", "--new-line", "--old-line"})); err != nil {
+	if err := rejectUnknownFlags(args, "pr review-comment", prReviewCommentFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	args, bodyText, _, err := takeBodyText(args, true)
 	if err != nil {
@@ -590,7 +590,7 @@ func runPRReviewComment(ctx context.Context, client *forgejo.Client, cfg runConf
 	if body["path"] == nil || (body["new_position"] == nil && body["old_position"] == nil) {
 		return newUsageError("pr review-comment requires --path and --new-line or --old-line")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError("pr review-comment requires --yes")
 	}
 	extra := map[string]string{"index": rest[0], "id": rest[1]}
@@ -609,11 +609,11 @@ func runPRReviewComment(ctx context.Context, client *forgejo.Client, cfg runConf
 }
 
 func runPRUpdate(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "pr update", newFlagSet([]string{"--style", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--style"})); err != nil {
+	if err := rejectUnknownFlags(args, "pr update", prUpdateFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	style := ""
 	var err error
@@ -625,7 +625,7 @@ func runPRUpdate(ctx context.Context, client *forgejo.Client, cfg runConfig, arg
 	if err != nil || len(rest) != 1 {
 		return newUsageError("usage: fjgo pr update [owner/repo] <number> [--style merge|rebase] --yes")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError("pr update requires --yes")
 	}
 	query := url.Values{}
@@ -634,7 +634,7 @@ func runPRUpdate(ctx context.Context, client *forgejo.Client, cfg runConfig, arg
 	}
 	if dryRun {
 		op, _ := forgejo.OperationByID("repoUpdatePullRequest")
-		return writeRequestPreview(stdout, requestPreview{Operation: op.ID, Method: op.Method, Path: previewPath(op, repoPathWith(ref, map[string]string{"index": rest[0]})), Query: query, AuthPresent: clientHasAuth(client), RequiresYes: true, YesProvided: yes})
+		return writeRequestPreview(stdout, requestPreview{Operation: op.ID, Method: op.Method, Path: previewPath(op, repoPathWith(ref, map[string]string{"index": rest[0]})), Query: query, AuthPresent: clientHasAuth(client), RequiresYes: true, YesProvided: yes.command != ""})
 	}
 	resp, err := rawOperationResponse(ctx, client, "repoUpdatePullRequest", repoPathWith(ref, map[string]string{"index": rest[0]}), query, nil)
 	if err != nil {
@@ -650,7 +650,7 @@ func runPRUpdate(ctx context.Context, client *forgejo.Client, cfg runConfig, arg
 }
 
 func runPRDiffPatch(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer, diffType string) error {
-	if err := rejectUnknownFlags(args, "pr "+diffType, newFlagSet([]string{"--binary", "--full", "--json"}, nil)); err != nil {
+	if err := rejectUnknownFlags(args, "pr "+diffType, prDiffFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)

@@ -21,32 +21,12 @@ examples:
 	  fjgo -R origin secret delete DEPLOY_TOKEN --yes`
 }
 
-func secretCommandHelps() map[string]commandHelpSpec {
-	return map[string]commandHelpSpec{
-		"list":   {Usage: "fjgo secret list [owner/repo] [flags]", Flags: []string{"--limit <n> (default 100), --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin secret list", "fjgo secret list OWNER/REPO --fields name,created"}},
-		"set":    {Usage: "fjgo secret set [owner/repo] <name> --yes", Flags: []string{"secret value is read from stdin", "--dry-run, --print-request, --json"}, Examples: []string{"printf secret | fjgo -R origin secret set DEPLOY_TOKEN --dry-run --yes", "printf secret | fjgo secret set OWNER/REPO DEPLOY_TOKEN --yes"}},
-		"delete": {Usage: "fjgo secret delete [owner/repo] <name> --yes", Flags: []string{"--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin secret delete DEPLOY_TOKEN --dry-run --yes", "fjgo secret delete OWNER/REPO DEPLOY_TOKEN --yes"}},
-	}
-}
-
 func runSecret(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if help, ok := subcommandHelp(args, secretHelp(), secretCommandHelps()); ok {
-		return writeHelp(stdout, help)
-	}
-	switch args[0] {
-	case "list":
-		return runSecretList(ctx, client, cfg, args[1:], stdout)
-	case "set":
-		return runSecretSet(ctx, client, cfg, args[1:], stdout)
-	case "delete":
-		return runSecretDelete(ctx, client, cfg, args[1:], stdout)
-	default:
-		return unknownSubcommandError(namedGroup("secret", "list", "set", "delete"), args[0])
-	}
+	return dispatchGroup(secretGroup(), ctx, client, cfg, args, stdout)
 }
 
 func runSecretList(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "secret list", newFlagSet([]string{"--json", "--fields", "--limit", "--page"}, []string{"--fields", "--limit", "--page"})); err != nil {
+	if err := rejectUnknownFlags(args, "secret list", pageListFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -101,17 +81,17 @@ func runSecretList(ctx context.Context, client *forgejo.Client, cfg runConfig, a
 }
 
 func runSecretSet(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "secret set", newFlagSet([]string{"--yes", "--dry-run", "--print-request", "--json"}, nil)); err != nil {
+	if err := rejectUnknownFlags(args, "secret set", issueMutationFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	ref, rest, err := repoFromArgs(cfg, args)
 	if err != nil || len(rest) != 1 {
 		return newUsageError("usage: fjgo secret set [owner/repo] <name> --yes", "Pipe the secret value on stdin")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError("secret set requires --yes")
 	}
 	value, err := readPipedValue("secret", "", false)
@@ -132,17 +112,17 @@ func runSecretSet(ctx context.Context, client *forgejo.Client, cfg runConfig, ar
 }
 
 func runSecretDelete(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "secret delete", newFlagSet([]string{"--yes", "--dry-run", "--print-request", "--json"}, nil)); err != nil {
+	if err := rejectUnknownFlags(args, "secret delete", issueMutationFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	ref, rest, err := repoFromArgs(cfg, args)
 	if err != nil || len(rest) != 1 {
 		return newUsageError("usage: fjgo secret delete [owner/repo] <name> --yes")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError("secret delete requires --yes")
 	}
 	if dryRun {
@@ -168,35 +148,12 @@ examples:
 	  fjgo -R origin variable delete BUILD_MODE --yes`
 }
 
-func variableCommandHelps() map[string]commandHelpSpec {
-	return map[string]commandHelpSpec{
-		"list":   {Usage: "fjgo variable list [owner/repo] [flags]", Flags: []string{"--limit <n> (default 100), --page <n>", "--fields <a,b,c>, --json"}, Examples: []string{"fjgo -R origin variable list", "fjgo variable list OWNER/REPO --fields name,value"}},
-		"get":    {Usage: "fjgo variable get [owner/repo] <name> [--json]", Examples: []string{"fjgo -R origin variable get BUILD_MODE", "fjgo variable get OWNER/REPO BUILD_MODE --json"}},
-		"set":    {Usage: "fjgo variable set [owner/repo] <name> [--body <value>] --yes", Flags: []string{"--body <value>; otherwise value is read from stdin", "--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin variable set BUILD_MODE --body release --dry-run --yes", "printf release | fjgo variable set OWNER/REPO BUILD_MODE --yes"}},
-		"delete": {Usage: "fjgo variable delete [owner/repo] <name> --yes", Flags: []string{"--dry-run, --print-request, --json"}, Examples: []string{"fjgo -R origin variable delete BUILD_MODE --dry-run --yes", "fjgo variable delete OWNER/REPO BUILD_MODE --yes"}},
-	}
-}
-
 func runVariable(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if help, ok := subcommandHelp(args, variableHelp(), variableCommandHelps()); ok {
-		return writeHelp(stdout, help)
-	}
-	switch args[0] {
-	case "list":
-		return runVariableList(ctx, client, cfg, args[1:], stdout)
-	case "get":
-		return runVariableGet(ctx, client, cfg, args[1:], stdout)
-	case "set":
-		return runVariableSet(ctx, client, cfg, args[1:], stdout)
-	case "delete":
-		return runVariableDelete(ctx, client, cfg, args[1:], stdout)
-	default:
-		return unknownSubcommandError(namedGroup("variable", "list", "get", "set", "delete"), args[0])
-	}
+	return dispatchGroup(variableGroup(), ctx, client, cfg, args, stdout)
 }
 
 func runVariableList(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "variable list", newFlagSet([]string{"--json", "--fields", "--limit", "--page"}, []string{"--fields", "--limit", "--page"})); err != nil {
+	if err := rejectUnknownFlags(args, "variable list", pageListFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -250,7 +207,7 @@ func runVariableList(ctx context.Context, client *forgejo.Client, cfg runConfig,
 }
 
 func runVariableGet(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "variable get", newFlagSet([]string{"--json"}, nil)); err != nil {
+	if err := rejectUnknownFlags(args, "variable get", jsonOnlyFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
@@ -269,11 +226,11 @@ func runVariableGet(ctx context.Context, client *forgejo.Client, cfg runConfig, 
 }
 
 func runVariableSet(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "variable set", newFlagSet([]string{"--body", "-body", "--yes", "--dry-run", "--print-request", "--json"}, []string{"--body", "-body"})); err != nil {
+	if err := rejectUnknownFlags(args, "variable set", variableSetFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	var flagValue string
 	var bodySet bool
@@ -292,7 +249,7 @@ func runVariableSet(ctx context.Context, client *forgejo.Client, cfg runConfig, 
 	if err != nil || len(rest) != 1 {
 		return newUsageError("usage: fjgo variable set [owner/repo] <name> --body <value> --yes")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError("variable set requires --yes")
 	}
 	value, err := readPipedValue("variable", flagValue, bodySet)
@@ -313,17 +270,17 @@ func runVariableSet(ctx context.Context, client *forgejo.Client, cfg runConfig, 
 }
 
 func runVariableDelete(ctx context.Context, client *forgejo.Client, cfg runConfig, args []string, stdout io.Writer) error {
-	if err := rejectUnknownFlags(args, "variable delete", newFlagSet([]string{"--yes", "--dry-run", "--print-request", "--json"}, nil)); err != nil {
+	if err := rejectUnknownFlags(args, "variable delete", issueMutationFlags); err != nil {
 		return err
 	}
 	args, jsonOut := takeJSONFlag(args)
-	args, yes := takeYesFlag(args)
+	args, yes, _ := takeCuratedYes(args, mutationNone)
 	args, dryRun := takeDryRunFlag(args)
 	ref, rest, err := repoFromArgs(cfg, args)
 	if err != nil || len(rest) != 1 {
 		return newUsageError("usage: fjgo variable delete [owner/repo] <name> --yes")
 	}
-	if !yes {
+	if yes.command == "" {
 		return newUsageError("variable delete requires --yes")
 	}
 	if dryRun {
