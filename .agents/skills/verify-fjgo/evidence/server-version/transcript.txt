@@ -1,0 +1,24 @@
+env -u FJGO_TOKEN -u FJGO_USERNAME -u FJGO_PASSWORD -u FJGO_OTP -u FJGO_SUDO -u
+FJGO_REPO FJGO_HOST=v15.next.forgejo.org ./fjgo version > .agents/skills/verify-
+fjgo/evidence/server-version/stdout.txt 2> .agents/skills/verify-fjgo/evidence/s
+erver-version/stderr.txt; printf "%s\n" "$?" > .agents/skills/verify-fjgo/eviden
+ce/server-version/exit.txt
+astrazds@srv1:~/docker/fjgo$ env -u FJGO_TOKEN -u FJGO_USERNAME -u FJGO_PASSWORD
+ -u FJGO_OTP -u FJGO_SUDO -u FJGO_REPO FJGO_HOST=v15.next.forgejo.org ./fjgo ver
+sion > .agents/skills/verify-fjgo/evidence/server-version/stdout.txt 2> .agents/
+skills/verify-fjgo/evidence/server-version/stderr.txt; printf "%s\n" "$?" > .age
+nts/skills/verify-fjgo/evidence/server-version/exit.txt
+astrazds@srv1:~/docker/fjgo$
+
+
+
+
+
+
+
+
+
+
+
+
+

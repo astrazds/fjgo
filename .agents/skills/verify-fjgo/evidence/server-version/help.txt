@@ -1,0 +1,6 @@
+usage: fjgo version
+Show the Forgejo server version.
+
+examples:
+  fjgo version
+  fjgo --host forgejo.example.com version
