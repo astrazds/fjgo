@@ -2,6 +2,14 @@
 
 Guidance for agents working in this repository.
 
+## Rules these checks enforce
+
+| Rule | What enforces it |
+| --- | --- |
+| A pull request body does not contain the footer comment `<!-- CURSOR_AGENT_PR_BODY`. Remove the footer. | `node scripts/check-pr-body.mjs` on pull requests, with `PR_BODY` set |
+| A commit in the pull request does not contain a `Co-authored-by` trailer for `cursoragent@cursor.com`. Commit as Andrejs Strazds and remove the trailer. | `node scripts/check-pr-body.mjs` on pull requests, with `BASE_SHA` set to the base commit |
+| A commit in the pull request does not contain `Co-authored-by: Andrejs Strazds <astrazds@users.noreply.github.com>`. Commit as Andrejs Strazds `<35437548+astrazds@users.noreply.github.com>`. | `node scripts/check-pr-body.mjs` on pull requests, with `BASE_SHA` set to the base commit |
+
 ## Project Shape
 
 `fjgo` is a small Go AXI-style CLI, optional agent session hook, installable
