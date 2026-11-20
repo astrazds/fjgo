@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 export const footerMarker = "<!-- CURSOR_AGENT_PR_BODY";
+export const fabricatedNoreply = "Co-authored-by: Andrejs Strazds <astrazds@users.noreply.github.com>";
 const cursorTrailerLine = /^Co-authored-by:.*<cursoragent@cursor\.com>\s*$/m;
 
 export function bodyViolations(body) {
@@ -16,6 +17,11 @@ export function commitMessageViolations(message, commit = "HEAD") {
   if (cursor) {
     violations.push(
       `${commit} contains "${cursor[0].trim()}". Commit as Andrejs Strazds and remove the Cursor agent trailer.`,
+    );
+  }
+  if (message.includes(fabricatedNoreply)) {
+    violations.push(
+      `${commit} contains "${fabricatedNoreply}". Commit as Andrejs Strazds <35437548+astrazds@users.noreply.github.com> and remove this trailer.`,
     );
   }
   return violations;
