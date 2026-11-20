@@ -23,7 +23,7 @@ Follow [CONTRIBUTING.md](../../../CONTRIBUTING.md) for checkout, verification, a
 - A critical security fix gets its own pull request immediately.
 - If an open pull request already exists for that category, add to it.
 - Open pull requests ready for review. Never open a draft.
-- Author commits and pull requests as Andrejs. No bot signature. No agent footer. `scripts/check-pr-body.mjs` rejects that footer.
+- Author commits and pull requests as Andrejs. No bot signature. No agent footer. `scripts/check-pr-body.mjs` rejects the footer and a Cursor co-author trailer.
 - Never merge your own pull request.
 
 ## Safety

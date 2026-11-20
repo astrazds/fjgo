@@ -22,7 +22,8 @@ jobs:
         with:
           node-version: "24.x"
       - run: node --test scripts/check-pr-body.test.mjs
-      - name: Reject an agent footer
+      - name: Reject an agent footer and a Cursor commit trailer
         env:
           PR_BODY: ${{ github.event.pull_request.body || '' }}
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: node scripts/check-pr-body.mjs
