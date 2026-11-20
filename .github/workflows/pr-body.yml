@@ -1,0 +1,28 @@
+name: Pull request signature
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  signature:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24.x"
+      - run: node --test scripts/check-pr-body.test.mjs
+      - name: Reject an agent footer
+        env:
+          PR_BODY: ${{ github.event.pull_request.body || '' }}
+        run: node scripts/check-pr-body.mjs
